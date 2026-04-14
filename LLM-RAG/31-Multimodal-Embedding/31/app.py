@@ -1,7 +1,7 @@
 import os
 import io
 import base64
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import streamlit as st
 from PIL import Image
@@ -14,7 +14,7 @@ from langchain_community.vectorstores import FAISS
 
 
 # =========================
-# Data (edit as needed)
+# Data
 # =========================
 PRODUCT_DATABASE = [
     "Light blue shirt, cotton fabric, suitable for summer wear, sizes from S to XL",
@@ -26,90 +26,122 @@ PRODUCT_DATABASE = [
 
 
 # =========================
-# Helpers
+# Config
 # =========================
-def load_config() -> str:
-    """Load environment variables and return OpenAI API key."""
+
+def get_openai_api_key() -> str:
+    """Load OpenAI API key from environment."""
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set. Put it in .env and restart Streamlit.")
+        raise ValueError("OPENAI_API_KEY is missing. Add it to your .env file.")
     return api_key
 
 
-def pil_to_jpeg_bytes(image: Image.Image) -> bytes:
-    """Convert a PIL image to JPEG bytes (handles RGBA)."""
-    if image.mode == "RGBA":
+# =========================
+# Image Processing
+# =========================
+
+def pil_to_bytes(image: Image.Image) -> bytes:
+    """Convert PIL image to JPEG bytes."""
+    if image.mode in ("RGBA", "P"):
         image = image.convert("RGB")
-    buf = io.BytesIO()
-    image.save(buf, format="JPEG", quality=95)
-    return buf.getvalue()
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=95)
+    return buffer.getvalue()
 
 
-def image_to_text(client: OpenAI, image_bytes: bytes, vision_model: str = "gpt-4o-mini") -> str:
-    """Use OpenAI vision to generate a structured product description from an image."""
+# =========================
+# Vision → Text
+# =========================
+
+def generate_image_description(
+    client: OpenAI,
+    image_bytes: bytes,
+    model: str = "gpt-4o-mini",
+) -> str:
+    """Convert image → structured product description."""
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    resp = client.chat.completions.create(
-        model=vision_model,
+    prompt = (
+        "You are an e-commerce product tagger.\n"
+        "Describe the product concisely for retrieval.\n"
+        "Return 5–10 bullet points covering:\n"
+        "- category\n"
+        "- color\n"
+        "- material\n"
+        "- features\n"
+        "- use cases\n"
+        "Avoid brand names unless visible."
+    )
+
+    response = client.chat.completions.create(
+        model=model,
         messages=[
             {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
                     {
-                        "type": "text",
-                        "text": (
-                            "You are an e-commerce product tagger.\n"
-                            "Describe the product concisely for retrieval.\n"
-                            "Return 5-10 bullet points covering:\n"
-                            "- category/type\n"
-                            "- color(s)\n"
-                            "- material(s)\n"
-                            "- key features\n"
-                            "- typical use cases\n"
-                            "Avoid brand names unless visible."
-                        ),
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
                     },
+                    {"type": "text", "text": prompt},
                 ],
             }
         ],
     )
-    return resp.choices[0].message.content.strip()
 
+    return response.choices[0].message.content.strip()
+
+
+# =========================
+# Vector Store
+# =========================
 
 @st.cache_resource
-def setup_vector_store(openai_api_key: str, embedding_model: str = "text-embedding-3-large") -> FAISS:
-    """Build and cache a FAISS vector store over the product database."""
-    docs = [Document(page_content=text, metadata={"product_id": i}) for i, text in enumerate(PRODUCT_DATABASE)]
-    embeddings = OpenAIEmbeddings(model=embedding_model, openai_api_key=openai_api_key)
+def build_vector_store(api_key: str, model: str) -> FAISS:
+    """Create FAISS vector index."""
+    docs = [
+        Document(page_content=text, metadata={"id": i})
+        for i, text in enumerate(PRODUCT_DATABASE)
+    ]
+
+    embeddings = OpenAIEmbeddings(model=model, openai_api_key=api_key)
     return FAISS.from_documents(docs, embeddings)
 
 
-def search_similar_products(
-    query_text: str,
-    vectorstore: FAISS,
-    top_k: int = 3
-) -> List[Tuple[str, float]]:
-    """
-    Retrieve similar products with scores.
+# =========================
+# Retrieval
+# =========================
 
-    Note: FAISS returns a distance score (lower usually means more similar).
-    """
-    results = vectorstore.similarity_search_with_score(query_text, k=top_k)
+def retrieve_products(
+    query: str,
+    vectorstore: FAISS,
+    top_k: int,
+) -> List[Tuple[str, float]]:
+    """Retrieve top-k similar products."""
+    results = vectorstore.similarity_search_with_score(query, k=top_k)
     return [(doc.page_content, score) for doc, score in results]
 
 
-# =========================
-# Streamlit App
-# =========================
-def main():
-    st.set_page_config(page_title="Product Retrieval", layout="centered")
-    st.title("Product Image Retrieval (OpenAI + LangChain + FAISS)")
+def display_product_database() -> None:
+    """Display the built-in product database."""
+    with st.expander("Product database"):
+        for i, text in enumerate(PRODUCT_DATABASE, 1):
+            st.write(f"{i}. {text}")
 
-    # --- Config ---
+
+# =========================
+# UI
+# =========================
+
+def main() -> None:
+    st.set_page_config(page_title="Product Retrieval", layout="centered")
+    st.title("🛍️ Multimodal Product Retrieval")
+
     try:
-        api_key = load_config()
+        api_key = get_openai_api_key()
     except Exception as e:
         st.error(str(e))
         st.stop()
@@ -117,72 +149,60 @@ def main():
     client = OpenAI(api_key=api_key)
 
     st.sidebar.header("Settings")
-    top_k = st.sidebar.slider("Top-K results", min_value=1, max_value=10, value=3, step=1)
-    vision_model = st.sidebar.selectbox("Vision model", ["gpt-4o-mini", "gpt-4o"], index=0)
-    embedding_model = st.sidebar.selectbox("Embedding model", ["text-embedding-3-large", "text-embedding-3-small"], index=0)
+    top_k = st.sidebar.slider("Top-K", 1, 10, 3)
+    vision_model = st.sidebar.selectbox("Vision Model", ["gpt-4o-mini", "gpt-4o"])
+    embedding_model = st.sidebar.selectbox(
+        "Embedding Model",
+        ["text-embedding-3-large", "text-embedding-3-small"],
+    )
 
-    # Build vector store once (cached)
-    vectorstore = setup_vector_store(api_key, embedding_model=embedding_model)
+    vectorstore = build_vector_store(api_key, embedding_model)
 
-    st.write("### Option A: Upload an image")
-    uploaded_file = st.file_uploader("Choose a product image", type=["jpg", "jpeg", "png"])
+    uploaded_file = st.file_uploader("Upload product image", type=["jpg", "jpeg", "png"])
+    text_query = st.text_input("Or enter a text query")
+    search_clicked = st.button("🔍 Search")
 
-    st.write("### Option B: Or type a text query")
-    text_query = st.text_input("Example: 'blue high-waist jeans, slim fit'")
-
-    # --- Run retrieval ---
-    if uploaded_file is None and not text_query.strip():
-        st.info("Upload an image or enter a text query to search.")
-        with st.expander("View Product Database"):
-            for i, p in enumerate(PRODUCT_DATABASE, start=1):
-                st.write(f"{i}. {p}")
+    if not uploaded_file and not text_query:
+        st.info("Upload an image OR type a query.")
+        display_product_database()
         return
 
-    query_for_retrieval = None
+    query: Optional[str] = text_query.strip() if text_query else None
 
-    if uploaded_file is not None:
+    if search_clicked and uploaded_file:
         image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded image", width=320)
-        image_bytes = pil_to_jpeg_bytes(image)
+        st.image(image, width=300)
 
-        if st.button("Analyze image and search"):
-            try:
-                with st.spinner("Generating image description..."):
-                    desc = image_to_text(client, image_bytes, vision_model=vision_model)
+        with st.spinner("Analyzing image..."):
+            description = generate_image_description(
+                client,
+                pil_to_bytes(image),
+                model=vision_model,
+            )
 
-                st.subheader("Image Description")
-                st.write(desc)
+        st.subheader("Generated Description")
+        st.write(description)
 
-                query_for_retrieval = desc
+        if query:
+            query = f"{description}\n\nUser query: {query}"
+        else:
+            query = description
 
-            except Exception as e:
-                st.error("Vision step failed:")
-                st.exception(e)
-                st.stop()
+    if search_clicked and query:
+        with st.spinner("Retrieving products..."):
+            results = retrieve_products(query, vectorstore, top_k)
 
-    # If text query provided, it can run immediately (or override if no image-run)
-    if text_query.strip():
-        query_for_retrieval = text_query.strip()
+        st.subheader("Results")
+        st.markdown(f"**Search query:** {query}")
+        st.caption(f"Returned {len(results)} products.")
 
-    if query_for_retrieval:
-        try:
-            with st.spinner("Searching similar products..."):
-                results = search_similar_products(query_for_retrieval, vectorstore, top_k=top_k)
+        for i, (text, score) in enumerate(results, 1):
+            st.markdown(f"**{i}.** {text}")
+            st.caption(f"Distance: {score:.4f}")
 
-            st.subheader("Retrieval Results")
-            if not results:
-                st.write("No similar products found.")
-            else:
-                for i, (text, score) in enumerate(results, start=1):
-                    st.write(f"{i}. **Distance:** {score:.4f} — {text}")
-
-            with st.expander("View Product Database"):
-                for i, p in enumerate(PRODUCT_DATABASE, start=1):
-                    st.write(f"{i}. {p}")
-
-        except Exception as e:
-            st.error("Retrieval step failed:")
-            st.exception(e)
+    if not search_clicked:
+        st.info("Press Search to start retrieval.")
+        display_product_database()
 
 
 if __name__ == "__main__":
