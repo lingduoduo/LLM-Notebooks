@@ -1,0 +1,27 @@
+# LMCache Configuration
+# Copy this to config.json and modify as needed
+
+{
+  "l2_cache": {
+    "root_dir": "./l2_cache",
+    "max_size_mb": 1024,
+    "compression_level": 6,
+    "ttl_seconds": 86400
+  },
+  "l3_cache": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "prefix": "lmcache:",
+    "ttl_seconds": 3600,
+    "max_connections": 10,
+    "compression_level": 6
+  },
+  "cache_manager": {
+    "enable_promotion": true
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(levelname)s - %(message)s"
+  }
+}
