@@ -145,7 +145,7 @@ print(f"L3 healthy: {stats['l3_healthy']}")
 
 ## Configuration
 
-LMCache supports configuration via JSON files for production deployments. Use the provided `config_template.json` as a starting point:
+LMCache supports configuration via JSON files for production deployments. Use `config.example.json` for the full documented shape, or `config_template.json` for a minimal runnable template:
 
 ```json
 {
@@ -406,7 +406,7 @@ LMCache includes comprehensive test suites to validate functionality:
 ```bash
 python test_cache.py
 ```
-Tests L2 cache operations, L3 cache operations, cache manager integration, distributed locking for stampede prevention, timeout fallback behavior, configuration loading, and system monitoring.
+Tests L2 cache operations, L3 cache operations, cache manager integration, distributed locking for stampede prevention, timeout fallback behavior, configuration loading, cleanup helpers, and system monitoring.
 
 ### Test Results
 ```
@@ -453,7 +453,8 @@ The test suite validates:
 - `cleanup_cache.py` - Automated cache cleanup script
 - `cleanup_cache.sh` - Shell wrapper for cleanup with nice/ionice
 - `setup_redis.sh` - Redis Docker setup script
-- `config.example.json` - Configuration template
+- `config.example.json` - Full configuration example with maintenance and monitoring settings
+- `config_template.json` - Minimal runnable configuration template
 - `requirements.txt` - Python dependencies
 - `README.md` - This documentation
 - `38.ipynb` - Jupyter notebook with LMCache concepts and examples
