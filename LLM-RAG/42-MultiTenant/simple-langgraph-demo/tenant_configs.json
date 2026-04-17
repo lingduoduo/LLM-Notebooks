@@ -1,0 +1,44 @@
+{
+  "company-a": {
+    "display_name": "Company A",
+    "allowed_users": ["alice", "bob"],
+    "token": "token-company-a",
+    "model": "fallback",
+    "rate_limit_per_minute": 30,
+    "workflow_name": "customer-support",
+    "dify_app_id": "dify-company-a",
+    "issuer": "multitenant-demo",
+    "audience": "multitenant-api",
+    "retention_days": 30,
+    "compliance_tags": ["GDPR", "SOX"],
+    "user_roles": {"alice": "admin", "bob": "viewer"}
+  },
+  "company-b": {
+    "display_name": "Company B",
+    "allowed_users": ["charlie", "diana"],
+    "token": "token-company-b",
+    "model": "fallback",
+    "rate_limit_per_minute": 20,
+    "workflow_name": "customer-support",
+    "dify_app_id": "dify-company-b",
+    "issuer": "multitenant-demo",
+    "audience": "multitenant-api",
+    "retention_days": 60,
+    "compliance_tags": ["GDPR", "HIPAA"],
+    "user_roles": {"charlie": "editor", "diana": "viewer"}
+  },
+  "enterprise-x": {
+    "display_name": "Enterprise X",
+    "allowed_users": ["manager1", "manager2"],
+    "token": "token-enterprise-x",
+    "model": "fallback",
+    "rate_limit_per_minute": 60,
+    "workflow_name": "premium-support",
+    "dify_app_id": "dify-enterprise-x",
+    "issuer": "multitenant-demo",
+    "audience": "multitenant-api",
+    "retention_days": 90,
+    "compliance_tags": ["GDPR", "SOX", "HIPAA"],
+    "user_roles": {"manager1": "admin", "manager2": "editor"}
+  }
+}

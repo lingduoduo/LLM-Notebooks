@@ -1,0 +1,10 @@
+.runtime/
+security/*.pem
+security/*.key
+security/jwt_kid.txt
+audit/
+sessions.json
+session_map.json
+__pycache__/
+backend/__pycache__/
+tests/__pycache__/

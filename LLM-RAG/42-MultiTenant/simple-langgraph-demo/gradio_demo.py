@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Gradio-based Multi-Tenant LangGraph Customer Support Demo
-
-Core features:
-1. Multi-tenant isolation - data is fully isolated between tenants to ensure security
-2. Context memory - each user's chat history and personal info are persisted
-3. Real-time chat - an AI conversation system built on LangGraph
-4. Session management - consistent session IDs across terminals; supports session recovery
-"""
 
 import gradio as gr
 from typing import List, Tuple, Optional, Dict, Any
 
-# Avoid repeated imports inside loops
-from langchain_core.messages import HumanMessage, AIMessage
-
-# Import the LangGraph multi-tenant system
+from backend.compat import AIMessage, HumanMessage
 from langgraph_demo import (
     MultiTenantCustomerService,
     TenantContext,
@@ -25,8 +12,7 @@ from langgraph_demo import (
     global_storage,
 )
 
-# ✅ Gradio "messages" history format
-ChatHistory = List[Dict[str, Any]]  # each: {"role": "...", "content": "..."}
+ChatHistory = List[Dict[str, Any]]  # {"role": "...", "content": "..."}
 
 
 class GradioMultiTenantDemo:
@@ -44,23 +30,22 @@ class GradioMultiTenantDemo:
         }
         """
 
-        self.available_users = {
-            "company-a_alice": ("company-a", "alice", "Alice (Company A)"),
-            "company-a_bob": ("company-a", "bob", "Bob (Company A)"),
-            "company-b_charlie": ("company-b", "charlie", "Charlie (Company B)"),
-            "company-b_diana": ("company-b", "diana", "Diana (Company B)"),
-            "enterprise-x_manager1": ("enterprise-x", "manager1", "Manager1 (Enterprise X)"),
-            "enterprise-x_manager2": ("enterprise-x", "manager2", "Manager2 (Enterprise X)"),
-        }
+        _users = [
+            ("company-a", "alice", "Alice (Company A)"),
+            ("company-a", "bob", "Bob (Company A)"),
+            ("company-b", "charlie", "Charlie (Company B)"),
+            ("company-b", "diana", "Diana (Company B)"),
+            ("enterprise-x", "manager1", "Manager1 (Enterprise X)"),
+            ("enterprise-x", "manager2", "Manager2 (Enterprise X)"),
+        ]
+        self._user_choices: List[str] = [d for _, _, d in _users]
+        self._display_to_user: Dict[str, Tuple[str, str]] = {d: (t, u) for t, u, d in _users}
 
     def get_user_choices(self) -> List[str]:
-        return [info[2] for info in self.available_users.values()]
+        return self._user_choices
 
     def parse_user_selection(self, user_display: str) -> Tuple[str, str]:
-        for _, (tenant_id, user_id, display) in self.available_users.items():
-            if display == user_display:
-                return tenant_id, user_id
-        return "company-a", "alice"
+        return self._display_to_user.get(user_display, ("company-a", "alice"))
 
     def get_session_info(self, tenant_id: str, user_id: str) -> str:
         session_id = global_session_manager.get_session_id(tenant_id, user_id)
@@ -90,10 +75,7 @@ class GradioMultiTenantDemo:
         user_selection: str,
         history: Optional[ChatHistory],
     ) -> Tuple[ChatHistory, str, str]:
-        """
-        ✅ IMPORTANT: Return Chatbot history in Gradio "messages" format:
-        [{"role":"user","content":...}, {"role":"assistant","content":...}, ...]
-        """
+        """Return Chatbot history in Gradio messages format."""
         if history is None:
             history = []
 
@@ -191,7 +173,6 @@ class GradioMultiTenantDemo:
                         info="Different users have independent chat spaces and memory",
                     )
 
-                    # ✅ no type=...; this Gradio version enforces messages format implicitly
                     chatbot = gr.Chatbot(
                         label="AI Customer Support Chat",
                         height=400,
@@ -226,21 +207,14 @@ class GradioMultiTenantDemo:
 
                     refresh_btn = gr.Button("Refresh status", size="sm")
 
-            def send_message(message, user_sel, history):
-                return self.process_message(message, user_sel, history)
-
-            def update_session_info(user_sel):
-                tenant_id, user_id = self.parse_user_selection(user_sel)
-                return self.get_session_info(tenant_id, user_id)
-
             send_btn.click(
-                send_message,
+                self.process_message,
                 inputs=[msg_input, user_dropdown, chatbot],
                 outputs=[chatbot, msg_input, isolation_status],
             )
 
             msg_input.submit(
-                send_message,
+                self.process_message,
                 inputs=[msg_input, user_dropdown, chatbot],
                 outputs=[chatbot, msg_input, isolation_status],
             )
@@ -263,14 +237,8 @@ class GradioMultiTenantDemo:
                 outputs=[chatbot, session_info, isolation_status],
             )
 
-            user_dropdown.change(
-                update_session_info,
-                inputs=[user_dropdown],
-                outputs=[session_info],
-            )
-
             refresh_btn.click(
-                lambda: self.get_isolation_status(),
+                self.get_isolation_status,
                 outputs=[isolation_status],
             )
 
