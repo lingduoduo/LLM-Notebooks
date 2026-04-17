@@ -1,0 +1,22 @@
+{
+  "cache_manager": {
+    "enable_promotion": true,
+    "enable_monitoring": true
+  },
+  "l2_cache": {
+    "cache_dir": "./lmcache_l2",
+    "max_size_mb": 1024,
+    "compression_level": 6,
+    "ttl_seconds": 86400
+  },
+  "l3_cache": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "password": null,
+    "prefix": "lmcache:",
+    "ttl_seconds": 3600,
+    "compression_level": 6,
+    "max_connections": 10
+  }
+}

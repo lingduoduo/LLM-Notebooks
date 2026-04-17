@@ -8,6 +8,11 @@
     "compression_level": 6,
     "ttl_seconds": 86400
   },
+  "maintenance": {
+    "cleanup_interval_seconds": 300,
+    "cleanup_older_than_hours": 24,
+    "disk_warn_threshold": 0.8
+  },
   "l3_cache": {
     "host": "localhost",
     "port": 6379,
@@ -18,7 +23,14 @@
     "compression_level": 6
   },
   "cache_manager": {
-    "enable_promotion": true
+    "enable_promotion": true,
+    "lock_timeout": 0.5,
+    "fallback_on_timeout": true,
+    "lock_poll_interval": 0.05
+  },
+  "monitoring": {
+    "metrics_url": "http://localhost:8000/metrics",
+    "gpu_command": "nvidia-smi --query-gpu=memory.used,memory.total --format=csv"
   },
   "logging": {
     "level": "INFO",
