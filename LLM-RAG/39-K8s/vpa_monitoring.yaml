@@ -1,0 +1,117 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vpa-recommender-monitor
+  namespace: kube-system
+  labels:
+    app: vpa-recommender
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: vpa-recommender
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vpa-updater-monitor
+  namespace: kube-system
+  labels:
+    app: vpa-updater
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: vpa-updater
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vpa-admission-controller-monitor
+  namespace: kube-system
+  labels:
+    app: vpa-admission-controller
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: vpa-admission-controller
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vpa-alerts
+  namespace: kube-system
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: vpa.rules
+    rules:
+    - alert: VPACPURecommendationDeviation
+      expr: |
+        (
+          kube_pod_container_resource_requests{resource="cpu"}
+          - vpa_recommendation_target{resource="cpu"}
+        ) / vpa_recommendation_target{resource="cpu"} * 100 > 50
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "VPA CPU recommendation deviates from current request"
+        description: "Pod {{ $labels.pod }} CPU requests differ from VPA recommendation by more than 50%"
+
+    - alert: VPAMemoryRecommendationDeviation
+      expr: |
+        (
+          kube_pod_container_resource_requests{resource="memory"}
+          - vpa_recommendation_target{resource="memory"}
+        ) / vpa_recommendation_target{resource="memory"} * 100 > 50
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "VPA memory recommendation deviates from current request"
+        description: "Pod {{ $labels.pod }} memory requests differ from VPA recommendation by more than 50%"
+
+    - alert: VPARecommenderDown
+      expr: up{job="vpa-recommender"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "VPA Recommender is unavailable"
+        description: "VPA Recommender has been down for more than 5 minutes — no new recommendations will be generated"
+
+    - alert: VPAUpdaterDown
+      expr: up{job="vpa-updater"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "VPA Updater is unavailable"
+        description: "VPA Updater has been down for more than 5 minutes — pods will not be evicted to apply new recommendations"
+
+    - alert: VPAAdmissionControllerDown
+      expr: up{job="vpa-admission-controller"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "VPA Admission Controller is unavailable"
+        description: "VPA Admission Controller has been down for more than 5 minutes — new pods will not receive VPA-adjusted resource values"

@@ -1,0 +1,123 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: llm-agent-scaler
+  namespace: default
+  labels:
+    app: llm-agent
+
+spec:
+  scaleTargetRef:
+    name: llm-agent
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  pollingInterval: 15
+  cooldownPeriod: 180
+  idleReplicaCount: 0
+  fallback:
+    failureThreshold: 3
+    replicas: 2
+
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 180
+          policies:
+          - type: Percent
+            value: 25
+            periodSeconds: 60
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+          selectPolicy: Min
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 3
+            periodSeconds: 30
+          selectPolicy: Max
+
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: gpu_utilization_avg
+      threshold: "65"
+      query: |
+        avg(
+          DCGM_FI_DEV_GPU_UTIL{
+            job="dcgm-exporter",
+            kubernetes_pod_name=~"llm-agent-.*"
+          }
+        )
+
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: gpu_memory_utilization_avg
+      threshold: "75"
+      query: |
+        avg(
+          (
+            DCGM_FI_DEV_FB_USED{
+              job="dcgm-exporter",
+              kubernetes_pod_name=~"llm-agent-.*"
+            }
+            /
+            DCGM_FI_DEV_FB_TOTAL{
+              job="dcgm-exporter",
+              kubernetes_pod_name=~"llm-agent-.*"
+            }
+          ) * 100
+        )
+
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: request_queue_length_avg
+      threshold: "5"
+      query: |
+        avg(
+          llm_request_queue_length{
+            job="llm-agent",
+            kubernetes_pod_name=~"llm-agent-.*"
+          }
+        )
+
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: request_duration_p95
+      threshold: "3000"
+      query: |
+        histogram_quantile(
+          0.95,
+          rate(
+            llm_request_duration_seconds_bucket{
+              job="llm-agent",
+              kubernetes_pod_name=~"llm-agent-.*"
+            }[2m]
+          )
+        ) * 1000
+
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: cpu_utilization_avg
+      threshold: "80"
+      query: |
+        avg(
+          rate(
+            container_cpu_usage_seconds_total{
+              namespace="default",
+              pod=~"llm-agent-.*",
+              container="llm-agent"
+            }[2m]
+          ) * 100
+        )

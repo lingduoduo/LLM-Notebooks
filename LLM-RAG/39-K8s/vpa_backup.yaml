@@ -1,0 +1,94 @@
+# Best Practice 1: Environment-specific VPA config (Dev)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: llm-agent-vpa-dev
+  namespace: development
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm-agent
+  updatePolicy:
+    updateMode: "Auto"  # In dev, you can allow automatic updates
+    minReplicas: 1      # Dev can allow a single replica
+  resourcePolicy:
+    containerPolicies:
+    - containerName: llm-agent
+      minAllowed:
+        cpu: 500m
+        memory: 2Gi
+      maxAllowed:
+        cpu: 4000m
+        memory: 16Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: "RequestsAndLimits"  # Dev: resize both requests and limits
+
+---
+# Best Practice 2: Conservative production config (Prod)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: llm-agent-vpa-prod
+  namespace: production
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm-agent
+  updatePolicy:
+    updateMode: "Initial"  # In prod, apply only at pod creation time
+    minReplicas: 2         # Require at least 2 replicas before evicting for resize
+  resourcePolicy:
+    containerPolicies:
+    - containerName: llm-agent
+      minAllowed:
+        cpu: 2000m     # Higher minimums in production
+        memory: 8Gi
+      maxAllowed:
+        cpu: 6000m     # Conservative maximums
+        memory: 24Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: "RequestsOnly"  # Only adjust requests
+
+---
+# Best Practice 3: VPA with a PodDisruptionBudget (PDB)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: llm-agent-pdb
+  namespace: default
+spec:
+  minAvailable: "50%"  # Percentage-based: works correctly at any replica count
+  selector:
+    matchLabels:
+      app: llm-agent
+
+---
+# Best Practice 4: VPA + HPA working together
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: llm-agent-vpa-with-hpa
+  namespace: default
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm-agent
+  updatePolicy:
+    updateMode: "Off"  # Recommended to disable auto-updates when used with HPA
+  resourcePolicy:
+    containerPolicies:
+    - containerName: llm-agent
+      minAllowed:
+        cpu: 2000m
+        memory: 8Gi
+      maxAllowed:
+        cpu: 8000m
+        memory: 32Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: "RequestsOnly"  # HPA reads requests for scaling decisions; don't let VPA change limits
+      # mode: Auto means VPA tracks this container for recommendations even with updateMode: Off
+      mode: Auto
+

@@ -1,0 +1,118 @@
+# EC2NodeClass: shared by both NodePools. Subnets and security groups are auto-discovered
+# via cluster tags, so nodes spread across all available AZs for high availability.
+# Render with: envsubst < vpa_scale_configmap.yaml | kubectl apply -f -
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: gpu-node-class
+spec:
+  role: "KarpenterGPURole-${CLUSTER_NAME}"
+  amiSelectorTerms:
+  - alias: al2023@latest
+  subnetSelectorTerms:
+  - tags:
+      karpenter.sh/discovery: "${CLUSTER_NAME}"
+      tier: "gpu-optimized"
+  securityGroupSelectorTerms:
+  - tags:
+      karpenter.sh/discovery: "${CLUSTER_NAME}"
+  instanceStorePolicy: RAID0  # stripe NVMe SSDs on g4dn — faster model loading
+  tags:
+    Environment: "production"
+    CostCenter: "ml-inference"
+    ManagedBy: "karpenter"
+    AutoScaling: "enabled"
+  userData: |
+    #!/bin/bash
+    # Network tuning for high-throughput LLM inference
+    echo 'net.core.somaxconn = 65535' >> /etc/sysctl.conf
+    sysctl -p
+    # Ensure DCGM is running for GPU metrics (belt-and-suspenders alongside GPU Operator)
+    systemctl enable nvidia-dcgm
+    systemctl start nvidia-dcgm || true
+
+---
+# Primary pool: spot-only, ordered cheapest-first (g4dn.xlarge < g4dn.2xlarge).
+# Karpenter prefers this pool (weight: 100) — saves ~70% vs on-demand.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-nodepool-spot
+spec:
+  weight: 100
+  template:
+    metadata:
+      labels:
+        node-type: gpu
+        capacity-type: spot
+        cost-tier: spot-first
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu-node-class
+      requirements:
+      - key: node.kubernetes.io/instance-type
+        operator: In
+        values: ["g4dn.xlarge", "g4dn.2xlarge"]  # cost-ordered; p3.2xlarge excluded from spot
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: ["spot"]
+      taints:
+      - key: nvidia.com/gpu
+        value: "true"
+        effect: NoSchedule
+      - key: workload-type
+        value: "ml-inference"
+        effect: NoSchedule  # only LLM workloads with explicit toleration can land here
+      expireAfter: 1440h  # force replacement after 60 days to prevent node drift
+  limits:
+    cpu: "160"
+    memory: 640Gi
+    nvidia.com/gpu: "16"  # hard cap: prevents runaway GPU spend
+  disruption:
+    consolidationPolicy: WhenEmpty   # never evict running GPU pods to repack
+    consolidateAfter: 30s            # reclaim idle spot nodes fast — expensive when idle
+
+---
+# Fallback pool: on-demand only, used when spot is unavailable or interrupted.
+# Includes p3.2xlarge for workloads that need higher compute capability.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-nodepool-ondemand
+spec:
+  weight: 10
+  template:
+    metadata:
+      labels:
+        node-type: gpu
+        capacity-type: on-demand
+        cost-tier: on-demand-fallback
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu-node-class
+      requirements:
+      - key: node.kubernetes.io/instance-type
+        operator: In
+        values: ["g4dn.xlarge", "g4dn.2xlarge", "p3.2xlarge"]
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: ["on-demand"]
+      taints:
+      - key: nvidia.com/gpu
+        value: "true"
+        effect: NoSchedule
+      - key: workload-type
+        value: "ml-inference"
+        effect: NoSchedule
+      expireAfter: 1440h  # same 60-day expiry across both pools
+  limits:
+    cpu: "40"
+    memory: 160Gi
+    nvidia.com/gpu: "4"   # tighter cap on on-demand GPU count to control cost
+  disruption:
+    consolidationPolicy: WhenEmpty   # on-demand: never disrupt stable running workloads
+    consolidateAfter: 300s           # slower cleanup to reduce churn

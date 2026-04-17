@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gpu-metrics-config
+  namespace: gpu-operator
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      scrape_timeout: 10s
+
+    rule_files:
+      - "gpu_rules.yml"
+
+    scrape_configs:
+    - job_name: 'dcgm-exporter'
+      kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names:
+          - gpu-operator
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name]
+        action: keep
+        regex: dcgm-exporter
+      - source_labels: [__meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: metrics
+      metrics_path: /metrics
+      scrape_interval: 10s
+      scrape_timeout: 8s
+      # Optimize metric collection
+      metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_FB_USED|DCGM_FI_DEV_FB_TOTAL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE'
+        action: keep
+
+    - job_name: 'gpu-node-exporter'
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_node_label_accelerator]
+        action: keep
+        regex: nvidia.*
+      - source_labels: [__address__]
+        regex: '(.*):10250'
+        target_label: __address__
+        replacement: '${1}:9100'
+      metrics_path: /metrics
+      scrape_interval: 15s
+      scrape_timeout: 10s
+
+  gpu_rules.yml: |
+    groups:
+    - name: gpu.rules
+      rules:
+      - alert: GPUHighUtilization
+        expr: DCGM_FI_DEV_GPU_UTIL > 85  # Increased threshold
+        for: 3m  # Reduced time window
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU utilization is high"
+          description: "GPU {{ $labels.gpu }} on {{ $labels.instance }} has been above 85% for more than 3 minutes"
+
+      - alert: GPUHighMemoryUsage
+        expr: (DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL) * 100 > 90  # Increased threshold
+        for: 2m  # Reduced time window
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU memory usage is high"
+          description: "GPU {{ $labels.gpu }} memory usage on {{ $labels.instance }} is above 90%"
+
+      - alert: GPUTemperatureHigh
+        expr: DCGM_FI_DEV_GPU_TEMP > 85  # Increased threshold
+        for: 2m  # Reduced time window
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU temperature is high"
+          description: "GPU {{ $labels.gpu }} temperature on {{ $labels.instance }} is above 85°C"
+
+      - alert: GPUPowerHigh
+        expr: DCGM_FI_DEV_POWER_USAGE > 300  # Add power monitoring
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU power consumption is high"
+          description: "GPU {{ $labels.gpu }} power usage on {{ $labels.instance }} is above 300W"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-metrics-service
+  namespace: gpu-operator
+  labels:
+    app: gpu-metrics
+spec:
+  selector:
+    app: dcgm-exporter
+  ports:
+  - name: metrics
+    port: 9400
+    targetPort: 9400
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gpu-metrics-monitor
+  namespace: gpu-operator
+  labels:
+    app: gpu-metrics
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: gpu-metrics
+  namespaceSelector:
+    matchNames:
+    - gpu-operator
+  endpoints:
+  - port: metrics
+    interval: 10s
+    path: /metrics
