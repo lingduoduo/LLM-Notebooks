@@ -18,6 +18,7 @@ from typing import Any, TypedDict
 
 from agent_runtime import (
     AgentDecision,
+    ToolRequest,
     decide_next_action,
     discover_tool_catalog,
     execute_tool_request,
@@ -60,10 +61,11 @@ class AgentState(TypedDict):
     task_id: str
     history: list[Any]
     iteration_count: int
-    terminated: bool   # set by plan_node to skip respond_node on max-iterations
+    terminated: bool                  # set by plan_node to skip respond_node on max-iterations
     tools: list[dict[str, Any]]
     decision: AgentDecision | None
     tool_result: dict[str, Any] | None
+    tool_history: list[dict[str, Any]]  # accumulated tool calls; enables multi-step chaining
     final_answer: str | None
 
 
@@ -132,7 +134,11 @@ class MCPLangGraphAgent(BaseAgent):
                 }
 
             t0 = time.perf_counter()
-            decision = decide_next_action(state["user_query"], state["tools"])
+            decision = decide_next_action(
+                state["user_query"],
+                state["tools"],
+                tool_history=state.get("tool_history", []),
+            )
             latency = time.perf_counter() - t0
             tool_name = (
                 decision.tool_request.name if decision.tool_request else "direct_answer"
@@ -202,12 +208,33 @@ class MCPLangGraphAgent(BaseAgent):
                     latency=latency,
                 ),
             )
-            return {"tool_result": result}
+            entry = {
+                "tool": tool_name,
+                "arguments": decision.tool_request.arguments,
+                "result": result,
+            }
+            return {
+                "tool_result": result,
+                "tool_history": state.get("tool_history", []) + [entry],
+            }
 
         def respond_node(state: AgentState) -> dict[str, Any]:
             decision = state["decision"]
             if decision is None:
                 raise ValueError("plan_node must run before respond_node")
+
+            # When the planner's last decision has no tool_request (multi-step termination),
+            # reconstruct the effective decision from the most recent tool_history entry so
+            # format_agent_answer can produce a tool-specific answer.
+            tool_history = state.get("tool_history", [])
+            if decision.tool_request is None and tool_history:
+                last = tool_history[-1]
+                last_name = last.get("tool", "")
+                last_args = last.get("arguments", {})
+                if last_name:
+                    decision = AgentDecision(
+                        tool_request=ToolRequest(name=last_name, arguments=last_args)
+                    )
 
             t0 = time.perf_counter()
             final_answer = format_agent_answer(
@@ -255,7 +282,7 @@ class MCPLangGraphAgent(BaseAgent):
             route_after_plan,
             {"execute": "execute", "respond": "respond", "end": end_sentinel},
         )
-        graph.add_edge("execute", "respond")
+        graph.add_edge("execute", "plan")   # loop back so planner can chain further tool calls
         graph.add_edge("respond", end_sentinel)
 
         logger.info("Graph construction completed")
@@ -289,6 +316,7 @@ def main() -> None:
         "tools": [],
         "decision": None,
         "tool_result": None,
+        "tool_history": [],
         "final_answer": None,
         "terminated": False,
     })

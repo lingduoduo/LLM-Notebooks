@@ -48,50 +48,84 @@ class ToolRegistry:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
         self._tools[tool.name] = tool
-        self._list_tools_cache.cache_clear()
-        logger.info(f"Tool registered: {tool.name}")
+        _list_tools_cached.cache_clear()
+        logger.info("Tool registered: %s", tool.name)
 
     def list_tools(self) -> List[Dict[str, Any]]:
         """Return list of available tools with metadata."""
-        result = self._list_tools_cache()
-        logger.debug(f"Listing {len(result)} tools")
+        result = _list_tools_cached(tuple(self._tools.keys()), self)
+        logger.debug("Listing %s tools", len(result))
         return result
 
     def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
         """Execute a tool with validation."""
         if name not in self._tools:
-            logger.error(f"Tool not found: {name}")
+            logger.error("Tool not found: %s", name)
             raise ValueError(f"Unknown tool: {name}")
-        
+
         tool = self._tools[name]
-        
-        # Validate required parameters if specified
+
         if tool.required_params:
             missing = [p for p in tool.required_params if p not in arguments]
             if missing:
-                logger.error(f"Missing parameters for tool {name}: {missing}")
+                logger.error("Missing parameters for tool %s: %s", name, missing)
                 raise ValueError(f"Missing required parameters: {missing}")
-        
-        logger.info(f"Calling tool: {name} with args: {arguments}")
+        self._validate_arguments(tool, arguments)
+
+        logger.info("Calling tool: %s with args: %s", name, arguments)
         try:
             result = tool.handler(arguments)
-            logger.debug(f"Tool {name} executed successfully")
+            logger.debug("Tool %s executed successfully", name)
             return result
         except Exception as e:
-            logger.error(f"Tool {name} failed: {e}")
+            logger.error("Tool %s failed: %s", name, e)
             raise
 
-    @lru_cache(maxsize=1)
-    def _list_tools_cache(self) -> List[Dict[str, Any]]:
-        """Cache the serialized tool catalog until the registry changes."""
-        return [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.input_schema,
-            }
-            for tool in self._tools.values()
-        ]
+    def _validate_arguments(self, tool: Tool, arguments: Dict[str, Any]) -> None:
+        """Validate arguments against the tool's JSON-schema-like metadata."""
+        schema = tool.input_schema
+        properties = schema.get("properties", {})
+        if not isinstance(properties, dict):
+            return
+
+        allowed = set(properties)
+        unknown = sorted(set(arguments) - allowed)
+        if unknown:
+            raise ValueError(f"Unknown parameters for {tool.name}: {unknown}")
+
+        for name, value in arguments.items():
+            prop_schema = properties.get(name, {})
+            if not isinstance(prop_schema, dict):
+                continue
+
+            expected_type = prop_schema.get("type")
+            if expected_type == "string" and not isinstance(value, str):
+                raise ValueError(f"Parameter '{name}' must be a string")
+            if expected_type == "number" and not isinstance(value, (int, float)):
+                raise ValueError(f"Parameter '{name}' must be numeric")
+
+            enum_values = prop_schema.get("enum")
+            if isinstance(enum_values, list) and value not in enum_values:
+                raise ValueError(f"Parameter '{name}' must be one of {enum_values}")
+
+
+@lru_cache(maxsize=8)
+def _list_tools_cached(
+    _tool_names: tuple[str, ...], reg: "ToolRegistry"
+) -> List[Dict[str, Any]]:
+    """Module-level cache for the serialized tool catalog.
+
+    Keyed on the ordered tuple of registered tool names so it auto-invalidates
+    whenever a tool is added (register() calls cache_clear()).
+    """
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.input_schema,
+        }
+        for tool in reg._tools.values()
+    ]
 
 
 registry = ToolRegistry()
@@ -114,7 +148,7 @@ def weather_handler(args: Dict[str, Any]) -> Dict[str, Any]:
     if unit not in ("celsius", "fahrenheit"):
         raise ValueError(f"Invalid unit: {unit}. Must be 'celsius' or 'fahrenheit'")
     
-    logger.info(f"Weather query: {city} ({unit})")
+    logger.info("Weather query: %s (%s)", city, unit)
     
     # Mock weather data
     temp = 22 if unit == "celsius" else 72
@@ -123,6 +157,7 @@ def weather_handler(args: Dict[str, Any]) -> Dict[str, Any]:
         "temperature": temp,
         "unit": unit,
         "condition": "sunny",
+        "display_hint": "weather",
     }
 
 
@@ -167,7 +202,7 @@ def search_docs_handler(args: Dict[str, Any]) -> Dict[str, Any]:
     if len(query) > _MAX_QUERY_LENGTH:
         raise ValueError(f"query must be {_MAX_QUERY_LENGTH} characters or fewer")
     
-    logger.info(f"Search query: {query}")
+    logger.info("Search query: %s", query)
 
     query_lower = query.lower()
     matched = [doc for doc, normalized in LOWERCASE_DOCS_DATABASE if query_lower in normalized]
@@ -176,6 +211,7 @@ def search_docs_handler(args: Dict[str, Any]) -> Dict[str, Any]:
         "query": query,
         "results": matched,
         "count": len(matched),
+        "display_hint": "search_results",
     }
 
 
@@ -210,12 +246,13 @@ def add_numbers_handler(args: Dict[str, Any]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         raise ValueError("Parameters 'a' and 'b' must be numeric")
     
-    logger.info(f"Add numbers: {a} + {b}")
+    logger.info("Add numbers: %s + %s", a, b)
     
     return {
         "a": a,
         "b": b,
         "result": a + b,
+        "display_hint": "arithmetic",
     }
 
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
-from agent_client import call_tool, discover_tools_cached
+from agent_client import call_tool, choose_tool, discover_tools_cached
 
 logger = logging.getLogger(__name__)
 
@@ -38,22 +38,6 @@ class AgentRunResult:
     decision: AgentDecision
     tool_result: dict[str, Any] | None
     final_answer: str
-
-
-PLANNER_RULES: tuple[tuple[tuple[str, ...], ToolRequest], ...] = (
-    (
-        ("weather", "temperature", "climate", "hot", "cold"),
-        ToolRequest(name="get_weather", arguments={"city": "Boston", "unit": "celsius"}),
-    ),
-    (
-        ("search", "mcp", "document", "find", "look"),
-        ToolRequest(name="search_docs", arguments={"query": "MCP"}),
-    ),
-    (
-        ("add", "sum", "total", "calculate", "math"),
-        ToolRequest(name="add_numbers", arguments={"a": 10, "b": 20}),
-    ),
-)
 
 
 def discover_tool_catalog(force_refresh: bool = False) -> list[dict[str, Any]]:
@@ -112,31 +96,54 @@ def _serialize_tools_for_prompt(tool_signatures: tuple[tuple[str, str, str], ...
 def decide_next_action(
     user_query: str,
     tools: list[dict[str, Any]],
+    tool_history: list[dict[str, Any]] | None = None,
 ) -> AgentDecision:
-    """
-    Make a concrete next-step decision for the current query.
+    """Select the next tool to call, or signal readiness to respond.
 
-    This keeps the example deterministic while exposing the same shape an LLM
-    planner would return.
+    tool_history holds the results of all tool calls made so far in this turn.
+    When it is non-empty the planner returns a no-tool decision so the graph
+    routes to the respond node — enabling multi-step tool chaining: each
+    iteration the planner re-evaluates whether another tool is needed.
+    A real LLM planner would reason over tool_history before deciding; the
+    deterministic version here terminates after the first successful result.
     """
     system_prompt = build_system_prompt(tools)
     logger.info("Planning next action for query: %s", user_query)
     logger.debug("Planner prompt size: %s characters", len(system_prompt))
 
-    query = user_query.lower().strip()
+    if tool_history:
+        logger.info(
+            "Planner: %d tool result(s) accumulated — routing to respond", len(tool_history)
+        )
+        return AgentDecision(tool_request=None, answer=None)
 
-    for keywords, tool_request in PLANNER_RULES:
-        if any(word in query for word in keywords):
-            return AgentDecision(tool_request=tool_request)
+    selected_tool = choose_tool(user_query, tools)
+    if selected_tool:
+        return AgentDecision(
+            tool_request=ToolRequest(
+                name=selected_tool["name"],
+                arguments=selected_tool["arguments"],
+            )
+        )
 
     return AgentDecision(
         tool_request=None,
-        answer="I can answer directly without needing external tools.",
+        answer=(
+            "I do not have a sufficiently reliable tool for this request. "
+            "Please connect an MCP tool that can verify the answer."
+        ),
     )
 
 
-def execute_tool_request(tool_request: ToolRequest) -> dict[str, Any]:
+def execute_tool_request(
+    tool_request: ToolRequest,
+    tools: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Execute a concrete tool request against the MCP server."""
+    if tools is not None:
+        available_tools = {tool.get("name") for tool in tools}
+        if tool_request.name not in available_tools:
+            raise ValueError(f"Tool is not available in discovered MCP catalog: {tool_request.name}")
     return call_tool(tool_request.name, tool_request.arguments)
 
 
@@ -153,22 +160,25 @@ def format_agent_answer(
         return f"Selected tool `{decision.tool_request.name}` but no result was produced."
 
     payload = tool_result.get("result", tool_result)
-    tool_name = decision.tool_request.name
+    # Dispatch on display_hint embedded by the tool; fall back to tool name so
+    # tools that predate the hint system still work (What/How decoupling:
+    # the formatter does not need to know which tool was called).
+    hint = payload.get("display_hint") or decision.tool_request.name
 
-    if tool_name == "search_docs":
+    if hint in ("search_results", "search_docs"):
         results = payload.get("results", [])
         if results:
             return "Search results:\n- " + "\n- ".join(results)
         return f"No documentation matched the query for: {user_query}"
 
-    if tool_name == "get_weather":
+    if hint in ("weather", "get_weather"):
         return (
             f"The weather in {payload.get('city', 'unknown')} is "
             f"{payload.get('temperature', 'N/A')} {payload.get('unit', '')} "
             f"and {payload.get('condition', 'unknown')}."
         )
 
-    if tool_name == "add_numbers":
+    if hint in ("arithmetic", "add_numbers"):
         result = payload.get("result")
         return f"The result is {result}." if result is not None else json.dumps(payload, indent=2)
 
@@ -189,7 +199,7 @@ def run_agent_query(user_query: str) -> AgentRunResult:
     tools = discover_tool_catalog()
     decision = decide_next_action(user_query, tools)
     tool_result = (
-        execute_tool_request(decision.tool_request)
+        execute_tool_request(decision.tool_request, tools)
         if decision.tool_request is not None
         else None
     )

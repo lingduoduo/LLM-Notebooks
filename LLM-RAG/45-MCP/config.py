@@ -29,13 +29,22 @@ def _get_float(name: str, default: float) -> float:
 
 
 # MCP Server settings
+MCP_SERVER_NAME = os.getenv("MCP_SERVER_NAME", "sample-mcp-server")
+MCP_SERVER_DESCRIPTION = os.getenv(
+    "MCP_SERVER_DESCRIPTION",
+    "Example MCP server exposing discoverable tools over a unified protocol.",
+)
 MCP_SERVER_HOST = os.getenv("MCP_SERVER_HOST", "127.0.0.1")
 MCP_SERVER_PORT = _get_int("MCP_SERVER_PORT", 8000)
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", f"http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}")
+MCP_SERVER_TRANSPORTS = ("http_json", "sse")
 
 # API settings
 REQUEST_TIMEOUT = _get_int("REQUEST_TIMEOUT", 10)
 MCP_PROTOCOL_VERSION = os.getenv("MCP_PROTOCOL_VERSION", "1.0")
+MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+MCP_AUTH_HEADER = os.getenv("MCP_AUTH_HEADER", "X-MCP-API-Key")
+SSE_HEARTBEAT_SECONDS = _get_int("SSE_HEARTBEAT_SECONDS", 15)
 
 # Tool calling settings
 TOOL_CALL_MAX_RETRIES = _get_int("TOOL_CALL_MAX_RETRIES", 3)

@@ -13,12 +13,12 @@ import logging
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-
-_logger = logging.getLogger(__name__)
 from enum import Enum
 from queue import Queue
 from threading import Thread
 from typing import Any, Iterator, Optional
+
+_logger = logging.getLogger(__name__)
 
 
 class QueueEvent(str, Enum):
@@ -131,7 +131,6 @@ class BaseAgent(ABC):
     @abstractmethod
     def _build_agent(self) -> Any:
         """Build and return a compiled LangGraph StateGraph."""
-        raise NotImplementedError
 
     # ------------------------------------------------------------------
     # Public interface

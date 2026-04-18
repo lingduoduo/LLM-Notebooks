@@ -16,12 +16,6 @@ logger = logging.getLogger(__name__)
 # Agent Execution
 # -------------------------
 def run_llm_agent(user_query: str) -> None:
-    """
-    Execute the LLM-based agent workflow.
-    
-    Args:
-        user_query: User's input question
-    """
     print("\n" + "=" * 60)
     print("LLM-BASED AGENT")
     print("=" * 60)
