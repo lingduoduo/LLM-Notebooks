@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -37,7 +38,7 @@ class TestConfig(unittest.TestCase):
     def test_config_initialization(self):
         """Test config initialization with defaults."""
         config = get_config()
-        self.assertEqual(config["llm_model"], "gpt-4-mini")
+        self.assertEqual(config["llm_model"], "gpt-4o-mini")
         self.assertEqual(config["approval_timeout_hours"], 24)
         self.assertTrue(len(PRODUCT_DATABASE) > 0)
 
@@ -73,7 +74,7 @@ class TestLogger(unittest.TestCase):
         for file in [self.log_file, self.audit_file]:
             if file.exists():
                 file.unlink()
-        os.rmdir(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_audit_logger_initialization(self):
         """Test audit logger setup."""
@@ -122,7 +123,7 @@ class TestLogger(unittest.TestCase):
 
     def test_setup_logging(self):
         """Test logging setup."""
-        setup_logging(self.log_file)
+        setup_logging(log_file=str(self.log_file))
         logger = get_logger("test")
         logger.info("Test message")
 
@@ -149,7 +150,7 @@ class TestTools(unittest.TestCase):
         self.audit_logger_patch.stop()
         if self.audit_file.exists():
             self.audit_file.unlink()
-        os.rmdir(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_validate_tool_args_valid(self):
         """Test tool argument validation with valid inputs."""
@@ -234,7 +235,7 @@ class TestAgent(unittest.TestCase):
         """Clean up test files."""
         if self.log_file.exists():
             self.log_file.unlink()
-        os.rmdir(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @patch('agent.ChatOpenAI')
     def test_agent_initialization(self, mock_chat_openai):
@@ -317,7 +318,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(decision, "reject")
 
     @patch('builtins.input')
-    @patch('cli.print')
+    @patch('builtins.print')
     def test_display_agent_output(self, mock_print_func, mock_input):
         """Test agent output display."""
         chunk = {
@@ -341,7 +342,7 @@ class TestWebInterface(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test files."""
-        os.rmdir(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_web_app_initialization(self):
         """Test web app setup."""
@@ -393,7 +394,7 @@ class TestIntegration(unittest.TestCase):
         for file in [self.log_file, self.audit_file]:
             if file.exists():
                 file.unlink()
-        os.rmdir(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @patch('agent.ChatOpenAI')
     def test_full_agent_workflow(self, mock_chat_openai):
@@ -460,38 +461,4 @@ class TestIntegration(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    # Create test suite
-    suite = unittest.TestSuite()
-
-    # Add test classes
-    test_classes = [
-        TestConfig,
-        TestLogger,
-        TestTools,
-        TestAgent,
-        TestCLI,
-        TestWebInterface,
-        TestIntegration
-    ]
-
-    for test_class in test_classes:
-        suite.addTest(unittest.TestLoader().loadTestsFromTestCase(test_class))
-
-    # Run tests
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-
-    # Print summary
-    print(f"\nTest Results: {result.testsRun} tests run")
-    print(f"Failures: {len(result.failures)}")
-    print(f"Errors: {len(result.errors)}")
-
-    if result.failures:
-        print("\nFailures:")
-        for test, traceback in result.failures:
-            print(f"  {test}: {traceback}")
-
-    if result.errors:
-        print("\nErrors:")
-        for test, traceback in result.errors:
-            print(f"  {test}: {traceback}")
+    unittest.main(verbosity=2)

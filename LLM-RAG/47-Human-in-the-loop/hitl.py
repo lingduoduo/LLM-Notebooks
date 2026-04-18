@@ -211,8 +211,6 @@ def run_optimized_system():
     print("🚀 Running Optimized HITL System")
     print("=" * 50)
 
-    # Setup logging
-    setup_logging()
     logger.info("Starting optimized HITL system")
 
     # Get configuration
@@ -242,7 +240,7 @@ def run_optimized_system():
                 break
 
             elif command == 'help':
-                cli.print_help()
+                cli.show_help()
 
             elif command == 'chat':
                 message = cli.get_user_input("Enter your message")
@@ -342,12 +340,7 @@ Examples:
 
     args = parser.parse_args()
 
-    # Setup logging
-    if args.verbose:
-        import os
-        os.environ['HITL_LOG_LEVEL'] = 'DEBUG'
-
-    setup_logging()
+    setup_logging(level='DEBUG' if args.verbose else None)
 
     if args.test:
         # Run tests

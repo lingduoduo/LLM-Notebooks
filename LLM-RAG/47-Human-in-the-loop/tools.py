@@ -8,11 +8,22 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from langchain_core.tools import tool
 from langgraph.types import interrupt
+from langgraph.errors import GraphInterrupt
 
 from config import PURCHASE_CURRENCY, get_product_info
 from logger import get_logger, audit_logger
 
 logger = get_logger(__name__)
+
+
+def _validate_purchase_args(item: Any, price: Any, vendor: Any) -> None:
+    """Shared validation for purchase_item arguments."""
+    if not item or not isinstance(item, str):
+        raise ValueError("item must be a non-empty string")
+    if not isinstance(price, (int, float)) or price <= 0:
+        raise ValueError("price must be a positive number")
+    if not vendor or not isinstance(vendor, str):
+        raise ValueError("vendor must be a non-empty string")
 
 
 @tool
@@ -41,15 +52,7 @@ def purchase_item(
     Returns:
         Purchase result message
     """
-    # Input validation
-    if not item or not isinstance(item, str):
-        raise ValueError("item must be a non-empty string")
-    if not isinstance(price, (int, float)) or price <= 0:
-        raise ValueError("price must be a positive number")
-    if not vendor or not isinstance(vendor, str):
-        raise ValueError("vendor must be a non-empty string")
-
-    # Sanitize inputs
+    _validate_purchase_args(item, price, vendor)
     item = item.strip()
     vendor = vendor.strip()
 
@@ -75,13 +78,13 @@ def purchase_item(
         "user_id": user_id
     }
 
-    try:
-        # Trigger human approval interrupt
-        response = interrupt(approval_data)
-        if isinstance(response, str):
-            response = {"type": response}
-        logger.info(f"Received approval response: {response.get('type', 'unknown')}")
+    # Trigger human approval interrupt — raises GraphInterrupt to pause the graph
+    response = interrupt(approval_data)
+    if isinstance(response, str):
+        response = {"type": response}
+    logger.info(f"Received approval response: {response.get('type', 'unknown')}")
 
+    try:
         # Process approval response
         response_type = response.get("type", "").lower()
 
@@ -150,6 +153,8 @@ def purchase_item(
         logger.info(f"Purchase completed: {result}")
         return result
 
+    except GraphInterrupt:
+        raise
     except Exception as e:
         error_msg = f"Purchase failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
@@ -210,8 +215,8 @@ def search_product(query: str) -> list[dict[str, Any]]:
 
 # Tool registry for easy access
 TOOLS = [purchase_item, search_product]
-TOOL_REGISTRY = {tool.name: tool for tool in TOOLS}
-TOOL_NAMES = [tool.name for tool in TOOLS]
+TOOL_REGISTRY = {t.name: t for t in TOOLS}
+TOOL_NAMES = [t.name for t in TOOLS]
 REQUIRED_TOOL_ARGS = {
     "purchase_item": ("item", "price", "vendor"),
     "search_product": ("query",),
@@ -242,21 +247,11 @@ def validate_tool_args(tool_name: str, args: Dict[str, Any]) -> bool:
         if not tool:
             return False
 
-        # Basic validation - could be enhanced with more sophisticated schema validation
         if tool_name == "purchase_item":
-            required = REQUIRED_TOOL_ARGS[tool_name]
-            for req in required:
-                if req not in args:
-                    logger.warning(f"Missing required argument: {req}")
-                    return False
-            if not isinstance(args.get("price"), (int, float)) or args["price"] <= 0:
-                logger.warning("Invalid price argument")
-                return False
-            if not isinstance(args.get("item"), str) or not args["item"].strip():
-                logger.warning("Invalid item argument")
-                return False
-            if not isinstance(args.get("vendor"), str) or not args["vendor"].strip():
-                logger.warning("Invalid vendor argument")
+            try:
+                _validate_purchase_args(args.get("item"), args.get("price"), args.get("vendor"))
+            except ValueError as e:
+                logger.warning(f"Invalid purchase args: {e}")
                 return False
 
         elif tool_name == "search_product":

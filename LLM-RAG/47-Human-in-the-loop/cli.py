@@ -5,7 +5,9 @@ Provides interactive CLI for testing and running the HITL agent.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, Optional
+import select
+import sys
+from typing import Callable, Dict, Any, Optional
 
 from config import (
     SHOW_DETAILED_LOGS,
@@ -73,7 +75,7 @@ class CLIInterface:
         prompt: str,
         default: Optional[str] = None,
         timeout: Optional[int] = None,
-        validator: Optional[callable] = None
+        validator: Optional[Callable[..., Any]] = None
     ) -> str:
         """Get validated user input with timeout support."""
         full_prompt = prompt
@@ -88,10 +90,6 @@ class CLIInterface:
         try:
             if timeout:
                 print(f"{full_prompt}(timeout: {timeout}s) ", end="", flush=True)
-                # Simple timeout implementation (not perfect but works for CLI)
-                import select
-                import sys
-
                 ready, _, _ = select.select([sys.stdin], [], [], timeout)
                 if ready:
                     response = sys.stdin.readline().strip()
@@ -217,6 +215,15 @@ class CLIInterface:
                 print(f"  {key}: {value}")
         else:
             self.print_step(step_num, f"Agent processed: {list(output.keys())}")
+
+    def display_batch_results(self, results: list) -> None:
+        """Display batch execution results."""
+        self.print_header(f"BATCH RESULTS ({len(results)} messages)")
+        for i, result in enumerate(results, 1):
+            if result.get("success"):
+                self.print_success(f"[{i}] Completed")
+            else:
+                self.print_error(f"[{i}] Failed: {result.get('error', 'unknown error')}")
 
     def display_completion(self, success: bool = True) -> None:
         """Display completion message."""

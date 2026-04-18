@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
 
-from config import LOG_LEVEL, LOG_FORMAT, LOG_FILE, ENABLE_AUDIT_LOG, AUDIT_LOG_FILE
+from config import LOG_LEVEL, LOG_FORMAT, LOG_FILE, ENABLE_AUDIT_LOG, AUDIT_LOG_FILE, PURCHASE_CURRENCY
 
 
 @dataclass
@@ -30,9 +30,10 @@ class AuditEvent:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        if not self.timestamp:
-            self.timestamp = datetime.now().isoformat()
-        return asdict(self)
+        d = asdict(self)
+        if not d["timestamp"]:
+            d["timestamp"] = datetime.now().isoformat()
+        return d
 
 
 class AuditLogger:
@@ -49,7 +50,6 @@ class AuditLogger:
             return
 
         try:
-            self.log_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.log_file, 'a', encoding='utf-8') as f:
                 json.dump(event.to_dict(), f, ensure_ascii=False)
                 f.write('\n')
@@ -78,7 +78,7 @@ class AuditLogger:
                 "item": item,
                 "price": price,
                 "vendor": vendor,
-                "currency": "CNY",
+                "currency": PURCHASE_CURRENCY,
                 **(details or {})
             },
             result=decision
@@ -109,15 +109,13 @@ audit_logger = AuditLogger()
 
 
 def setup_logging(
-    level: str = LOG_LEVEL,
+    level: Optional[str] = None,
     log_file: Optional[str] = LOG_FILE,
     format_string: str = LOG_FORMAT
 ) -> None:
     """Setup comprehensive logging configuration."""
-    if not isinstance(level, str):
-        log_file = str(level)
+    if level is None:
         level = LOG_LEVEL
-
     # Convert string level to logging level
     level_map = {
         "DEBUG": logging.DEBUG,
@@ -170,5 +168,3 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-# Initialize logging on import
-setup_logging()

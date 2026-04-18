@@ -39,12 +39,20 @@ def env_bool(name: str, default: bool, legacy_name: str | None = None) -> bool:
 
 def env_int(name: str, default: int, legacy_name: str | None = None) -> int:
     """Read an integer environment variable."""
-    return int(env_value(name, str(default), legacy_name))
+    raw = env_value(name, str(default), legacy_name)
+    try:
+        return int(raw)
+    except ValueError:
+        raise ValueError(f"Environment variable {name} must be an integer, got: {raw!r}")
 
 
 def env_float(name: str, default: float, legacy_name: str | None = None) -> float:
     """Read a float environment variable."""
-    return float(env_value(name, str(default), legacy_name))
+    raw = env_value(name, str(default), legacy_name)
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(f"Environment variable {name} must be a float, got: {raw!r}")
 
 
 # Environment settings
@@ -56,7 +64,7 @@ DEFAULT_THREAD_ID = "hitl_demo_thread"
 CHECKPOINT_TYPE = os.getenv("HITL_CHECKPOINT_TYPE", "memory")  # memory, postgres, redis
 
 # LLM settings
-LLM_MODEL = env_value("HITL_LLM_MODEL", "gpt-4-mini", "LLM_MODEL")
+LLM_MODEL = env_value("HITL_LLM_MODEL", "gpt-4o-mini", "LLM_MODEL")
 LLM_TEMPERATURE = env_float("HITL_LLM_TEMPERATURE", 0.2, "LLM_TEMPERATURE")
 LLM_MAX_TOKENS = env_int("HITL_LLM_MAX_TOKENS", 1000, "LLM_MAX_TOKENS")
 
@@ -156,14 +164,10 @@ def get_config() -> Config:
     return Config({
         "environment": ENVIRONMENT,
         "debug": DEBUG,
-        "llm_model": env_value("HITL_LLM_MODEL", LLM_MODEL, "LLM_MODEL"),
-        "llm_temperature": env_float("HITL_LLM_TEMPERATURE", LLM_TEMPERATURE, "LLM_TEMPERATURE"),
-        "llm_max_tokens": env_int("HITL_LLM_MAX_TOKENS", LLM_MAX_TOKENS, "LLM_MAX_TOKENS"),
-        "approval_timeout_hours": env_int(
-            "HITL_APPROVAL_TIMEOUT_HOURS",
-            APPROVAL_TIMEOUT_HOURS,
-            "APPROVAL_TIMEOUT_HOURS",
-        ),
+        "llm_model": LLM_MODEL,
+        "llm_temperature": LLM_TEMPERATURE,
+        "llm_max_tokens": LLM_MAX_TOKENS,
+        "approval_timeout_hours": APPROVAL_TIMEOUT_HOURS,
         "auto_reject_after_timeout": AUTO_REJECT_AFTER_TIMEOUT,
         "purchase_currency": PURCHASE_CURRENCY,
         "purchase_timeout_seconds": PURCHASE_TIMEOUT_SECONDS,

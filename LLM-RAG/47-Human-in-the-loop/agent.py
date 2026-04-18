@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMes
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.errors import GraphInterrupt
 
 from config import (
     LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS,
@@ -218,11 +219,6 @@ class HITLAgent:
         """
         last_message = state["messages"][-1]
 
-        # If it's a tool message, go back to chatbot
-        if isinstance(last_message, ToolMessage):
-            logger.debug("Router: Tool message received, routing to chatbot")
-            return "chatbot"
-
         # If there are tool calls, execute tools
         tool_calls = normalize_tool_calls(getattr(last_message, "tool_calls", []))
         if tool_calls:
@@ -264,15 +260,13 @@ class HITLAgent:
             for i, chunk in enumerate(self.graph.stream(input_msg, config), 1):
                 cli.display_agent_output(chunk, i)
 
+        except GraphInterrupt:
+            cli.print_info("Agent execution paused for human approval")
+            return self._handle_approval(thread_id, config)
         except Exception as e:
-            # Check if it's an interrupt (expected for HITL)
-            if "interrupt" in str(e).lower():
-                cli.print_info("Agent execution paused for human approval")
-                return self._handle_approval(thread_id, config)
-            else:
-                cli.print_error(f"Unexpected error during execution: {e}")
-                cli.display_completion(success=False)
-                return
+            cli.print_error(f"Unexpected error during execution: {e}")
+            cli.display_completion(success=False)
+            return
 
         # If no interrupt occurred, execution completed normally
         cli.print_success("Agent execution completed without requiring approval")
