@@ -46,16 +46,12 @@ class TenantConfigRepository:
             self._configs = initial_configs
         else:
             self._configs = load_tenant_configs(config_file=config_file)
-        self._token_index: Dict[str, TenantConfig] = {c.token: c for c in self._configs.values()}
 
     def all(self) -> Dict[str, TenantConfig]:
         return dict(self._configs)
 
     def get(self, tenant_id: str) -> Optional[TenantConfig]:
         return self._configs.get(tenant_id)
-
-    def get_by_token(self, token: str) -> Optional[TenantConfig]:
-        return self._token_index.get(token)
 
 
 class SessionManager:

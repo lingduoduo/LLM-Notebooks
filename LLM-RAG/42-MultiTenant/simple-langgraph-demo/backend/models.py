@@ -44,7 +44,6 @@ class TenantConfig:
     tenant_id: str
     display_name: str
     allowed_users: List[str]
-    token: str
     model: str = "fallback"
     rate_limit_per_minute: int = 30
     workflow_name: str = "support"

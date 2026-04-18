@@ -1,0 +1,28 @@
+{
+  "ragflow-kb-001": [
+    {
+      "title": "ragflow-setup.md",
+      "content": "Configure the adapter by setting RAGFLOW_BASE_URL and RAGFLOW_API_KEY in .env, then set RAGFLOW_MODE=ragflow to forward requests to a live RAGFlow instance.",
+      "score": 0.95,
+      "metadata": {
+        "section": "configuration"
+      }
+    },
+    {
+      "title": "knowledge-id-routing.md",
+      "content": "Pass the exact RAGFlow knowledge base ID as knowledge_id in each retrieval request so queries are routed to the correct dataset.",
+      "score": 0.92,
+      "metadata": {
+        "section": "routing"
+      }
+    },
+    {
+      "title": "integration-validation.md",
+      "content": "After switching to ragflow mode, POST a test query to /api/v1/retrieval and inspect the returned records, scores, and metadata to confirm the RAGFlow integration is working.",
+      "score": 0.9,
+      "metadata": {
+        "section": "testing"
+      }
+    }
+  ]
+}

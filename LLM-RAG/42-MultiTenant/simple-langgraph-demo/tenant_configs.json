@@ -2,7 +2,6 @@
   "company-a": {
     "display_name": "Company A",
     "allowed_users": ["alice", "bob"],
-    "token": "token-company-a",
     "model": "fallback",
     "rate_limit_per_minute": 30,
     "workflow_name": "customer-support",
@@ -16,7 +15,6 @@
   "company-b": {
     "display_name": "Company B",
     "allowed_users": ["charlie", "diana"],
-    "token": "token-company-b",
     "model": "fallback",
     "rate_limit_per_minute": 20,
     "workflow_name": "customer-support",
@@ -30,7 +28,6 @@
   "enterprise-x": {
     "display_name": "Enterprise X",
     "allowed_users": ["manager1", "manager2"],
-    "token": "token-enterprise-x",
     "model": "fallback",
     "rate_limit_per_minute": 60,
     "workflow_name": "premium-support",

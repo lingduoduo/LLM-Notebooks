@@ -22,7 +22,6 @@ TEST_TENANTS = {
     "company-a": {
         "display_name": "Company A",
         "allowed_users": ["alice", "bob"],
-        "token": "token-company-a",
         "model": "fallback",
         "rate_limit_per_minute": 2,
         "workflow_name": "customer-support",
@@ -36,7 +35,6 @@ TEST_TENANTS = {
     "company-b": {
         "display_name": "Company B",
         "allowed_users": ["charlie"],
-        "token": "token-company-b",
         "model": "fallback",
         "rate_limit_per_minute": 5,
         "workflow_name": "customer-support",
