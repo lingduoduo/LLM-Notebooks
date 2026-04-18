@@ -38,7 +38,7 @@ class AuditEvent:
 class AuditLogger:
     """Handles audit logging for compliance and tracking."""
 
-    def __init__(self, log_file: str = AUDIT_LOG_FILE):
+    def __init__(self, log_file: str | Path = AUDIT_LOG_FILE):
         self.log_file = Path(log_file)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         self.log_file.touch(exist_ok=True)
@@ -49,6 +49,7 @@ class AuditLogger:
             return
 
         try:
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.log_file, 'a', encoding='utf-8') as f:
                 json.dump(event.to_dict(), f, ensure_ascii=False)
                 f.write('\n')
@@ -129,7 +130,9 @@ def setup_logging(
     numeric_level = level_map.get(level.upper(), logging.INFO)
 
     root_logger = logging.getLogger()
-    root_logger.handlers.clear()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+        handler.close()
     root_logger.setLevel(numeric_level)
 
     # Console handler

@@ -54,6 +54,14 @@ def purchase_item(
     vendor = vendor.strip()
 
     logger.info(f"Purchase request: {item} for {price} {PURCHASE_CURRENCY} from {vendor}")
+    audit_logger.log_purchase_approval(
+        thread_id or "unknown",
+        user_id,
+        item,
+        price,
+        vendor,
+        "requested",
+    )
 
     # Prepare approval request
     approval_data = {
@@ -202,6 +210,7 @@ def search_product(query: str) -> list[dict[str, Any]]:
 
 # Tool registry for easy access
 TOOLS = [purchase_item, search_product]
+TOOL_REGISTRY = {tool.name: tool for tool in TOOLS}
 TOOL_NAMES = [tool.name for tool in TOOLS]
 REQUIRED_TOOL_ARGS = {
     "purchase_item": ("item", "price", "vendor"),
@@ -210,10 +219,21 @@ REQUIRED_TOOL_ARGS = {
 
 def get_tool_by_name(name: str) -> Optional[object]:
     """Get a tool by name."""
-    for registered_tool in TOOLS:
-        if registered_tool.name == name:
-            return registered_tool
-    return None
+    return TOOL_REGISTRY.get(name)
+
+
+def execute_tool_call(tool_name: str, tool_args: Dict[str, Any], thread_id: str | None = None) -> Any:
+    """Execute a registered tool with optional thread context."""
+    tool = get_tool_by_name(tool_name)
+    if tool is None:
+        logger.warning(f"Unknown tool requested: {tool_name}")
+        return f"Unknown tool: {tool_name}"
+
+    invoke_args = dict(tool_args)
+    if tool_name == "purchase_item" and thread_id:
+        invoke_args.setdefault("thread_id", thread_id)
+
+    return tool.invoke(invoke_args)
 
 def validate_tool_args(tool_name: str, args: Dict[str, Any]) -> bool:
     """Validate tool arguments."""

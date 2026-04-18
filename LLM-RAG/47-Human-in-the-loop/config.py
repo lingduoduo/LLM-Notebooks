@@ -6,7 +6,7 @@ Centralized settings for development, testing, and production environments.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 
 class Config(dict):
@@ -19,6 +19,9 @@ class Config(dict):
             raise AttributeError(name) from exc
 
 
+TRUE_VALUES = {"1", "true", "yes", "y", "on"}
+
+
 def env_value(name: str, default: str, legacy_name: str | None = None) -> str:
     """Read HITL-prefixed env vars while accepting older names for notebooks/tests."""
     if name in os.environ:
@@ -26,6 +29,23 @@ def env_value(name: str, default: str, legacy_name: str | None = None) -> str:
     if legacy_name and legacy_name in os.environ:
         return os.environ[legacy_name]
     return default
+
+
+def env_bool(name: str, default: bool, legacy_name: str | None = None) -> bool:
+    """Read a boolean environment variable."""
+    value = env_value(name, str(default), legacy_name)
+    return value.strip().lower() in TRUE_VALUES
+
+
+def env_int(name: str, default: int, legacy_name: str | None = None) -> int:
+    """Read an integer environment variable."""
+    return int(env_value(name, str(default), legacy_name))
+
+
+def env_float(name: str, default: float, legacy_name: str | None = None) -> float:
+    """Read a float environment variable."""
+    return float(env_value(name, str(default), legacy_name))
+
 
 # Environment settings
 ENVIRONMENT = os.getenv("HITL_ENV", "development")
@@ -37,12 +57,12 @@ CHECKPOINT_TYPE = os.getenv("HITL_CHECKPOINT_TYPE", "memory")  # memory, postgre
 
 # LLM settings
 LLM_MODEL = env_value("HITL_LLM_MODEL", "gpt-4-mini", "LLM_MODEL")
-LLM_TEMPERATURE = float(env_value("HITL_LLM_TEMPERATURE", "0.2", "LLM_TEMPERATURE"))
-LLM_MAX_TOKENS = int(env_value("HITL_LLM_MAX_TOKENS", "1000", "LLM_MAX_TOKENS"))
+LLM_TEMPERATURE = env_float("HITL_LLM_TEMPERATURE", 0.2, "LLM_TEMPERATURE")
+LLM_MAX_TOKENS = env_int("HITL_LLM_MAX_TOKENS", 1000, "LLM_MAX_TOKENS")
 
 # Tool settings
 PURCHASE_CURRENCY = os.getenv("HITL_CURRENCY", "CNY")
-PURCHASE_TIMEOUT_SECONDS = int(os.getenv("HITL_PURCHASE_TIMEOUT", "300"))  # 5 minutes
+PURCHASE_TIMEOUT_SECONDS = env_int("HITL_PURCHASE_TIMEOUT", 300)  # 5 minutes
 
 # Product database (in production, this would be a real database)
 PRODUCT_DATABASE = {
@@ -52,7 +72,7 @@ PRODUCT_DATABASE = {
         "vendor": "Apple Official Store",
         "price_range": "15,999–25,999",
         "vendors": ["Apple Official Store", "JD.com", "Tmall"],
-        "currency": "CNY"
+        "currency": "CNY",
     },
     "MacBook Air": {
         "name": "MacBook Air M3",
@@ -60,7 +80,7 @@ PRODUCT_DATABASE = {
         "vendor": "Apple Official Store",
         "price_range": "9,999–13,999",
         "vendors": ["Apple Official Store", "JD.com", "Amazon"],
-        "currency": "CNY"
+        "currency": "CNY",
     },
     "iPhone": {
         "name": "iPhone 15 Pro",
@@ -68,7 +88,7 @@ PRODUCT_DATABASE = {
         "vendor": "Apple Official Store",
         "price_range": "7,999–9,999",
         "vendors": ["Apple Official Store", "JD.com", "Tmall"],
-        "currency": "CNY"
+        "currency": "CNY",
     },
     "default": {
         "name": "Generic Product",
@@ -76,13 +96,13 @@ PRODUCT_DATABASE = {
         "vendor": "Multiple vendors",
         "price_range": "1,000–5,000",
         "vendors": ["Multiple vendors"],
-        "currency": "CNY"
-    }
+        "currency": "CNY",
+    },
 }
 
 # Approval settings
-APPROVAL_TIMEOUT_HOURS = int(env_value("HITL_APPROVAL_TIMEOUT_HOURS", "24", "APPROVAL_TIMEOUT_HOURS"))
-AUTO_REJECT_AFTER_TIMEOUT = os.getenv("HITL_AUTO_REJECT_TIMEOUT", "true").lower() == "true"
+APPROVAL_TIMEOUT_HOURS = env_int("HITL_APPROVAL_TIMEOUT_HOURS", 24, "APPROVAL_TIMEOUT_HOURS")
+AUTO_REJECT_AFTER_TIMEOUT = env_bool("HITL_AUTO_REJECT_TIMEOUT", True)
 
 # Logging settings
 LOG_LEVEL = os.getenv("HITL_LOG_LEVEL", "INFO")
@@ -90,27 +110,28 @@ LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 LOG_FILE = os.getenv("HITL_LOG_FILE", "hitl_agent.log")
 
 # Web interface settings (optional)
-ENABLE_WEB_INTERFACE = os.getenv("HITL_WEB_INTERFACE", "false").lower() == "true"
+ENABLE_WEB_INTERFACE = env_bool("HITL_WEB_INTERFACE", False)
 WEB_HOST = os.getenv("HITL_WEB_HOST", "127.0.0.1")
-WEB_PORT = int(os.getenv("HITL_WEB_PORT", "8000"))
+WEB_PORT = env_int("HITL_WEB_PORT", 8000)
 
 # Database settings (for production checkpointing)
 DATABASE_URL = os.getenv("HITL_DATABASE_URL", "")
 REDIS_URL = os.getenv("HITL_REDIS_URL", "")
 
 # Security settings
-ENABLE_AUDIT_LOG = os.getenv("HITL_AUDIT_LOG", "true").lower() == "true"
+ENABLE_AUDIT_LOG = env_bool("HITL_AUDIT_LOG", True)
 AUDIT_LOG_FILE = os.getenv("HITL_AUDIT_LOG_FILE", "hitl_audit.log")
 
 # User interface settings
-CLI_PROMPT_TIMEOUT = int(os.getenv("HITL_CLI_TIMEOUT", "60"))  # seconds
-SHOW_DETAILED_LOGS = os.getenv("HITL_VERBOSE", "false").lower() == "true"
+CLI_PROMPT_TIMEOUT = env_int("HITL_CLI_TIMEOUT", 60)  # seconds
+SHOW_DETAILED_LOGS = env_bool("HITL_VERBOSE", False)
 
 # Test settings
-TEST_MODE = os.getenv("HITL_TEST_MODE", "false").lower() == "true"
+TEST_MODE = env_bool("HITL_TEST_MODE", False)
 MOCK_APPROVAL_RESPONSE = os.getenv("HITL_MOCK_APPROVAL", "")  # for testing
 
-def get_product_info(query: str) -> Dict[str, Any]:
+
+def get_product_info(query: str) -> dict[str, Any]:
     """Get product information from database."""
     query_lower = query.lower().strip()
 
@@ -124,9 +145,11 @@ def get_product_info(query: str) -> Dict[str, Any]:
     # Return default if no match
     return PRODUCT_DATABASE["default"]
 
+
 def is_production() -> bool:
     """Check if running in production environment."""
     return ENVIRONMENT == "production"
+
 
 def get_config() -> Config:
     """Get all configuration as a dictionary."""
@@ -134,23 +157,35 @@ def get_config() -> Config:
         "environment": ENVIRONMENT,
         "debug": DEBUG,
         "llm_model": env_value("HITL_LLM_MODEL", LLM_MODEL, "LLM_MODEL"),
-        "llm_temperature": float(env_value("HITL_LLM_TEMPERATURE", str(LLM_TEMPERATURE), "LLM_TEMPERATURE")),
-        "llm_max_tokens": int(env_value("HITL_LLM_MAX_TOKENS", str(LLM_MAX_TOKENS), "LLM_MAX_TOKENS")),
-        "approval_timeout_hours": int(env_value("HITL_APPROVAL_TIMEOUT_HOURS", str(APPROVAL_TIMEOUT_HOURS), "APPROVAL_TIMEOUT_HOURS")),
+        "llm_temperature": env_float("HITL_LLM_TEMPERATURE", LLM_TEMPERATURE, "LLM_TEMPERATURE"),
+        "llm_max_tokens": env_int("HITL_LLM_MAX_TOKENS", LLM_MAX_TOKENS, "LLM_MAX_TOKENS"),
+        "approval_timeout_hours": env_int(
+            "HITL_APPROVAL_TIMEOUT_HOURS",
+            APPROVAL_TIMEOUT_HOURS,
+            "APPROVAL_TIMEOUT_HOURS",
+        ),
+        "auto_reject_after_timeout": AUTO_REJECT_AFTER_TIMEOUT,
+        "purchase_currency": PURCHASE_CURRENCY,
+        "purchase_timeout_seconds": PURCHASE_TIMEOUT_SECONDS,
         "enable_web_interface": ENABLE_WEB_INTERFACE,
         "web_host": WEB_HOST,
         "web_port": WEB_PORT,
         "log_level": LOG_LEVEL,
+        "log_file": LOG_FILE,
         "enable_audit_log": ENABLE_AUDIT_LOG,
+        "audit_log_file": AUDIT_LOG_FILE,
         "test_mode": TEST_MODE,
+        "mock_approval_response": MOCK_APPROVAL_RESPONSE,
         "checkpoint_type": CHECKPOINT_TYPE,
         "database_url": DATABASE_URL,
         "redis_url": REDIS_URL,
     })
 
+
 def is_development() -> bool:
     """Check if running in development environment."""
     return ENVIRONMENT == "development"
+
 
 def get_log_level() -> str:
     """Get appropriate log level based on environment."""

@@ -10,6 +10,7 @@ import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +30,7 @@ logger = get_logger(__name__)
 # In-memory storage for pending approvals (in production, use Redis/database)
 pending_approvals: Dict[str, Dict[str, Any]] = {}
 agent = None
+cleanup_task: asyncio.Task | None = None
 
 
 def get_agent():
@@ -40,10 +42,29 @@ def get_agent():
         agent = HITLAgent()
     return agent
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage background approval cleanup for the web app lifecycle."""
+    global cleanup_task
+    logger.info("HITL Web API starting up")
+    cleanup_task = asyncio.create_task(cleanup_expired_approvals())
+    try:
+        yield
+    finally:
+        if cleanup_task:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
+            cleanup_task = None
+
+
 app = FastAPI(
     title="HITL Agent API",
     description="Human-in-the-Loop Agent System with web interface",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Templates and static files are optional for API-only/test usage.
@@ -277,16 +298,6 @@ async def cancel_approval(approval_id: str):
     return {"status": "cancelled", "message": "Approval request cancelled"}
 
 
-# Background task to clean up expired approvals
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the application."""
-    logger.info("HITL Web API starting up")
-
-    # Start background cleanup task
-    asyncio.create_task(cleanup_expired_approvals())
-
-
 async def cleanup_expired_approvals():
     """Background task to clean up expired approval requests."""
     while True:
@@ -294,7 +305,7 @@ async def cleanup_expired_approvals():
             current_time = datetime.now()
             expired_ids = []
 
-            for approval_id, info in pending_approvals.items():
+            for approval_id, info in list(pending_approvals.items()):
                 created_at = info["created_at"]
                 age_hours = (current_time - created_at).total_seconds() / 3600
 
@@ -326,13 +337,13 @@ async def cleanup_expired_approvals():
 
 def create_templates_and_static():
     """Create basic templates and static files if they don't exist."""
-    import os
+    templates_dir = BASE_DIR / "templates"
+    static_dir = BASE_DIR / "static"
+    css_dir = static_dir / "css"
+    js_dir = static_dir / "js"
 
-    # Create directories
-    os.makedirs("templates", exist_ok=True)
-    os.makedirs("static", exist_ok=True)
-    os.makedirs("static/css", exist_ok=True)
-    os.makedirs("static/js", exist_ok=True)
+    for directory in (templates_dir, css_dir, js_dir):
+        directory.mkdir(parents=True, exist_ok=True)
 
     # Create basic HTML template
     html_content = """
@@ -493,15 +504,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 """
 
-    # Write files
-    with open("templates/index.html", "w") as f:
-        f.write(html_content)
-
-    with open("static/css/style.css", "w") as f:
-        f.write(css_content)
-
-    with open("static/js/app.js", "w") as f:
-        f.write(js_content)
+    (templates_dir / "index.html").write_text(html_content, encoding="utf-8")
+    (css_dir / "style.css").write_text(css_content, encoding="utf-8")
+    (js_dir / "app.js").write_text(js_content, encoding="utf-8")
 
 
 if __name__ == "__main__":

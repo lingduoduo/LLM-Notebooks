@@ -17,7 +17,7 @@ from config import (
     LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS,
     DEFAULT_THREAD_ID, CHECKPOINT_TYPE
 )
-from tools import TOOLS, purchase_item, search_product, validate_tool_args
+from tools import TOOLS, execute_tool_call, validate_tool_args
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -180,16 +180,7 @@ class HITLAgent:
                     )
                     continue
 
-                # Execute tool
-                if tool_name == "purchase_item":
-                    # Add thread context for audit logging
-                    tool_args["thread_id"] = DEFAULT_THREAD_ID
-                    result = purchase_item.invoke(tool_args)
-                elif tool_name == "search_product":
-                    result = search_product.invoke(tool_args)
-                else:
-                    result = f"Unknown tool: {tool_name}"
-                    logger.warning(f"Unknown tool requested: {tool_name}")
+                result = execute_tool_call(tool_name, tool_args, DEFAULT_THREAD_ID)
 
                 # Create tool message
                 tool_messages.append(

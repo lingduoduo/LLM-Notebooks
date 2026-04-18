@@ -9,13 +9,12 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from config import (
     PRODUCT_DATABASE, get_config,
-    LLM_MODEL, APPROVAL_TIMEOUT_HOURS
+    LLM_MODEL,
 )
 from logger import AuditLogger, AuditEvent, get_logger, setup_logging
 from tools import purchase_item, search_product, validate_tool_args, TOOLS
@@ -78,7 +77,7 @@ class TestLogger(unittest.TestCase):
 
     def test_audit_logger_initialization(self):
         """Test audit logger setup."""
-        audit_logger = AuditLogger(self.audit_file)
+        AuditLogger(self.audit_file)
         self.assertTrue(self.audit_file.exists())
 
     def test_audit_event_creation(self):
@@ -142,9 +141,12 @@ class TestTools(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.audit_file = Path(self.temp_dir) / "audit.jsonl"
         self.audit_logger = AuditLogger(self.audit_file)
+        self.audit_logger_patch = patch("tools.audit_logger", self.audit_logger)
+        self.audit_logger_patch.start()
 
     def tearDown(self):
         """Clean up test files."""
+        self.audit_logger_patch.stop()
         if self.audit_file.exists():
             self.audit_file.unlink()
         os.rmdir(self.temp_dir)
@@ -191,6 +193,7 @@ class TestTools(unittest.TestCase):
 
         # Verify interrupt was called
         mock_interrupt.assert_called_once()
+        self.assertIn("Successfully purchased MacBook Pro", result)
 
         # Verify audit log was created
         with open(self.audit_file, 'r') as f:
@@ -340,13 +343,13 @@ class TestWebInterface(unittest.TestCase):
         """Clean up test files."""
         os.rmdir(self.temp_dir)
 
-    @patch('web.FastAPI')
-    def test_web_app_initialization(self, mock_fastapi):
+    def test_web_app_initialization(self):
         """Test web app setup."""
         from web import app
 
-        # Verify FastAPI was initialized
-        mock_fastapi.assert_called_once()
+        # Verify FastAPI app is initialized at import time for ASGI servers.
+        self.assertEqual(app.title, "HITL Agent API")
+        self.assertEqual(app.version, "1.0.0")
 
     def test_chat_request_model(self):
         """Test chat request model validation."""

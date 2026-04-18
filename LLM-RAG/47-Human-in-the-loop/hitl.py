@@ -15,6 +15,7 @@ For backward compatibility, this file also contains the original demo implementa
 
 import argparse
 import sys
+from pathlib import Path
 
 # Import optimized components
 from config import get_config, ENABLE_WEB_INTERFACE
@@ -38,6 +39,7 @@ import dotenv
 dotenv.load_dotenv()
 
 logger = get_logger(__name__)
+BASE_DIR = Path(__file__).resolve().parent
 
 
 # Legacy tool definitions (for backward compatibility)
@@ -275,7 +277,12 @@ def run_optimized_system():
             elif command == 'test':
                 cli.print_info("Running test suite...")
                 import subprocess
-                result = subprocess.run([sys.executable, "test_hitl.py"], capture_output=True, text=True)
+                result = subprocess.run(
+                    [sys.executable, "test_hitl.py"],
+                    capture_output=True,
+                    text=True,
+                    cwd=BASE_DIR,
+                )
                 if result.returncode == 0:
                     cli.print_success("All tests passed!")
                 else:
@@ -338,14 +345,19 @@ Examples:
     # Setup logging
     if args.verbose:
         import os
-        os.environ['LOG_LEVEL'] = 'DEBUG'
+        os.environ['HITL_LOG_LEVEL'] = 'DEBUG'
 
     setup_logging()
 
     if args.test:
         # Run tests
         import subprocess
-        result = subprocess.run([sys.executable, "test_hitl.py"], capture_output=True, text=True)
+        result = subprocess.run(
+            [sys.executable, "test_hitl.py"],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR,
+        )
         print(result.stdout)
         if result.stderr:
             print(result.stderr)
