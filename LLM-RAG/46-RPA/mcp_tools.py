@@ -1,16 +1,28 @@
 """
-Generic MCP-style tool registry for local RPA examples.
+Finance-focused MCP-style tool registry for local RPA examples.
 """
 from __future__ import annotations
 
 import logging
 import re
+from copy import deepcopy
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
-_UPSERTED_RECORDS: dict[str, dict[str, Any]] = {}
+_UPSERTED_INVOICES: dict[str, dict[str, Any]] = {}
+VALID_INVOICE_STATUSES = {"pending", "approved", "paid", "open"}
+EXTRACT_INVOICE_FIELDS = "extract_invoice_fields"
+VALIDATE_INVOICE = "validate_invoice"
+UPSERT_INVOICE = "upsert_invoice"
+GENERATE_FINANCE_REPORT = "generate_finance_report"
+FINANCE_TOOL_SEQUENCE = (
+    EXTRACT_INVOICE_FIELDS,
+    VALIDATE_INVOICE,
+    UPSERT_INVOICE,
+    GENERATE_FINANCE_REPORT,
+)
+FINANCE_REPORTABLE_TOOLS = frozenset({VALIDATE_INVOICE, UPSERT_INVOICE})
 
 
 @dataclass(frozen=True)
@@ -33,15 +45,13 @@ class ToolRegistry:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
         self._tools[tool.name] = tool
-        self.list_tools.cache_clear()
 
-    @lru_cache(maxsize=1)
     def list_tools(self) -> list[dict[str, Any]]:
         return [
             {
                 "name": tool.name,
                 "description": tool.description,
-                "input_schema": tool.input_schema,
+                "input_schema": deepcopy(tool.input_schema),
             }
             for tool in self._tools.values()
         ]
@@ -53,6 +63,15 @@ class ToolRegistry:
         _validate_arguments(tool, arguments)
         logger.info("Calling RPA tool: %s", name)
         return tool.handler(arguments)
+
+
+def object_schema(properties: dict[str, dict[str, str]], required: list[str]) -> dict[str, Any]:
+    """Build the small JSON-schema shape used by local tool specs."""
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+    }
 
 
 def _validate_arguments(tool: ToolSpec, arguments: dict[str, Any]) -> None:
@@ -72,7 +91,9 @@ def _validate_arguments(tool: ToolSpec, arguments: dict[str, Any]) -> None:
         expected_type = properties.get(name, {}).get("type")
         if expected_type == "string" and not isinstance(value, str):
             raise ValueError(f"Parameter '{name}' must be a string")
-        if expected_type == "number" and not isinstance(value, (int, float)):
+        if expected_type == "number" and (
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+        ):
             raise ValueError(f"Parameter '{name}' must be numeric")
         if expected_type == "array" and not isinstance(value, list):
             raise ValueError(f"Parameter '{name}' must be an array")
@@ -80,147 +101,143 @@ def _validate_arguments(tool: ToolSpec, arguments: dict[str, Any]) -> None:
             raise ValueError(f"Parameter '{name}' must be an object")
 
 
-def extract_record_fields(args: dict[str, Any]) -> dict[str, Any]:
-    """Extract generic record fields from semi-structured text."""
+def extract_invoice_fields(args: dict[str, Any]) -> dict[str, Any]:
+    """Extract finance invoice fields from semi-structured text."""
     raw_text = args["raw_text"]
-    record_id = _extract_pattern(raw_text, r"\b(?:ID|RECORD)\s*[:=]?\s*([A-Za-z]\d+)\b", "R123")
-    customer = _extract_pattern(
+    invoice_id = _extract_pattern(
         raw_text,
-        r"\bcustomer\s+([A-Za-z][A-Za-z\s-]*?)(?=\s+(?:amount|status|id|record)\b|$)",
-        "Alice",
+        r"\b(?:invoice\s+)?ID\s*[:=]?\s*([A-Za-z]+[-_]?\d+)\b",
     )
-    amount = _extract_number(raw_text, r"\bamount\s*[:=]?\s*(\d+(?:\.\d+)?)", 250)
-    status = _extract_pattern(raw_text, r"\bstatus\s+([A-Za-z_]+)", "pending").lower()
+    vendor = _extract_pattern(
+        raw_text,
+        r"\bvendor\s+([A-Za-z][A-Za-z\s&.-]*?)(?=\s+(?:amount|currency|status|id|invoice)\b|$)",
+    )
+    amount = _extract_number(raw_text, r"\bamount\s*[:=]?\s*\$?(-?\d+(?:\.\d+)?)")
+    currency = _extract_pattern(raw_text, r"\bcurrency\s+([A-Z]{3})\b")
+    status = _extract_pattern(raw_text, r"\bstatus\s+([A-Za-z_]+)")
+    normalized_status = status.lower() if status else None
+    extracted_count = sum(
+        value is not None
+        for value in (invoice_id, vendor, amount, currency, normalized_status)
+    )
 
     return {
-        "record_id": record_id,
-        "customer": customer.strip(),
+        "invoice_id": invoice_id,
+        "vendor": vendor.strip() if vendor else None,
         "amount": amount,
-        "status": status,
-        "confidence": 0.95,
+        "currency": currency,
+        "status": normalized_status,
+        "confidence": round(extracted_count / 5, 2),
     }
 
 
-def validate_record(args: dict[str, Any]) -> dict[str, Any]:
-    """Validate a generic business record before write operations."""
-    record = args["record"]
+def validate_invoice(args: dict[str, Any]) -> dict[str, Any]:
+    """Validate a finance invoice before write operations."""
+    invoice = args["invoice"]
     issues = []
+    amount = invoice.get("amount")
 
-    if not record.get("record_id"):
-        issues.append("record_id is required")
-    if float(record.get("amount", 0)) <= 0:
+    if not invoice.get("invoice_id"):
+        issues.append("invoice_id is required")
+    if not invoice.get("vendor"):
+        issues.append("vendor is required")
+    if not isinstance(amount, (int, float)) or isinstance(amount, bool):
+        issues.append("amount must be numeric")
+    elif amount <= 0:
         issues.append("amount must be greater than zero")
-    if record.get("status") not in {"pending", "approved", "open", "new"}:
-        issues.append(f"unsupported status: {record.get('status')}")
+    if invoice.get("currency") != "USD":
+        issues.append(f"unsupported currency: {invoice.get('currency')}")
+    if invoice.get("status") not in VALID_INVOICE_STATUSES:
+        issues.append(f"unsupported status: {invoice.get('status')}")
 
     return {
         "valid": not issues,
-        "record_id": record.get("record_id"),
+        "invoice_id": invoice.get("invoice_id"),
         "issues": issues,
     }
 
 
-def upsert_record(args: dict[str, Any]) -> dict[str, Any]:
-    """Create or update a record idempotently in a simulated target system."""
-    record = dict(args["record"])
-    record_id = record["record_id"]
+def upsert_invoice(args: dict[str, Any]) -> dict[str, Any]:
+    """Create or update an invoice idempotently in a simulated finance system."""
+    invoice = deepcopy(args["invoice"])
+    invoice_id = invoice["invoice_id"]
 
-    if record_id in _UPSERTED_RECORDS and _UPSERTED_RECORDS[record_id] == record:
+    if invoice_id in _UPSERTED_INVOICES and _UPSERTED_INVOICES[invoice_id] == invoice:
         return {
             "status": "unchanged",
-            "record_id": record_id,
+            "invoice_id": invoice_id,
             "idempotent": True,
-            "record": _UPSERTED_RECORDS[record_id],
+            "invoice": deepcopy(_UPSERTED_INVOICES[invoice_id]),
         }
 
-    operation = "updated" if record_id in _UPSERTED_RECORDS else "created"
-    _UPSERTED_RECORDS[record_id] = record
+    operation = "updated" if invoice_id in _UPSERTED_INVOICES else "created"
+    _UPSERTED_INVOICES[invoice_id] = deepcopy(invoice)
     return {
         "status": operation,
-        "record_id": record_id,
+        "invoice_id": invoice_id,
         "idempotent": False,
-        "record": record,
+        "invoice": invoice,
     }
 
 
-def generate_report(args: dict[str, Any]) -> dict[str, Any]:
-    """Generate a generic RPA run report."""
-    records = args["records"]
-    failures = [record for record in records if record.get("status") == "error"]
-    invalid = [record for record in records if record.get("valid") is False]
+def generate_finance_report(args: dict[str, Any]) -> dict[str, Any]:
+    """Generate a finance RPA run report."""
+    invoices = args["invoices"]
+    failures = [invoice for invoice in invoices if invoice.get("status") == "error"]
+    invalid = [invoice for invoice in invoices if invoice.get("valid") is False]
     return {
-        "total": len(records),
+        "total": len(invoices),
         "failures": len(failures),
         "invalid": len(invalid),
         "requires_review": bool(failures or invalid),
-        "records": records,
+        "invoices": invoices,
     }
 
 
-def _extract_pattern(text: str, pattern: str, default: str) -> str:
+def _extract_pattern(text: str, pattern: str) -> str | None:
     match = re.search(pattern, text, flags=re.IGNORECASE)
-    return match.group(1).strip(" .,!?:;") if match else default
+    return match.group(1).strip(" .,!?:;") if match else None
 
 
-def _extract_number(text: str, pattern: str, default: float) -> float:
+def _extract_number(text: str, pattern: str) -> int | float | None:
     match = re.search(pattern, text, flags=re.IGNORECASE)
     if not match:
-        return default
+        return None
     value = float(match.group(1))
     return int(value) if value.is_integer() else value
 
 
 def build_registry() -> ToolRegistry:
-    """Create a registry with generic RPA tools registered."""
+    """Create a registry with finance RPA tools registered."""
     registry = ToolRegistry()
-    registry.register(
+    tools = (
         ToolSpec(
-            name="extract_record_fields",
-            description="Extract generic record fields from raw text.",
-            input_schema={
-                "type": "object",
-                "properties": {"raw_text": {"type": "string"}},
-                "required": ["raw_text"],
-            },
-            handler=extract_record_fields,
-        )
-    )
-    registry.register(
+            EXTRACT_INVOICE_FIELDS,
+            "Extract finance invoice fields from raw text.",
+            object_schema({"raw_text": {"type": "string"}}, ["raw_text"]),
+            extract_invoice_fields,
+        ),
         ToolSpec(
-            name="validate_record",
-            description="Validate a generic business record.",
-            input_schema={
-                "type": "object",
-                "properties": {"record": {"type": "object"}},
-                "required": ["record"],
-            },
-            handler=validate_record,
-        )
-    )
-    registry.register(
+            VALIDATE_INVOICE,
+            "Validate a finance invoice.",
+            object_schema({"invoice": {"type": "object"}}, ["invoice"]),
+            validate_invoice,
+        ),
         ToolSpec(
-            name="upsert_record",
-            description="Create or update a record idempotently.",
-            input_schema={
-                "type": "object",
-                "properties": {"record": {"type": "object"}},
-                "required": ["record"],
-            },
-            handler=upsert_record,
-        )
-    )
-    registry.register(
+            UPSERT_INVOICE,
+            "Create or update an invoice idempotently.",
+            object_schema({"invoice": {"type": "object"}}, ["invoice"]),
+            upsert_invoice,
+        ),
         ToolSpec(
-            name="generate_report",
-            description="Generate a generic RPA execution report.",
-            input_schema={
-                "type": "object",
-                "properties": {"records": {"type": "array"}},
-                "required": ["records"],
-            },
-            handler=generate_report,
-        )
+            GENERATE_FINANCE_REPORT,
+            "Generate a finance RPA execution report.",
+            object_schema({"invoices": {"type": "array"}}, ["invoices"]),
+            generate_finance_report,
+        ),
     )
+    for tool in tools:
+        registry.register(tool)
     return registry
 
 

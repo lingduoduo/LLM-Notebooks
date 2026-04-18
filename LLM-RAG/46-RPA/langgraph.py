@@ -1,5 +1,5 @@
 """
-Executable generic RPA workflow.
+Executable finance RPA workflow.
 """
 from __future__ import annotations
 
@@ -11,10 +11,34 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from RPA import RPAState, audit_event, default_rpa_request, new_task_id
-from mcp_tools import call_mcp_tool, discover_mcp_tools
+from rpa import (
+    PlanStep,
+    RPAState,
+    WorkflowPlan,
+    audit_event,
+    create_initial_state,
+    new_task_id,
+)
+from mcp_tools import (
+    EXTRACT_INVOICE_FIELDS,
+    FINANCE_REPORTABLE_TOOLS,
+    FINANCE_TOOL_SEQUENCE,
+    GENERATE_FINANCE_REPORT,
+    UPSERT_INVOICE,
+    VALIDATE_INVOICE,
+    call_mcp_tool,
+    discover_mcp_tools,
+)
 
 logger = logging.getLogger(__name__)
+REQUIRED_TOOLS = FINANCE_TOOL_SEQUENCE
+REPORTABLE_TOOLS = FINANCE_REPORTABLE_TOOLS
+INVOICE_REF = "$invoice"
+INVOICES_REF = "$invoices"
+INVOICE_KEY = "invoice"
+VALIDATION_KEY = "validation"
+WRITE_KEY = "write"
+REPORT_KEY = "report"
 
 
 @lru_cache(maxsize=1)
@@ -41,45 +65,44 @@ def _load_langgraph_primitives() -> tuple[Any, Any]:
             sys.modules["langgraph"] = local_module
 
 
-def build_plan(user_request: str, tools: list[dict[str, Any]]) -> dict[str, Any]:
+def build_plan(user_request: str, tools: list[dict[str, Any]]) -> WorkflowPlan:
     """Build a deterministic tool plan from the discovered tool catalog."""
     available = {tool["name"] for tool in tools}
-    required = [
-        "extract_record_fields",
-        "validate_record",
-        "upsert_record",
-        "generate_report",
-    ]
-    missing = [tool for tool in required if tool not in available]
+    missing = [tool for tool in REQUIRED_TOOLS if tool not in available]
     if missing:
         raise ValueError(f"Missing required RPA tools: {missing}")
 
     return {
         "requires_human_approval": True,
         "steps": [
-            {
-                "tool_name": "extract_record_fields",
-                "arguments": {"raw_text": user_request},
-                "save_as": "record",
-            },
-            {
-                "tool_name": "validate_record",
-                "arguments": {"record": "$record"},
-                "save_as": "validation",
-            },
-            {
-                "tool_name": "upsert_record",
-                "arguments": {"record": "$record"},
-                "save_as": "write",
-                "when": {"validation.valid": True},
-            },
-            {
-                "tool_name": "generate_report",
-                "arguments": {"records": "$records"},
-                "save_as": "report",
-            },
+            plan_step(EXTRACT_INVOICE_FIELDS, {"raw_text": user_request}, INVOICE_KEY),
+            plan_step(VALIDATE_INVOICE, {"invoice": INVOICE_REF}, VALIDATION_KEY),
+            plan_step(
+                UPSERT_INVOICE,
+                {"invoice": INVOICE_REF},
+                WRITE_KEY,
+                when={f"{VALIDATION_KEY}.valid": True},
+            ),
+            plan_step(GENERATE_FINANCE_REPORT, {"invoices": INVOICES_REF}, REPORT_KEY),
         ],
     }
+
+
+def plan_step(
+    tool_name: str,
+    arguments: dict[str, Any],
+    save_as: str,
+    when: dict[str, Any] | None = None,
+) -> PlanStep:
+    """Create one workflow plan step."""
+    step: PlanStep = {
+        "tool_name": tool_name,
+        "arguments": arguments,
+        "save_as": save_as,
+    }
+    if when:
+        step["when"] = when
+    return step
 
 
 def append_audit(
@@ -97,7 +120,7 @@ def append_audit(
 
 
 def resolve_arguments(
-    step: dict[str, Any],
+    step: PlanStep,
     extracted_data: dict[str, Any],
     execution_log: list[dict[str, Any]],
     tools: list[dict[str, Any]],
@@ -108,11 +131,11 @@ def resolve_arguments(
     else:
         arguments = dict(extracted_data[step["arguments_from"]])
 
-    if arguments.get("records") == "$records":
-        arguments["records"] = [
+    if arguments.get("invoices") == INVOICES_REF:
+        arguments["invoices"] = [
             entry["result"]
             for entry in execution_log
-            if entry["tool"] in {"validate_record", "upsert_record"}
+            if entry["tool"] in REPORTABLE_TOOLS
         ]
 
     for name, value in list(arguments.items()):
@@ -139,17 +162,26 @@ def _filter_arguments_for_tool(
     }
 
 
-def should_run_step(step: dict[str, Any], extracted_data: dict[str, Any]) -> bool:
+def should_run_step(step: PlanStep, extracted_data: dict[str, Any]) -> bool:
     """Evaluate simple plan conditions."""
     condition = step.get("when")
     if not condition:
         return True
 
     for dotted_key, expected in condition.items():
-        namespace, key = dotted_key.split(".", maxsplit=1)
-        if extracted_data.get(namespace, {}).get(key) != expected:
+        if get_nested_value(extracted_data, dotted_key) != expected:
             return False
     return True
+
+
+def get_nested_value(data: dict[str, Any], dotted_key: str) -> Any:
+    """Read dotted values from nested dictionaries."""
+    current: Any = data
+    for key in dotted_key.split("."):
+        if not isinstance(current, dict) or key not in current:
+            return None
+        current = current[key]
+    return current
 
 
 async def discover_node(state: RPAState) -> RPAState:
@@ -392,11 +424,7 @@ graph = build_graph()
 
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    result = await graph.ainvoke({
-        "task_id": new_task_id(),
-        "user_request": default_rpa_request(),
-        "audit_log": [],
-    })
+    result = await graph.ainvoke(create_initial_state())
     print(result["final_result"])
 
 

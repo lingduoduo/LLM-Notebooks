@@ -1,5 +1,5 @@
 """
-State and helpers for a generic RPA workflow.
+State and helpers for a finance RPA workflow.
 """
 from __future__ import annotations
 
@@ -16,13 +16,26 @@ class AuditEvent(TypedDict):
     detail: dict[str, Any]
 
 
+class PlanStep(TypedDict, total=False):
+    tool_name: str
+    arguments: dict[str, Any]
+    arguments_from: str
+    save_as: str
+    when: dict[str, Any]
+
+
+class WorkflowPlan(TypedDict):
+    requires_human_approval: bool
+    steps: list[PlanStep]
+
+
 class RPAState(TypedDict, total=False):
     task_id: str
     user_request: str
     messages: list[Any]
     discovered_tools: list[dict[str, Any]]
     resources: list[dict[str, Any]]
-    plan: dict[str, Any]
+    plan: WorkflowPlan
     extracted_data: dict[str, Any]
     execution_log: list[dict[str, Any]]
     verification: dict[str, Any]
@@ -35,7 +48,12 @@ class RPAState(TypedDict, total=False):
 
 def default_rpa_request() -> str:
     """Return a deterministic sample request for local demos."""
-    return "Process record ID R123 customer Alice amount 250 status pending"
+    return "Process invoice ID INV-1001 vendor Acme amount 2500 currency USD status pending"
+
+
+def default_finance_request() -> str:
+    """Return the default finance invoice request."""
+    return default_rpa_request()
 
 
 def default_trade_request() -> str:
@@ -46,6 +64,15 @@ def default_trade_request() -> str:
 def new_task_id() -> str:
     """Create a trace id for one RPA run."""
     return str(uuid.uuid4())
+
+
+def create_initial_state(user_request: str | None = None) -> RPAState:
+    """Create the minimal state required to start one workflow run."""
+    return {
+        "task_id": new_task_id(),
+        "user_request": user_request or default_rpa_request(),
+        "audit_log": [],
+    }
 
 
 def audit_event(
