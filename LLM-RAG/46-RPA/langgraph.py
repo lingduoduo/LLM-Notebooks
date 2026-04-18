@@ -7,7 +7,6 @@ import asyncio
 import importlib
 import logging
 import sys
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +30,6 @@ from mcp_tools import (
 )
 
 logger = logging.getLogger(__name__)
-REQUIRED_TOOLS = FINANCE_TOOL_SEQUENCE
-REPORTABLE_TOOLS = FINANCE_REPORTABLE_TOOLS
 INVOICE_REF = "$invoice"
 INVOICES_REF = "$invoices"
 INVOICE_KEY = "invoice"
@@ -41,7 +38,6 @@ WRITE_KEY = "write"
 REPORT_KEY = "report"
 
 
-@lru_cache(maxsize=1)
 def _load_langgraph_primitives() -> tuple[Any, Any]:
     """Import LangGraph even though this example file is named langgraph.py."""
     current_dir = Path(__file__).resolve().parent
@@ -68,7 +64,7 @@ def _load_langgraph_primitives() -> tuple[Any, Any]:
 def build_plan(user_request: str, tools: list[dict[str, Any]]) -> WorkflowPlan:
     """Build a deterministic tool plan from the discovered tool catalog."""
     available = {tool["name"] for tool in tools}
-    missing = [tool for tool in REQUIRED_TOOLS if tool not in available]
+    missing = [tool for tool in FINANCE_TOOL_SEQUENCE if tool not in available]
     if missing:
         raise ValueError(f"Missing required RPA tools: {missing}")
 
@@ -135,7 +131,7 @@ def resolve_arguments(
         arguments["invoices"] = [
             entry["result"]
             for entry in execution_log
-            if entry["tool"] in REPORTABLE_TOOLS
+            if entry["tool"] in FINANCE_REPORTABLE_TOOLS
         ]
 
     for name, value in list(arguments.items()):
@@ -188,12 +184,11 @@ async def discover_node(state: RPAState) -> RPAState:
     task_id = state.get("task_id") or new_task_id()
     tools = await discover_mcp_tools()
     logger.info("Discovered %s RPA tools", len(tools))
-    next_state: RPAState = {**state, "task_id": task_id}
     return {
         "task_id": task_id,
         "discovered_tools": tools,
         "audit_log": append_audit(
-            next_state,
+            {**state, "task_id": task_id},
             "discover_tools",
             "success",
             {"tools": [tool["name"] for tool in tools]},
@@ -205,7 +200,7 @@ async def plan_node(state: RPAState) -> RPAState:
     plan = build_plan(state["user_request"], state["discovered_tools"])
     return {
         "plan": plan,
-        "approval_required": plan.get("requires_human_approval", False),
+        "approval_required": plan["requires_human_approval"],
         "audit_log": append_audit(
             state,
             "build_plan",
@@ -220,7 +215,6 @@ def approval_router(state: RPAState) -> str:
 
 
 async def approval_node(state: RPAState) -> RPAState:
-    # Replace with a real approval queue/API in production.
     return {
         "approval_status": "approved",
         "audit_log": append_audit(
@@ -239,20 +233,20 @@ def post_approval_router(state: RPAState) -> str:
 async def execute_node(state: RPAState) -> RPAState:
     execution_log: list[dict[str, Any]] = []
     extracted_data: dict[str, Any] = dict(state.get("extracted_data", {}))
-    audit_log = state.get("audit_log", [])
+    audit_log: list[Any] = list(state.get("audit_log", []))
+    task_id = state["task_id"]
     error: str | None = None
 
     for step in state["plan"]["steps"]:
         if not should_run_step(step, extracted_data):
-            audit_log = [
-                *audit_log,
+            audit_log.append(
                 audit_event(
-                    state["task_id"],
+                    task_id,
                     "skip_step",
                     "skipped",
                     {"tool": step["tool_name"], "condition": step.get("when")},
-                ),
-            ]
+                )
+            )
             continue
 
         arguments = resolve_arguments(
@@ -277,15 +271,14 @@ async def execute_node(state: RPAState) -> RPAState:
                 "status": status,
             }
         )
-        audit_log = [
-            *audit_log,
+        audit_log.append(
             audit_event(
-                state["task_id"],
+                task_id,
                 "execute_step",
                 status,
                 {"tool": step["tool_name"], "result": result},
-            ),
-        ]
+            )
+        )
 
         if status == "error":
             break
@@ -313,7 +306,7 @@ async def verify_node(state: RPAState) -> RPAState:
             "audit_log": append_audit(state, "verify", "human_review", verification),
         }
 
-    report = state["extracted_data"].get("report", {})
+    report = state["extracted_data"].get(REPORT_KEY, {})
     if report.get("requires_review"):
         verification = {
             "status": "human_review",

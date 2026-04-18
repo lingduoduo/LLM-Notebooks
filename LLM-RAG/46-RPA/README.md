@@ -47,9 +47,9 @@ Expected extracted invoice:
 
 | File | Purpose |
 | --- | --- |
-| `rpa.py` | Shared state types, task IDs, sample request, and audit event helpers. |
-| `mcp_tools.py` | MCP-style tool registry, finance tool constants, schemas, and handlers. |
-| `langgraph.py` | Executable workflow plan using LangGraph when installed, with a local fallback runner. |
+| `rpa.py` | State types (`RPAState`, `WorkflowPlan`, `PlanStep`), task ID generation, default sample request, and `audit_event` helper. |
+| `mcp_tools.py` | In-process MCP-style tool registry with schema validation, finance tool constants, and four invoice-processing handlers. |
+| `langgraph.py` | Workflow nodes, routing, and `build_graph()` — compiles a LangGraph state graph when LangGraph is installed, otherwise falls back to `LocalRPAWorkflow`. |
 | `46.ipynb` | Notebook companion for interactive walkthroughs. |
 
 ## Architecture
@@ -64,15 +64,13 @@ Discover Tools -> Build Plan -> Approval -> Execute Steps -> Verify -> Final Res
               Tool Schemas              Audit Log
 ```
 
-The design keeps three responsibilities separate:
+Three responsibilities stay separate:
 
-- `rpa.py` defines workflow state and observability primitives.
-- `mcp_tools.py` exposes discoverable, schema-validated finance tools.
+- `rpa.py` owns state shape and observability primitives.
+- `mcp_tools.py` exposes discoverable, schema-validated finance tools. `_validate_arguments` checks required fields and types against each tool's input schema before every call.
 - `langgraph.py` coordinates discovery, planning, approval, execution, verification, and review routing.
 
-This makes the code easier to extend than a single hard-coded automation script.
-Tool names are centralized as constants in `mcp_tools.py`, so registration and
-workflow planning share the same vocabulary.
+Tool names are centralized as constants in `mcp_tools.py` (`FINANCE_TOOL_SEQUENCE`, `FINANCE_REPORTABLE_TOOLS`), so registration and workflow planning share the same vocabulary without duplication.
 
 ## Run
 
@@ -127,11 +125,12 @@ The local registry currently provides:
 Each tool declares an input schema. Calls are validated before execution, which
 helps keep automation predictable and safer to evolve.
 
-The workflow also uses:
+Key constants in `mcp_tools.py`:
 
-- `FINANCE_TOOL_SEQUENCE` to define the required tool set.
-- `FINANCE_REPORTABLE_TOOLS` to define which step results feed the finance report.
-- `plan_step()` in `langgraph.py` to keep workflow steps compact and consistent.
+- `FINANCE_TOOL_SEQUENCE` — ordered tuple of required tool names; `build_plan()` validates availability against this.
+- `FINANCE_REPORTABLE_TOOLS` — frozenset of tools whose results are collected into the finance report.
+
+`plan_step()` in `langgraph.py` keeps workflow step definitions compact and consistent.
 
 ## Extend
 
@@ -152,12 +151,11 @@ and call tools in a consistent way.
 
 ## Safety Notes
 
-- The demo does not use Dify.
-- The upsert target is an in-memory dictionary, not a real external system.
-- Approval is auto-approved for local demos; production code should connect it
-  to a human approval queue or policy engine.
+- The demo does not use Dify or any external dependency beyond LangGraph (optional).
+- The upsert target is an in-memory dictionary, not a real external system. `upsert_invoice` is idempotent: re-submitting an unchanged invoice returns `"unchanged"` without writing.
+- Approval is auto-approved for local demos; production code should replace `approval_node` with a real human-approval queue or policy engine.
 - Failures and validation issues route to `needs_manual_review`.
-- Every major workflow transition appends a structured audit event.
+- Every major workflow transition appends a structured audit event with timestamp, task ID, event name, status, and detail.
 
 ## Why This Shape
 

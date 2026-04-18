@@ -32,9 +32,7 @@ class WorkflowPlan(TypedDict):
 class RPAState(TypedDict, total=False):
     task_id: str
     user_request: str
-    messages: list[Any]
     discovered_tools: list[dict[str, Any]]
-    resources: list[dict[str, Any]]
     plan: WorkflowPlan
     extracted_data: dict[str, Any]
     execution_log: list[dict[str, Any]]
@@ -49,16 +47,6 @@ class RPAState(TypedDict, total=False):
 def default_rpa_request() -> str:
     """Return a deterministic sample request for local demos."""
     return "Process invoice ID INV-1001 vendor Acme amount 2500 currency USD status pending"
-
-
-def default_finance_request() -> str:
-    """Return the default finance invoice request."""
-    return default_rpa_request()
-
-
-def default_trade_request() -> str:
-    """Backward-compatible alias for older notebooks."""
-    return default_rpa_request()
 
 
 def new_task_id() -> str:

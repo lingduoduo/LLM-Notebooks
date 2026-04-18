@@ -51,7 +51,7 @@ class ToolRegistry:
             {
                 "name": tool.name,
                 "description": tool.description,
-                "input_schema": deepcopy(tool.input_schema),
+                "input_schema": tool.input_schema,
             }
             for tool in self._tools.values()
         ]
@@ -74,6 +74,14 @@ def object_schema(properties: dict[str, dict[str, str]], required: list[str]) ->
     }
 
 
+_TYPE_CHECKS: dict[str, Callable[[Any], bool]] = {
+    "string": lambda v: isinstance(v, str),
+    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "array": lambda v: isinstance(v, list),
+    "object": lambda v: isinstance(v, dict),
+}
+
+
 def _validate_arguments(tool: ToolSpec, arguments: dict[str, Any]) -> None:
     schema = tool.input_schema
     properties = schema.get("properties", {})
@@ -89,16 +97,9 @@ def _validate_arguments(tool: ToolSpec, arguments: dict[str, Any]) -> None:
 
     for name, value in arguments.items():
         expected_type = properties.get(name, {}).get("type")
-        if expected_type == "string" and not isinstance(value, str):
-            raise ValueError(f"Parameter '{name}' must be a string")
-        if expected_type == "number" and (
-            not isinstance(value, (int, float)) or isinstance(value, bool)
-        ):
-            raise ValueError(f"Parameter '{name}' must be numeric")
-        if expected_type == "array" and not isinstance(value, list):
-            raise ValueError(f"Parameter '{name}' must be an array")
-        if expected_type == "object" and not isinstance(value, dict):
-            raise ValueError(f"Parameter '{name}' must be an object")
+        check = _TYPE_CHECKS.get(expected_type)
+        if check and not check(value):
+            raise ValueError(f"Parameter '{name}' must be a {expected_type}")
 
 
 def extract_invoice_fields(args: dict[str, Any]) -> dict[str, Any]:
@@ -123,7 +124,7 @@ def extract_invoice_fields(args: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "invoice_id": invoice_id,
-        "vendor": vendor.strip() if vendor else None,
+        "vendor": vendor,
         "amount": amount,
         "currency": currency,
         "status": normalized_status,
@@ -159,7 +160,7 @@ def validate_invoice(args: dict[str, Any]) -> dict[str, Any]:
 
 def upsert_invoice(args: dict[str, Any]) -> dict[str, Any]:
     """Create or update an invoice idempotently in a simulated finance system."""
-    invoice = deepcopy(args["invoice"])
+    invoice = args["invoice"]
     invoice_id = invoice["invoice_id"]
 
     if invoice_id in _UPSERTED_INVOICES and _UPSERTED_INVOICES[invoice_id] == invoice:
@@ -183,12 +184,17 @@ def upsert_invoice(args: dict[str, Any]) -> dict[str, Any]:
 def generate_finance_report(args: dict[str, Any]) -> dict[str, Any]:
     """Generate a finance RPA run report."""
     invoices = args["invoices"]
-    failures = [invoice for invoice in invoices if invoice.get("status") == "error"]
-    invalid = [invoice for invoice in invoices if invoice.get("valid") is False]
+    failures = 0
+    invalid = 0
+    for invoice in invoices:
+        if invoice.get("status") == "error":
+            failures += 1
+        if invoice.get("valid") is False:
+            invalid += 1
     return {
         "total": len(invoices),
-        "failures": len(failures),
-        "invalid": len(invalid),
+        "failures": failures,
+        "invalid": invalid,
         "requires_review": bool(failures or invalid),
         "invoices": invoices,
     }
