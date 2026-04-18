@@ -13,8 +13,8 @@ from .service import MultiTenantPlatformService, global_platform_service
 
 
 class ChatRequest(BaseModel):
-    user_id: str = Field(..., min_length=1)
-    message: str = Field(..., min_length=1)
+    user_id: str = Field(..., min_length=1, max_length=64)
+    message: str = Field(..., min_length=1, max_length=4096)
     session_id: Optional[str] = None
 
 

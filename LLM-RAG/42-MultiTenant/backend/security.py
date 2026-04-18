@@ -195,10 +195,15 @@ class AESGCMCipher:
             self._key_bytes = self.key_file.read_bytes()
         return self._key_bytes
 
+    @property
+    def _aesgcm(self) -> AESGCM:
+        if not hasattr(self, "_aesgcm_instance"):
+            self._aesgcm_instance = AESGCM(self.key)
+        return self._aesgcm_instance
+
     def encrypt_json(self, payload: Dict[str, Any]) -> Dict[str, str]:
-        aes = AESGCM(self.key)
         nonce = os.urandom(12)
-        ciphertext = aes.encrypt(nonce, json.dumps(payload, ensure_ascii=False).encode("utf-8"), None)
+        ciphertext = self._aesgcm.encrypt(nonce, json.dumps(payload, ensure_ascii=False).encode("utf-8"), None)
         return {
             "alg": "AES-256-GCM",
             "nonce": _b64url_encode(nonce),
@@ -206,9 +211,8 @@ class AESGCMCipher:
         }
 
     def decrypt_json(self, payload: Dict[str, str]) -> Dict[str, Any]:
-        aes = AESGCM(self.key)
         try:
-            plaintext = aes.decrypt(
+            plaintext = self._aesgcm.decrypt(
                 _b64url_decode(payload["nonce"]),
                 _b64url_decode(payload["ciphertext"]),
                 None,
