@@ -1,227 +1,177 @@
 # MCP (Model Context Protocol) Agent System
 
-MCP example project with a FastAPI server, simple routing agent, LLM-style agent flow, and a LangGraph workflow. The current version is optimized around startup correctness, lower per-request overhead, and a shared concrete agent runtime reused across flows.
+A compact MCP example with a FastAPI tool server, three agent entry points, and a streaming `BaseAgent` abstraction backed by LangGraph.
 
 ---
 
 ## Quick Start
 
-### Installation
-
 ```bash
-
-# Install core dependencies
-pip install fastapi uvicorn pydantic requests
-
-# Optional: For LangGraph agent
-pip install langgraph langchain langchain-openai langchain-core
-
-# Or install all at once
 pip install -r requirements.txt
 ```
 
-### Running the System
-
-**Terminal 1: Start the MCP Server**
+Minimal install (server + simple clients only):
 ```bash
+pip install fastapi uvicorn pydantic requests
+```
+
+With LangGraph agent:
+```bash
+pip install langgraph langchain langchain-openai langchain-core
+```
+
+Start the server, then run any client:
+
+```bash
+# Terminal 1
 python mcp_server.py
-```
 
-Expected output:
-```
-2024-01-15 10:30:45,123 - root - INFO - ToolRegistry initialized
-2024-01-15 10:30:45,124 - root - INFO - Tool registered: get_weather
-2024-01-15 10:30:45,124 - root - INFO - Tool registered: search_docs
-2024-01-15 10:30:45,124 - root - INFO - Tool registered: add_numbers
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-```
-
-**Terminal 2: Run an Agent**
-
-Choose one:
-```bash
-# Simple routing agent
+# Terminal 2 — pick one
 python agent_client.py
-
-# LLM-based agent
 python llm_agent_flow.py
-
-# Advanced LangGraph agent
 python agent_langgraph.py
-```
-
----
-
-## API Usage
-
-### Health Check
-```bash
-curl http://127.0.0.1:8000/health
-# Response: {"status": "ok"}
-```
-
-### List Available Tools
-```bash
-curl http://127.0.0.1:8000/mcp/tools
-```
-
-### Call a Tool
-```bash
-curl -X POST http://127.0.0.1:8000/mcp/call \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "get_weather",
-    "arguments": {"city": "Boston", "unit": "celsius"}
-  }'
-```
-
-Response:
-```json
-{
-  "ok": true,
-  "tool_name": "get_weather",
-  "result": {
-    "city": "Boston",
-    "temperature": 22,
-    "unit": "celsius",
-    "condition": "sunny"
-  }
-}
 ```
 
 ---
 
 ## Architecture
 
-### System Design (5-tier)
-
 ```
-Presentation  agent_client.py / llm_agent_flow.py / agent_langgraph.py
-    │
-API Gateway   mcp_server.py         FastAPI, validation, error handling
-    │
-Tool Layer    tools.py              Tool registry, validation, invocation
-    │
-Config        config.py             Centralized constants
-    │
-Storage       (Ready for PostgreSQL/Redis)
+agent_client.py / llm_agent_flow.py / agent_langgraph.py
+          │
+    agent_runtime.py          shared planner, prompt builder, answer formatter
+    base_agent.py             streaming queue, BaseAgent.stream() / .invoke()
+          │
+    mcp_server.py             FastAPI: /mcp/tools, /mcp/call, /health
+          │
+    tools.py                  ToolRegistry + three built-in tool handlers
+          │
+    config.py                 env-overridable constants
 ```
 
-### File Organization
-
-| File | Purpose | Key Features |
-|------|---------|--------------|
-| `config.py` | Configuration management | Centralized constants, environment overrides |
-| `tools.py` | Tool registry & handlers | Validation, error handling, logging |
-| `mcp_server.py` | FastAPI server | Request validation, response schemas, health check |
-| `agent_client.py` | Simple routing agent | Rule-based tool selection, timeout handling |
-| `llm_agent_flow.py` | LLM-based agent | Shared runtime, concrete planner output |
-| `agent_langgraph.py` | Advanced LangGraph agent | Explicit state graph over shared runtime |
-| `agent_runtime.py` | Shared runtime | Shared planner, executor, answer formatting |
-| `requirements.txt` | Dependencies | All required and optional packages |
+| File | Role |
+|---|---|
+| `config.py` | Shared constants; all values env-overridable |
+| `tools.py` | `ToolRegistry` with catalog caching; `get_weather`, `search_docs`, `add_numbers` |
+| `mcp_server.py` | FastAPI endpoints for tool discovery and execution |
+| `agent_client.py` | Simple rule-based client with cached HTTP session and discovery |
+| `agent_runtime.py` | `PLANNER_RULES`, cached prompt serialization, `run_agent_query()` |
+| `base_agent.py` | `QueueEvent`, `AgentThought`, `AgentResult`, `BaseAgent` (ABC) |
+| `llm_agent_flow.py` | CLI wrapper over `run_agent_query()` |
+| `agent_langgraph.py` | `MCPLangGraphAgent` — explicit graph nodes publishing typed events |
 
 ---
 
-## Available Tools
+## API
 
-### 1. get_weather
-Get current weather for a city.
+```bash
+# Health (returns status + tools_registered count)
+curl http://127.0.0.1:8000/health
 
-**Input Schema**:
-```json
-{
-  "city": "string (required)",
-  "unit": "string (optional: 'celsius' or 'fahrenheit', default: 'celsius')"
-}
+# Discover tools
+curl http://127.0.0.1:8000/mcp/tools
+
+# Call a tool
+curl -X POST http://127.0.0.1:8000/mcp/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "get_weather", "arguments": {"city": "Boston", "unit": "celsius"}}'
 ```
 
-**Output**:
+---
+
+## Tools
+
+### `get_weather`
 ```json
-{
-  "city": "string",
-  "temperature": "number",
-  "unit": "string",
-  "condition": "string"
-}
+{ "city": "string (required, ≤100 chars)", "unit": "celsius | fahrenheit" }
+→ { "city": "string", "temperature": number, "unit": "string", "condition": "string" }
 ```
 
-### 2. search_docs
-Search documentation for relevant information.
-
-**Input Schema**:
+### `search_docs`
 ```json
-{
-  "query": "string (required)"
-}
+{ "query": "string (required, ≤500 chars)" }
+→ { "query": "string", "results": ["string"], "count": number }
 ```
 
-**Output**:
+### `add_numbers`
 ```json
-{
-  "query": "string",
-  "results": ["string"],
-  "count": "number"
-}
+{ "a": number (required), "b": number (required) }
+→ { "a": number, "b": number, "result": number }
 ```
 
-### 3. add_numbers
-Add two numbers together.
+All parameters marked required are validated before the handler runs; missing params raise `ValueError` rather than silently defaulting.
 
-**Input Schema**:
-```json
-{
-  "a": "number (required)",
-  "b": "number (required)"
-}
-```
+---
 
-**Output**:
-```json
-{
-  "a": "number",
-  "b": "number",
-  "result": "number"
-}
-```
+## Streaming LangGraph Agent
+
+`MCPLangGraphAgent` (in `agent_langgraph.py`) extends `BaseAgent` from `base_agent.py`.
+
+**Graph nodes:** `discover → plan →(conditional)→ execute → respond`
+
+**Routing from `plan`:**
+- `tool_request` present → `execute`
+- direct answer → `respond`
+- max iterations reached → `END` (skips `respond` entirely)
+
+**Event types published per node:**
+
+| Node | Events |
+|---|---|
+| `discover` | `AGENT_THOUGHT` |
+| `plan` | `AGENT_THOUGHT` or `AGENT_MESSAGE + AGENT_END` (on max-iter) |
+| `execute` | `TOOL_CALL`, `TOOL_RESULT` (or `TOOL_RESULT` with error observation) |
+| `respond` | `AGENT_MESSAGE`, `AGENT_END` |
+
+**`BaseAgent` guarantees:**
+- `stream(input)` → `Iterator[AgentThought]`; graph runs on a daemon thread
+- `invoke(input)` → `AgentResult`; accumulates all thoughts including deduped `AGENT_MESSAGE` chunks
+- Any unhandled graph exception is caught in the thread and published as `ERROR + AGENT_END`, so `stream()` always terminates
+
+---
+
+## Shared Runtime (`agent_runtime.py`)
+
+`PLANNER_RULES` is a single source of truth for keyword-to-tool routing used by all three agent entry points.
+
+`_serialize_tools_for_prompt` is `lru_cache`-backed — repeated calls with the same tool catalog produce no extra JSON serialization work.
 
 ---
 
 ## Configuration
 
-Use environment variables or edit `config.py` to customize behavior:
-
 ```python
-# Server settings
-MCP_SERVER_HOST = "127.0.0.1"
-MCP_SERVER_PORT = 8000
-MCP_SERVER_URL = f"http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}"
-
-# API settings
-REQUEST_TIMEOUT = 10  # seconds
-MCP_PROTOCOL_VERSION = "1.0"
-
-# Tool calling settings
-TOOL_CALL_MAX_RETRIES = 3
-TOOL_CALL_TIMEOUT = 30
-
-# Search database (customize with your docs)
-SEARCH_DOCS_DATABASE = [
-    "MCP is a protocol for tool discovery and interaction.",
-    "Tool calling usually relies on pre-defined function schemas.",
-    # Add your documents here
-]
-
-# LLM settings
-LLM_MODEL = "gpt-4o-mini"
-LLM_TEMPERATURE = 0.0
-```
-
-Example:
-
-```bash
-export MCP_SERVER_PORT=8010
-export REQUEST_TIMEOUT=20
-export LLM_MODEL=gpt-4o-mini
+MCP_SERVER_HOST = "127.0.0.1"      # MCP_SERVER_HOST
+MCP_SERVER_PORT = 8000             # MCP_SERVER_PORT
+REQUEST_TIMEOUT = 10               # REQUEST_TIMEOUT (seconds)
+TOOL_CALL_MAX_RETRIES = 3          # TOOL_CALL_MAX_RETRIES
+TOOL_CALL_TIMEOUT = 30             # TOOL_CALL_TIMEOUT (seconds)
+LLM_MODEL = "gpt-4o-mini"         # LLM_MODEL
+LLM_TEMPERATURE = 0.0              # LLM_TEMPERATURE
 ```
 
 ---
+
+## Verification
+
+```bash
+ruff check .
+python -m compileall .
+```
+
+---
+
+## Future Improvements
+
+- Replace the deterministic planner with a real LLM call
+- Add automated tests (unit for `tools.py`, event-stream tests for `base_agent.py`, integration with server running)
+- Rate limiting, metrics, and tracing on the API server
+- Multi-step tool chaining across turns
+
+---
+
+## References
+
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [LangGraph](https://langchain-ai.github.io/langgraph/)

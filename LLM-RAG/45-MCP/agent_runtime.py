@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from agent_client import call_tool, discover_tools_cached
@@ -39,6 +40,22 @@ class AgentRunResult:
     final_answer: str
 
 
+PLANNER_RULES: tuple[tuple[tuple[str, ...], ToolRequest], ...] = (
+    (
+        ("weather", "temperature", "climate", "hot", "cold"),
+        ToolRequest(name="get_weather", arguments={"city": "Boston", "unit": "celsius"}),
+    ),
+    (
+        ("search", "mcp", "document", "find", "look"),
+        ToolRequest(name="search_docs", arguments={"query": "MCP"}),
+    ),
+    (
+        ("add", "sum", "total", "calculate", "math"),
+        ToolRequest(name="add_numbers", arguments={"a": 10, "b": 20}),
+    ),
+)
+
+
 def discover_tool_catalog(force_refresh: bool = False) -> list[dict[str, Any]]:
     """Load the available tool catalog from the MCP server."""
     return discover_tools_cached(force_refresh=force_refresh)
@@ -46,7 +63,7 @@ def discover_tool_catalog(force_refresh: bool = False) -> list[dict[str, Any]]:
 
 def build_system_prompt(tools: list[dict[str, Any]]) -> str:
     """Build a concrete tool-selection prompt for an LLM-style planner."""
-    tools_json = json.dumps(tools, indent=2)
+    tools_json = _serialize_tools_for_prompt(tuple(_tool_signature(tool) for tool in tools))
     return f"""You are an AI agent with access to the following tools:
 
 {tools_json}
@@ -69,6 +86,29 @@ If no tool is needed or you can answer directly, respond with:
 Always respond with valid JSON only."""
 
 
+def _tool_signature(tool: dict[str, Any]) -> tuple[str, str, str]:
+    """Create a stable, hashable representation of a tool definition."""
+    return (
+        str(tool.get("name", "")),
+        str(tool.get("description", "")),
+        json.dumps(tool.get("input_schema", {}), sort_keys=True),
+    )
+
+
+@lru_cache(maxsize=8)
+def _serialize_tools_for_prompt(tool_signatures: tuple[tuple[str, str, str], ...]) -> str:
+    """Cache prompt serialization for repeated runs against the same tool catalog."""
+    tools = [
+        {
+            "name": name,
+            "description": description,
+            "input_schema": json.loads(input_schema),
+        }
+        for name, description, input_schema in tool_signatures
+    ]
+    return json.dumps(tools, indent=2)
+
+
 def decide_next_action(
     user_query: str,
     tools: list[dict[str, Any]],
@@ -85,29 +125,9 @@ def decide_next_action(
 
     query = user_query.lower().strip()
 
-    if any(word in query for word in ["weather", "temperature", "climate", "hot", "cold"]):
-        return AgentDecision(
-            tool_request=ToolRequest(
-                name="get_weather",
-                arguments={"city": "Boston", "unit": "celsius"},
-            )
-        )
-
-    if any(word in query for word in ["search", "mcp", "document", "find", "look"]):
-        return AgentDecision(
-            tool_request=ToolRequest(
-                name="search_docs",
-                arguments={"query": "MCP"},
-            )
-        )
-
-    if any(word in query for word in ["add", "sum", "total", "calculate", "math"]):
-        return AgentDecision(
-            tool_request=ToolRequest(
-                name="add_numbers",
-                arguments={"a": 10, "b": 20},
-            )
-        )
+    for keywords, tool_request in PLANNER_RULES:
+        if any(word in query for word in keywords):
+            return AgentDecision(tool_request=tool_request)
 
     return AgentDecision(
         tool_request=None,
