@@ -10,12 +10,12 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
-_UPSERTED_INVOICES: dict[str, dict[str, Any]] = {}
-VALID_INVOICE_STATUSES = {"pending", "approved", "paid", "open"}
 EXTRACT_INVOICE_FIELDS = "extract_invoice_fields"
 VALIDATE_INVOICE = "validate_invoice"
 UPSERT_INVOICE = "upsert_invoice"
 GENERATE_FINANCE_REPORT = "generate_finance_report"
+SUPPORTED_CURRENCY = "USD"
+VALID_INVOICE_STATUSES = frozenset({"pending", "approved", "paid", "open"})
 FINANCE_TOOL_SEQUENCE = (
     EXTRACT_INVOICE_FIELDS,
     VALIDATE_INVOICE,
@@ -23,6 +23,18 @@ FINANCE_TOOL_SEQUENCE = (
     GENERATE_FINANCE_REPORT,
 )
 FINANCE_REPORTABLE_TOOLS = frozenset({VALIDATE_INVOICE, UPSERT_INVOICE})
+_UPSERTED_INVOICES: dict[str, dict[str, Any]] = {}
+_INVOICE_ID_PATTERN = re.compile(
+    r"\b(?:invoice\s+)?ID\s*[:=]?\s*([A-Za-z]+[-_]?\d+)\b",
+    flags=re.IGNORECASE,
+)
+_VENDOR_PATTERN = re.compile(
+    r"\bvendor\s+([A-Za-z][A-Za-z\s&.-]*?)(?=\s+(?:amount|currency|status|id|invoice)\b|$)",
+    flags=re.IGNORECASE,
+)
+_AMOUNT_PATTERN = re.compile(r"\bamount\s*[:=]?\s*\$?(-?\d+(?:\.\d+)?)", flags=re.IGNORECASE)
+_CURRENCY_PATTERN = re.compile(r"\bcurrency\s+([A-Z]{3})\b", flags=re.IGNORECASE)
+_STATUS_PATTERN = re.compile(r"\bstatus\s+([A-Za-z_]+)", flags=re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -51,7 +63,7 @@ class ToolRegistry:
             {
                 "name": tool.name,
                 "description": tool.description,
-                "input_schema": tool.input_schema,
+                "input_schema": deepcopy(tool.input_schema),
             }
             for tool in self._tools.values()
         ]
@@ -105,17 +117,11 @@ def _validate_arguments(tool: ToolSpec, arguments: dict[str, Any]) -> None:
 def extract_invoice_fields(args: dict[str, Any]) -> dict[str, Any]:
     """Extract finance invoice fields from semi-structured text."""
     raw_text = args["raw_text"]
-    invoice_id = _extract_pattern(
-        raw_text,
-        r"\b(?:invoice\s+)?ID\s*[:=]?\s*([A-Za-z]+[-_]?\d+)\b",
-    )
-    vendor = _extract_pattern(
-        raw_text,
-        r"\bvendor\s+([A-Za-z][A-Za-z\s&.-]*?)(?=\s+(?:amount|currency|status|id|invoice)\b|$)",
-    )
-    amount = _extract_number(raw_text, r"\bamount\s*[:=]?\s*\$?(-?\d+(?:\.\d+)?)")
-    currency = _extract_pattern(raw_text, r"\bcurrency\s+([A-Z]{3})\b")
-    status = _extract_pattern(raw_text, r"\bstatus\s+([A-Za-z_]+)")
+    invoice_id = _extract_pattern(raw_text, _INVOICE_ID_PATTERN)
+    vendor = _extract_pattern(raw_text, _VENDOR_PATTERN)
+    amount = _extract_number(raw_text, _AMOUNT_PATTERN)
+    currency = _extract_pattern(raw_text, _CURRENCY_PATTERN)
+    status = _extract_pattern(raw_text, _STATUS_PATTERN)
     normalized_status = status.lower() if status else None
     extracted_count = sum(
         value is not None
@@ -146,7 +152,7 @@ def validate_invoice(args: dict[str, Any]) -> dict[str, Any]:
         issues.append("amount must be numeric")
     elif amount <= 0:
         issues.append("amount must be greater than zero")
-    if invoice.get("currency") != "USD":
+    if invoice.get("currency") != SUPPORTED_CURRENCY:
         issues.append(f"unsupported currency: {invoice.get('currency')}")
     if invoice.get("status") not in VALID_INVOICE_STATUSES:
         issues.append(f"unsupported status: {invoice.get('status')}")
@@ -177,7 +183,7 @@ def upsert_invoice(args: dict[str, Any]) -> dict[str, Any]:
         "status": operation,
         "invoice_id": invoice_id,
         "idempotent": False,
-        "invoice": invoice,
+        "invoice": deepcopy(invoice),
     }
 
 
@@ -200,13 +206,13 @@ def generate_finance_report(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _extract_pattern(text: str, pattern: str) -> str | None:
-    match = re.search(pattern, text, flags=re.IGNORECASE)
+def _extract_pattern(text: str, pattern: re.Pattern[str]) -> str | None:
+    match = pattern.search(text)
     return match.group(1).strip(" .,!?:;") if match else None
 
 
-def _extract_number(text: str, pattern: str) -> int | float | None:
-    match = re.search(pattern, text, flags=re.IGNORECASE)
+def _extract_number(text: str, pattern: re.Pattern[str]) -> int | float | None:
+    match = pattern.search(text)
     if not match:
         return None
     value = float(match.group(1))

@@ -127,18 +127,29 @@ def resolve_arguments(
     else:
         arguments = dict(extracted_data[step["arguments_from"]])
 
-    if arguments.get("invoices") == INVOICES_REF:
-        arguments["invoices"] = [
+    arguments = {
+        name: resolve_argument_value(value, extracted_data, execution_log)
+        for name, value in arguments.items()
+    }
+
+    return _filter_arguments_for_tool(step["tool_name"], arguments, tools)
+
+
+def resolve_argument_value(
+    value: Any,
+    extracted_data: dict[str, Any],
+    execution_log: list[dict[str, Any]],
+) -> Any:
+    """Resolve one plan argument from literals or workflow references."""
+    if value == INVOICES_REF:
+        return [
             entry["result"]
             for entry in execution_log
             if entry["tool"] in FINANCE_REPORTABLE_TOOLS
         ]
-
-    for name, value in list(arguments.items()):
-        if isinstance(value, str) and value.startswith("$"):
-            arguments[name] = extracted_data[value[1:]]
-
-    return _filter_arguments_for_tool(step["tool_name"], arguments, tools)
+    if isinstance(value, str) and value.startswith("$"):
+        return extracted_data[value[1:]]
+    return value
 
 
 def _filter_arguments_for_tool(
@@ -231,7 +242,7 @@ def post_approval_router(state: RPAState) -> str:
 
 
 async def execute_node(state: RPAState) -> RPAState:
-    execution_log: list[dict[str, Any]] = []
+    execution_log: list[dict[str, Any]] = list(state.get("execution_log", []))
     extracted_data: dict[str, Any] = dict(state.get("extracted_data", {}))
     audit_log: list[Any] = list(state.get("audit_log", []))
     task_id = state["task_id"]

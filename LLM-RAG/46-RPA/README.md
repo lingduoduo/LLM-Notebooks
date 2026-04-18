@@ -50,6 +50,7 @@ Expected extracted invoice:
 | `rpa.py` | State types (`RPAState`, `WorkflowPlan`, `PlanStep`), task ID generation, default sample request, and `audit_event` helper. |
 | `mcp_tools.py` | In-process MCP-style tool registry with schema validation, finance tool constants, and four invoice-processing handlers. |
 | `langgraph.py` | Workflow nodes, routing, and `build_graph()` — compiles a LangGraph state graph when LangGraph is installed, otherwise falls back to `LocalRPAWorkflow`. |
+| `test_rpa.py` | Fast regression tests for tool contracts, idempotent writes, and workflow routing. |
 | `46.ipynb` | Notebook companion for interactive walkthroughs. |
 
 ## Architecture
@@ -85,6 +86,14 @@ If it is not installed, the code automatically uses `LocalRPAWorkflow`, so the
 demo remains runnable with only the standard library.
 
 ## Smoke Test
+
+Run the regression tests:
+
+```bash
+python -m unittest discover -s LLM-RAG/46-RPA -p "test_*.py"
+```
+
+Run the default workflow smoke test:
 
 ```bash
 python -c "import sys, asyncio; sys.path.insert(0, 'LLM-RAG/46-RPA'); from langgraph import graph; from rpa import create_initial_state; result = asyncio.run(graph.ainvoke(create_initial_state())); print(result['final_result']['status']); print(result['extracted_data']['invoice']); print(result['extracted_data']['report']['requires_review'])"
