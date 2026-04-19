@@ -1,0 +1,12 @@
+[project]
+name = "llm-rag-48-vanna"
+version = "0.1.0"
+description = "Vanna RAG text-to-SQL product catalog demo."
+requires-python = ">=3.10"
+dependencies = [
+  "vanna[chromadb,openai]",
+  "pandas",
+]
+
+[tool.setuptools]
+py-modules = ["product_catalog_rag"]
