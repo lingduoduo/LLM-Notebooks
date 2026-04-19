@@ -25,8 +25,10 @@ Optional environment variables:
 
 - `OPENAI_API_KEY`: required.
 - `OPENAI_MODEL`: OpenAI model name. Defaults to `gpt-4o`.
-- `PRODUCT_CATALOG_DB_PATH`: SQLite path. Defaults to `product_catalog.sqlite`.
-- `VANNA_CHROMA_PATH`: Chroma vector-store path. Defaults to `.chroma-products`.
+- `PRODUCT_CATALOG_DB_PATH`: SQLite path. Defaults to `product_catalog.sqlite`
+  in this directory.
+- `VANNA_CHROMA_PATH`: Chroma vector-store path. Defaults to `.chroma-products`
+  in this directory.
 
 ## Code Structure
 

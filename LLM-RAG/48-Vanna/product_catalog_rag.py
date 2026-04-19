@@ -9,13 +9,22 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 
-DB_PATH = Path(os.getenv("PRODUCT_CATALOG_DB_PATH", "product_catalog.sqlite"))
-CHROMA_PATH = Path(os.getenv("VANNA_CHROMA_PATH", ".chroma-products"))
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def resolve_env_path(name: str, default: str) -> Path:
+    path = Path(os.getenv(name, default)).expanduser()
+    return path if path.is_absolute() else BASE_DIR / path
+
+
+DB_PATH = resolve_env_path("PRODUCT_CATALOG_DB_PATH", "product_catalog.sqlite")
+CHROMA_PATH = resolve_env_path("VANNA_CHROMA_PATH", ".chroma-products")
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o").strip() or "gpt-4o"
 USE_CASES = [
     "Which products are in the phone category?",
     "What is the total inventory for active products in each category?",
@@ -67,6 +76,24 @@ QUESTION_SQL_EXAMPLES = [
         """,
     },
 ]
+CATEGORIES = [
+    (1, "phone", "手机", "Smartphones and mobile devices"),
+    (2, "laptop", "笔记本电脑", "Portable computers for work and gaming"),
+    (3, "audio", "音频", "Headphones, speakers, and audio accessories"),
+    (4, "accessory", "配件", "Chargers, cases, cables, and adapters"),
+]
+PRODUCTS = [
+    (101, 1, "iPhone 15", "PHN-IP15-128", 5999.0, 18, 1),
+    (102, 1, "Galaxy S24", "PHN-GS24-256", 5499.0, 12, 1),
+    (103, 1, "Pixel 8", "PHN-PX8-128", 4299.0, 0, 1),
+    (201, 2, "ThinkPad X1 Carbon", "LAP-X1C-001", 10999.0, 6, 1),
+    (202, 2, "MacBook Air 13", "LAP-MBA13-001", 7999.0, 9, 1),
+    (301, 3, "AirPods Pro", "AUD-APP-002", 1899.0, 25, 1),
+    (302, 3, "Bluetooth Speaker Mini", "AUD-SPK-MINI", 399.0, 40, 1),
+    (401, 4, "USB-C Charger 65W", "ACC-CHG-65W", 199.0, 60, 1),
+    (402, 4, "Phone Case Clear", "ACC-CASE-CLR", 79.0, 100, 1),
+    (403, 4, "Legacy Cable", "ACC-CBL-OLD", 39.0, 8, 0),
+]
 
 
 class ProductCatalogRAG:
@@ -88,17 +115,18 @@ class ProductCatalogRAG:
     def generate_sql(self, question: str) -> str:
         """Retrieve RAG context, print a prompt preview, then generate SQL."""
         context = self.get_retrieval_context(question)
+        prompt = build_sql_prompt(
+            question=question,
+            ddl_list=context["ddl"],
+            sql_list=context["examples"],
+            doc_list=context["documentation"],
+        )
         print(
             f"Retrieved: {len(context['ddl'])} DDL, "
             f"{len(context['documentation'])} docs, "
             f"{len(context['examples'])} SQL examples"
         )
-        print("\nPrompt preview:\n", build_sql_prompt(
-            question=question,
-            ddl_list=context["ddl"],
-            sql_list=context["examples"],
-            doc_list=context["documentation"],
-        ))
+        print("\nPrompt preview:\n", prompt)
         return self.engine.generate_sql(question)
 
     def run_sql(self, sql: str):
@@ -125,9 +153,9 @@ def configure_runtime() -> None:
 
 def build_sql_prompt(
     question: str,
-    ddl_list: list,
-    sql_list: list,
-    doc_list: list,
+    ddl_list: Sequence,
+    sql_list: Sequence,
+    doc_list: Sequence,
 ) -> str:
     """Compose a readable SQL prompt from retrieved DDL, examples, and docs."""
     sections = [
@@ -149,7 +177,7 @@ def build_sql_prompt(
     return "\n".join(sections)
 
 
-def _format_section(items: list) -> str:
+def _format_section(items: Sequence) -> str:
     if not items:
         return "(none retrieved)"
 
@@ -162,27 +190,11 @@ def _format_section(items: list) -> str:
 
 
 def create_product_catalog(db_path: Path = DB_PATH) -> Path:
-    categories = [
-        (1, "phone", "手机", "Smartphones and mobile devices"),
-        (2, "laptop", "笔记本电脑", "Portable computers for work and gaming"),
-        (3, "audio", "音频", "Headphones, speakers, and audio accessories"),
-        (4, "accessory", "配件", "Chargers, cases, cables, and adapters"),
-    ]
-    products = [
-        (101, 1, "iPhone 15", "PHN-IP15-128", 5999.0, 18, 1),
-        (102, 1, "Galaxy S24", "PHN-GS24-256", 5499.0, 12, 1),
-        (103, 1, "Pixel 8", "PHN-PX8-128", 4299.0, 0, 1),
-        (201, 2, "ThinkPad X1 Carbon", "LAP-X1C-001", 10999.0, 6, 1),
-        (202, 2, "MacBook Air 13", "LAP-MBA13-001", 7999.0, 9, 1),
-        (301, 3, "AirPods Pro", "AUD-APP-002", 1899.0, 25, 1),
-        (302, 3, "Bluetooth Speaker Mini", "AUD-SPK-MINI", 399.0, 40, 1),
-        (401, 4, "USB-C Charger 65W", "ACC-CHG-65W", 199.0, 60, 1),
-        (402, 4, "Phone Case Clear", "ACC-CASE-CLR", 79.0, 100, 1),
-        (403, 4, "Legacy Cable", "ACC-CBL-OLD", 39.0, 8, 0),
-    ]
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.executescript(
             """
+            PRAGMA foreign_keys = ON;
             DROP TABLE IF EXISTS products;
             DROP TABLE IF EXISTS categories;
 
@@ -205,8 +217,8 @@ def create_product_catalog(db_path: Path = DB_PATH) -> Path:
             );
             """
         )
-        conn.executemany("INSERT INTO categories VALUES (?, ?, ?, ?)", categories)
-        conn.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?)", products)
+        conn.executemany("INSERT INTO categories VALUES (?, ?, ?, ?)", CATEGORIES)
+        conn.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?)", PRODUCTS)
     return db_path
 
 
@@ -216,6 +228,10 @@ def build_vanna(db_path: Path = DB_PATH, chroma_path: Path = CHROMA_PATH):
 
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("Please set OPENAI_API_KEY before running the Vanna RAG example.")
+    if not db_path.exists():
+        raise FileNotFoundError(f"SQLite database not found: {db_path}")
+
+    chroma_path.mkdir(parents=True, exist_ok=True)
 
     class ProductCatalogVanna(ChromaDB_VectorStore, OpenAI_Chat):
         def __init__(self, config=None):
@@ -245,22 +261,20 @@ def train_product_catalog(vn) -> None:
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND sql IS NOT NULL ORDER BY name"
     )
     for ddl in ddl_df["sql"].dropna():
-        vn.train(ddl=ddl)
-    vn.train(documentation=CATALOG_DOCUMENTATION)
+        vn.train(ddl=ddl.strip())
+    vn.train(documentation=CATALOG_DOCUMENTATION.strip())
     for example in QUESTION_SQL_EXAMPLES:
-        vn.train(question=example["question"], sql=example["sql"])
+        vn.train(question=example["question"].strip(), sql=example["sql"].strip())
 
 
 def display_result(result) -> None:
-    try:
-        from IPython.display import display
-    except ImportError:
-        print(result)
-        return
-    display(result)
+    print(result)
 
 
-def run_use_cases(rag: ProductCatalogRAG, use_cases: list[str] | None = None) -> dict:
+def run_use_cases(
+    rag: ProductCatalogRAG,
+    use_cases: Sequence[str] | None = None,
+) -> dict[str, tuple[str, Any]]:
     questions = use_cases or USE_CASES
     return {q: rag.ask(q) for q in questions}
 
