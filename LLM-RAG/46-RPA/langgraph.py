@@ -174,11 +174,7 @@ def should_run_step(step: PlanStep, extracted_data: dict[str, Any]) -> bool:
     condition = step.get("when")
     if not condition:
         return True
-
-    for dotted_key, expected in condition.items():
-        if get_nested_value(extracted_data, dotted_key) != expected:
-            return False
-    return True
+    return all(get_nested_value(extracted_data, k) == v for k, v in condition.items())
 
 
 def get_nested_value(data: dict[str, Any], dotted_key: str) -> Any:
@@ -192,14 +188,12 @@ def get_nested_value(data: dict[str, Any], dotted_key: str) -> Any:
 
 
 async def discover_node(state: RPAState) -> RPAState:
-    task_id = state.get("task_id") or new_task_id()
     tools = await discover_mcp_tools()
     logger.info("Discovered %s RPA tools", len(tools))
     return {
-        "task_id": task_id,
         "discovered_tools": tools,
         "audit_log": append_audit(
-            {**state, "task_id": task_id},
+            state,
             "discover_tools",
             "success",
             {"tools": [tool["name"] for tool in tools]},

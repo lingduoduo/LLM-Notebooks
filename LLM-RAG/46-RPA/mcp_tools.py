@@ -63,7 +63,7 @@ class ToolRegistry:
             {
                 "name": tool.name,
                 "description": tool.description,
-                "input_schema": deepcopy(tool.input_schema),
+                "input_schema": dict(tool.input_schema),
             }
             for tool in self._tools.values()
         ]
@@ -148,7 +148,7 @@ def validate_invoice(args: dict[str, Any]) -> dict[str, Any]:
         issues.append("invoice_id is required")
     if not invoice.get("vendor"):
         issues.append("vendor is required")
-    if not isinstance(amount, (int, float)) or isinstance(amount, bool):
+    if isinstance(amount, bool) or not isinstance(amount, (int, float)):
         issues.append("amount must be numeric")
     elif amount <= 0:
         issues.append("amount must be greater than zero")
@@ -168,16 +168,17 @@ def upsert_invoice(args: dict[str, Any]) -> dict[str, Any]:
     """Create or update an invoice idempotently in a simulated finance system."""
     invoice = args["invoice"]
     invoice_id = invoice["invoice_id"]
+    stored = _UPSERTED_INVOICES.get(invoice_id)
 
-    if invoice_id in _UPSERTED_INVOICES and _UPSERTED_INVOICES[invoice_id] == invoice:
+    if stored == invoice:
         return {
             "status": "unchanged",
             "invoice_id": invoice_id,
             "idempotent": True,
-            "invoice": deepcopy(_UPSERTED_INVOICES[invoice_id]),
+            "invoice": deepcopy(stored),
         }
 
-    operation = "updated" if invoice_id in _UPSERTED_INVOICES else "created"
+    operation = "updated" if stored is not None else "created"
     _UPSERTED_INVOICES[invoice_id] = deepcopy(invoice)
     return {
         "status": operation,
@@ -190,13 +191,8 @@ def upsert_invoice(args: dict[str, Any]) -> dict[str, Any]:
 def generate_finance_report(args: dict[str, Any]) -> dict[str, Any]:
     """Generate a finance RPA run report."""
     invoices = args["invoices"]
-    failures = 0
-    invalid = 0
-    for invoice in invoices:
-        if invoice.get("status") == "error":
-            failures += 1
-        if invoice.get("valid") is False:
-            invalid += 1
+    failures = sum(1 for inv in invoices if inv.get("status") == "error")
+    invalid = sum(1 for inv in invoices if inv.get("valid") is False)
     return {
         "total": len(invoices),
         "failures": failures,
