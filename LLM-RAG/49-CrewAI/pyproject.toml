@@ -1,0 +1,14 @@
+[project]
+name = "llm-rag-49-agentic-rag"
+version = "0.1.0"
+description = "CrewAI Agentic RAG demos."
+requires-python = ">=3.10"
+dependencies = [
+  "crewai",
+  "docling",
+  "openai",
+  "python-dotenv",
+]
+
+[tool.setuptools]
+py-modules = ["single_agent", "multi_agents", "hierarchical_agents", "dynamic_tools_agent", "corrective_rag_agent", "object_indexed_agent", "heterogeneous_fusion_agent", "unified_agent", "tool_definitions", "tool_index", "agentRAG_utils"]
