@@ -84,7 +84,7 @@ Preferred variables use the `HITL_` prefix.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `HITL_LLM_MODEL` | `gpt-4-mini` | Chat model used by `HITLAgent`. |
+| `HITL_LLM_MODEL` | `gpt-4o-mini` | Chat model used by `HITLAgent`. |
 | `HITL_LLM_TEMPERATURE` | `0.2` | Sampling temperature. |
 | `HITL_LLM_MAX_TOKENS` | `1000` | Maximum response tokens. |
 | `HITL_APPROVAL_TIMEOUT_HOURS` | `24` | Pending approval expiry window. |
@@ -153,10 +153,11 @@ Audit logging records the initial purchase request and the final human decision.
 | `DELETE` | `/api/approvals/{approval_id}` | Cancel an approval. |
 | `GET` | `/api/health` | Health check. |
 
-The web chat endpoint is demo-oriented and currently simulates agent output.
-Pending approvals are stored in memory and cleaned up by a FastAPI lifespan
-background task. For production, replace this with persistent storage and real
-graph resume handling.
+The web chat endpoint invokes the real agent via `asyncio.to_thread` and
+handles `GraphInterrupt` to capture the approval payload. Pending approvals are
+stored in memory and cleaned up by a FastAPI lifespan background task. For
+production, replace in-memory storage with Redis or a database and wire up
+graph resume on the `/api/approve` path.
 
 ## Verify
 

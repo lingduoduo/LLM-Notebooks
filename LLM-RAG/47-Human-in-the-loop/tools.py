@@ -192,35 +192,28 @@ def search_product(query: str) -> list[dict[str, Any]]:
         raise ValueError("query cannot be empty")
 
     logger.info(f"Product search: {query}")
-
-    try:
-        product_info = get_product_info(query)
-        result = [{
-            "name": product_info["name"],
-            "price": product_info["price"],
-            "vendor": product_info["vendor"],
-            "currency": product_info["currency"],
-            "price_range": product_info["price_range"],
-            "vendors": product_info["vendors"],
-        }]
-
-        logger.debug(f"Search result: {result}")
-        return result
-
-    except Exception as e:
-        error_msg = f"Product search failed: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        raise ValueError(error_msg)
+    product_info = get_product_info(query)
+    result = [{
+        "name": product_info["name"],
+        "price": product_info["price"],
+        "vendor": product_info["vendor"],
+        "currency": product_info["currency"],
+        "price_range": product_info["price_range"],
+        "vendors": product_info["vendors"],
+    }]
+    logger.debug(f"Search result: {result}")
+    return result
 
 
 # Tool registry for easy access
 TOOLS = [purchase_item, search_product]
 TOOL_REGISTRY = {t.name: t for t in TOOLS}
-TOOL_NAMES = [t.name for t in TOOLS]
 REQUIRED_TOOL_ARGS = {
     "purchase_item": ("item", "price", "vendor"),
     "search_product": ("query",),
 }
+# Tools that accept a thread_id argument for audit tracing
+_THREAD_AWARE_TOOLS = {"purchase_item"}
 
 def get_tool_by_name(name: str) -> Optional[object]:
     """Get a tool by name."""
@@ -235,32 +228,26 @@ def execute_tool_call(tool_name: str, tool_args: Dict[str, Any], thread_id: str 
         return f"Unknown tool: {tool_name}"
 
     invoke_args = dict(tool_args)
-    if tool_name == "purchase_item" and thread_id:
+    if tool_name in _THREAD_AWARE_TOOLS and thread_id:
         invoke_args.setdefault("thread_id", thread_id)
 
     return tool.invoke(invoke_args)
 
 def validate_tool_args(tool_name: str, args: Dict[str, Any]) -> bool:
     """Validate tool arguments."""
-    try:
-        tool = get_tool_by_name(tool_name)
-        if not tool:
+    if not get_tool_by_name(tool_name):
+        return False
+
+    if tool_name == "purchase_item":
+        try:
+            _validate_purchase_args(args.get("item"), args.get("price"), args.get("vendor"))
+        except ValueError as e:
+            logger.warning(f"Invalid purchase args: {e}")
             return False
 
-        if tool_name == "purchase_item":
-            try:
-                _validate_purchase_args(args.get("item"), args.get("price"), args.get("vendor"))
-            except ValueError as e:
-                logger.warning(f"Invalid purchase args: {e}")
-                return False
+    elif tool_name == "search_product":
+        if "query" not in args or not isinstance(args["query"], str) or not args["query"].strip():
+            logger.warning("Invalid query argument")
+            return False
 
-        elif tool_name == "search_product":
-            if "query" not in args or not isinstance(args["query"], str) or not args["query"].strip():
-                logger.warning("Invalid query argument")
-                return False
-
-        return True
-
-    except Exception as e:
-        logger.error(f"Tool validation error: {e}")
-        return False
+    return True

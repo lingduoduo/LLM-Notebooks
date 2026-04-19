@@ -18,6 +18,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 import uvicorn
+from langchain_core.messages import HumanMessage
+from langgraph.errors import GraphInterrupt
 
 from config import (
     ENABLE_WEB_INTERFACE, WEB_HOST, WEB_PORT,
@@ -128,54 +130,45 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     try:
         logger.info(f"Chat request: thread={thread_id}, user={request.user_id}, message='{request.message}'")
 
-        # For now, we'll simulate the execution
-        # In a real implementation, you'd need to handle the async interrupt properly
+        agent_instance = get_agent()
+        graph_config = {"configurable": {"thread_id": thread_id}}
+        input_msg = {"messages": [HumanMessage(content=request.message)]}
+
         try:
-            # This would normally be: result = await agent.graph.ainvoke(input_msg, config)
-            # But for demo purposes, we'll simulate
+            result = await asyncio.to_thread(agent_instance.graph.invoke, input_msg, graph_config)
+            last_message = result["messages"][-1]
+            response_text = getattr(last_message, "content", str(last_message))
             return ChatResponse(
                 thread_id=thread_id,
                 status="completed",
-                response="Agent processed your request successfully."
+                response=response_text,
             )
 
-        except Exception as e:
-            if "interrupt" in str(e).lower():
-                # Create approval request
-                approval_id = str(uuid.uuid4())
+        except GraphInterrupt as interrupt_exc:
+            approval_data: Dict[str, Any] = interrupt_exc.args[0] if interrupt_exc.args else {}
+            approval_data.setdefault("thread_id", thread_id)
+            approval_data.setdefault("user_id", request.user_id)
+            approval_data.setdefault("timestamp", datetime.now().isoformat())
 
-                # Mock approval data (in real implementation, extract from interrupt)
-                approval_data = {
-                    "action": "purchase",
-                    "item": "MacBook Pro",
-                    "price": 15999.0,
-                    "vendor": "Apple Store",
-                    "currency": "CNY",
-                    "message": f"Purchase request for {request.message}",
-                    "thread_id": thread_id,
-                    "user_id": request.user_id,
-                    "timestamp": datetime.now().isoformat()
-                }
+            approval_id = str(uuid.uuid4())
+            pending_approvals[approval_id] = {
+                "thread_id": thread_id,
+                "user_id": request.user_id,
+                "approval_data": approval_data,
+                "created_at": datetime.now(),
+            }
 
-                # Store pending approval
-                pending_approvals[approval_id] = {
-                    "thread_id": thread_id,
-                    "user_id": request.user_id,
-                    "approval_data": approval_data,
-                    "created_at": datetime.now()
-                }
+            logger.info(f"Approval request created: {approval_id}")
 
-                logger.info(f"Approval request created: {approval_id}")
+            return ChatResponse(
+                thread_id=thread_id,
+                status="waiting_approval",
+                approval_id=approval_id,
+                approval_data=approval_data,
+            )
 
-                return ChatResponse(
-                    thread_id=thread_id,
-                    status="waiting_approval",
-                    approval_id=approval_id,
-                    approval_data=approval_data
-                )
-            else:
-                raise
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
         audit_logger.log_agent_action(

@@ -11,7 +11,7 @@ import logging.handlers
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 
 from config import LOG_LEVEL, LOG_FORMAT, LOG_FILE, ENABLE_AUDIT_LOG, AUDIT_LOG_FILE, PURCHASE_CURRENCY
 
@@ -23,17 +23,14 @@ class AuditEvent:
     user_id: Optional[str]
     action: str
     details: Dict[str, Any]
-    timestamp: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     event_type: str = "agent_action"
     result: Optional[str] = None
     error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        d = asdict(self)
-        if not d["timestamp"]:
-            d["timestamp"] = datetime.now().isoformat()
-        return d
+        return asdict(self)
 
 
 class AuditLogger:
@@ -69,7 +66,6 @@ class AuditLogger:
     ) -> None:
         """Log purchase approval decision."""
         event = AuditEvent(
-            timestamp=datetime.now().isoformat(),
             event_type="purchase_approval",
             thread_id=thread_id,
             user_id=user_id,
@@ -94,7 +90,6 @@ class AuditLogger:
     ) -> None:
         """Log general agent actions."""
         event = AuditEvent(
-            timestamp=datetime.now().isoformat(),
             event_type="agent_action",
             thread_id=thread_id,
             user_id=user_id,
@@ -116,16 +111,7 @@ def setup_logging(
     """Setup comprehensive logging configuration."""
     if level is None:
         level = LOG_LEVEL
-    # Convert string level to logging level
-    level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
-    }
-
-    numeric_level = level_map.get(level.upper(), logging.INFO)
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
 
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:

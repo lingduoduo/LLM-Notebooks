@@ -125,8 +125,8 @@ class HITLAgent:
             if getattr(response, "tool_calls", None) != tool_calls:
                 try:
                     response.tool_calls = tool_calls
-                except Exception:
-                    pass
+                except AttributeError:
+                    logger.debug("tool_calls attribute is read-only; skipping normalization")
             if not isinstance(response, BaseMessage):
                 response = AIMessage(content=str(getattr(response, "content", "")))
             logger.debug(f"LLM response generated with {len(tool_calls)} tool calls")
@@ -355,13 +355,17 @@ class HITLAgent:
             thread_id: Conversation thread ID
 
         Returns:
-            List of conversation messages
+            List of conversation messages as {role, content} dicts.
         """
-        # This would require access to the checkpointer's storage
-        # For InMemorySaver, we don't have a direct way to retrieve by thread_id
-        # In production with persistent storage, this would be implemented
-        logger.warning("Conversation history retrieval not implemented for InMemorySaver")
-        return []
+        config = {"configurable": {"thread_id": thread_id}}
+        checkpoint = self.checkpointer.get(config)
+        if checkpoint is None:
+            return []
+        messages = checkpoint.get("channel_values", {}).get("messages", [])
+        return [
+            {"role": type(m).__name__, "content": getattr(m, "content", str(m))}
+            for m in messages
+        ]
 
     def clear_thread(self, thread_id: str) -> bool:
         """
@@ -371,16 +375,20 @@ class HITLAgent:
             thread_id: Thread ID to clear
 
         Returns:
-            Success status
+            True when storage entries were removed, False if thread was not found.
         """
-        try:
-            # For InMemorySaver, we can't selectively clear
-            # In production, implement proper cleanup
-            logger.info(f"Thread clearing not implemented for thread: {thread_id}")
+        storage = getattr(self.checkpointer, "storage", None)
+        if storage is None:
+            logger.warning("Checkpointer does not expose mutable storage; cannot clear thread")
             return False
-        except Exception as e:
-            logger.error(f"Failed to clear thread {thread_id}: {e}")
-            return False
+        keys = [k for k in storage if k[0] == thread_id]
+        for k in keys:
+            del storage[k]
+        if keys:
+            logger.info(f"Cleared {len(keys)} checkpoint(s) for thread: {thread_id}")
+            return True
+        logger.info(f"No checkpoints found for thread: {thread_id}")
+        return False
 
 
 def normalize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:

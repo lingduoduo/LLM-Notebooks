@@ -29,6 +29,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import interrupt, Command
+from langgraph.errors import GraphInterrupt
 from typing import Annotated, Sequence
 from langchain_core.tools import tool
 from typing_extensions import TypedDict
@@ -57,15 +58,13 @@ def purchase_item_legacy(item_name: str, price: float, vendor: str):
         "message": f"About to purchase {item_name} for {price} CNY from {vendor}. Please approve or suggest changes."
     })
 
-    if response["type"] == "accept":
-        pass
+    if response["type"] == "reject":
+        return "Purchase request has been rejected."
     elif response["type"] == "edit":
         item_name = response["args"].get("item_name", item_name)
         price = response["args"].get("price", price)
         vendor = response["args"].get("vendor", vendor)
-    elif response["type"] == "reject":
-        return "Purchase request has been rejected."
-    else:
+    elif response["type"] != "accept":
         raise ValueError(f"Unknown response type: {response['type']}")
 
     return f"Successfully purchased {item_name} for {price} CNY from {vendor}."
@@ -182,28 +181,23 @@ def run_legacy_demo():
                         else:
                             print(f"💬 {message.content}")
 
+        except GraphInterrupt as e:
+            print("\n⏸️  Agent execution paused for human approval")
+            print("Approval data:", e.args[0] if e.args else "No details available")
+
+            decision = input("Approve? (y/n): ").strip().lower()
+            resume_command = Command(resume={"type": "accept" if decision == 'y' else "reject"})
+
+            print("\n▶️  Resuming execution...")
+            for chunk in graph.stream(resume_command, config):
+                for node, messages in chunk.items():
+                    for message in messages["messages"]:
+                        if isinstance(message, ToolMessage):
+                            print(f"🛠️  Final result: {message.content}")
+                        else:
+                            print(f"💬 {message.content}")
         except Exception as e:
-            if "interrupt" in str(e).lower():
-                print("\n⏸️  Agent execution paused for human approval")
-                print("Approval data:", e.args[0] if e.args else "No details available")
-
-                # Simple approval simulation
-                decision = input("Approve? (y/n): ").strip().lower()
-                if decision == 'y':
-                    resume_command = Command(resume={"type": "accept"})
-                else:
-                    resume_command = Command(resume={"type": "reject"})
-
-                print("\n▶️  Resuming execution...")
-                for chunk in graph.stream(resume_command, config):
-                    for node, messages in chunk.items():
-                        for message in messages["messages"]:
-                            if isinstance(message, ToolMessage):
-                                print(f"🛠️  Final result: {message.content}")
-                            else:
-                                print(f"💬 {message.content}")
-            else:
-                print(f"❌ Error: {e}")
+            print(f"❌ Error: {e}")
 
 
 def run_optimized_system():

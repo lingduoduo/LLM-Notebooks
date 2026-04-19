@@ -172,18 +172,8 @@ class CLIInterface:
         new_item = self.get_user_input("New item name")
 
         # Get new price
-        while True:
-            new_price_str = self.get_user_input("New price")
-            if not new_price_str:
-                new_price = None
-                break
-            try:
-                new_price = float(new_price_str)
-                if new_price <= 0:
-                    raise ValueError()
-                break
-            except ValueError:
-                self.print_error("Please enter a valid positive number for price")
+        new_price_str = self.get_user_input("New price", validator=lambda v: validate_numeric(v) if v else None)
+        new_price = float(new_price_str) if new_price_str else None
 
         # Get new vendor
         new_vendor = self.get_user_input("New vendor")
@@ -191,7 +181,7 @@ class CLIInterface:
         # Build edit response
         edit_args = {}
         if new_item:
-            edit_args["item_name"] = new_item
+            edit_args["item"] = new_item
         if new_price is not None:
             edit_args["price"] = new_price
         if new_vendor:
