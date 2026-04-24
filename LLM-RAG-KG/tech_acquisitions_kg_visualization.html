@@ -1,0 +1,250 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 600px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+             #loadingBar {
+                 position:absolute;
+                 top:0px;
+                 left:0px;
+                 width: 100%;
+                 height: 600px;
+                 background-color:rgba(200,200,200,0.8);
+                 -webkit-transition: all 0.5s ease;
+                 -moz-transition: all 0.5s ease;
+                 -ms-transition: all 0.5s ease;
+                 -o-transition: all 0.5s ease;
+                 transition: all 0.5s ease;
+                 opacity:1;
+             }
+
+             #bar {
+                 position:absolute;
+                 top:0px;
+                 left:0px;
+                 width:20px;
+                 height:20px;
+                 margin:auto auto auto auto;
+                 border-radius:11px;
+                 border:2px solid rgba(30,30,30,0.05);
+                 background: rgb(0, 173, 246); /* Old browsers */
+                 box-shadow: 2px 0px 4px rgba(0,0,0,0.4);
+             }
+
+             #border {
+                 position:absolute;
+                 top:10px;
+                 left:10px;
+                 width:500px;
+                 height:23px;
+                 margin:auto auto auto auto;
+                 box-shadow: 0px 0px 4px rgba(0,0,0,0.2);
+                 border-radius:10px;
+             }
+
+             #text {
+                 position:absolute;
+                 top:8px;
+                 left:530px;
+                 width:30px;
+                 height:50px;
+                 margin:auto auto auto auto;
+                 font-size:22px;
+                 color: #000000;
+             }
+
+             div.outerBorder {
+                 position:relative;
+                 top:400px;
+                 width:600px;
+                 height:44px;
+                 margin:auto auto auto auto;
+                 border:8px solid rgba(0,0,0,0.1);
+                 background: rgb(252,252,252); /* Old browsers */
+                 background: -moz-linear-gradient(top,  rgba(252,252,252,1) 0%, rgba(237,237,237,1) 100%); /* FF3.6+ */
+                 background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(252,252,252,1)), color-stop(100%,rgba(237,237,237,1))); /* Chrome,Safari4+ */
+                 background: -webkit-linear-gradient(top,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* Chrome10+,Safari5.1+ */
+                 background: -o-linear-gradient(top,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* Opera 11.10+ */
+                 background: -ms-linear-gradient(top,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* IE10+ */
+                 background: linear-gradient(to bottom,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* W3C */
+                 filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#fcfcfc', endColorstr='#ededed',GradientType=0 ); /* IE6-9 */
+                 border-radius:72px;
+                 box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+             }
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+            <div id="loadingBar">
+              <div class="outerBorder">
+                <div id="text">0%</div>
+                <div id="border">
+                  <div id="bar"></div>
+                </div>
+              </div>
+            </div>
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"group": "Place", "id": "http://example.org/kg/Germany_GPE", "label": "Germany", "shape": "dot", "title": "http://example.org/kg/Germany_GPE"}, {"group": "Unknown", "id": "http://schema.org/Place", "label": "schema1:Place", "shape": "dot", "title": "http://schema.org/Place"}, {"group": "Article", "id": "http://example.org/kg/article_637fb45545c2867cb5e54463ee3f332b24133649", "label": "ex:article_637fb45545c2867cb5e54463ee3f332b24133649", "shape": "dot", "title": "http://example.org/kg/article_637fb45545c2867cb5e54463ee3f332b24133649"}, {"group": "Person", "id": "http://example.org/kg/Halifax_Bank_PERSON", "label": "Halifax Bank", "shape": "dot", "title": "http://example.org/kg/Halifax_Bank_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_ec043d51d65662479c82cec8cd7f2d9f8fd908bc", "label": "ex:article_ec043d51d65662479c82cec8cd7f2d9f8fd908bc", "shape": "dot", "title": "http://example.org/kg/article_ec043d51d65662479c82cec8cd7f2d9f8fd908bc"}, {"group": "Place", "id": "http://example.org/kg/United_States_GPE", "label": "United States", "shape": "dot", "title": "http://example.org/kg/United_States_GPE"}, {"group": "Person", "id": "http://example.org/kg/Alan_Johnston_PERSON", "label": "Alan Johnston", "shape": "dot", "title": "http://example.org/kg/Alan_Johnston_PERSON"}, {"group": "Unknown", "id": "http://schema.org/Person", "label": "schema1:Person", "shape": "dot", "title": "http://schema.org/Person"}, {"group": "Article", "id": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "label": "ex:article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "shape": "dot", "title": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae"}, {"group": "Person", "id": "http://example.org/kg/Manchester_City_PERSON", "label": "Manchester City", "shape": "dot", "title": "http://example.org/kg/Manchester_City_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_57fe1401e97cda271a7c61eb5f99a3490ccc8d6b", "label": "ex:article_57fe1401e97cda271a7c61eb5f99a3490ccc8d6b", "shape": "dot", "title": "http://example.org/kg/article_57fe1401e97cda271a7c61eb5f99a3490ccc8d6b"}, {"group": "Person", "id": "http://example.org/kg/Chelsea_PERSON", "label": "Chelsea", "shape": "dot", "title": "http://example.org/kg/Chelsea_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_7554bcdf4be93baf973eccf5a3423bd8b383ac72", "label": "ex:article_7554bcdf4be93baf973eccf5a3423bd8b383ac72", "shape": "dot", "title": "http://example.org/kg/article_7554bcdf4be93baf973eccf5a3423bd8b383ac72"}, {"group": "Organization", "id": "http://example.org/kg/United_Arab_Emirates_ORG", "label": "United Arab Emirates", "shape": "dot", "title": "http://example.org/kg/United_Arab_Emirates_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_102d9b18344c158f1d069b9ddf17096f420a34df", "label": "ex:article_102d9b18344c158f1d069b9ddf17096f420a34df", "shape": "dot", "title": "http://example.org/kg/article_102d9b18344c158f1d069b9ddf17096f420a34df"}, {"group": "Person", "id": "http://example.org/kg/Reibel_PERSON", "label": "Reibel", "shape": "dot", "title": "http://example.org/kg/Reibel_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_bc639974d283826b3b928bf90f0951652db71fd4", "label": "ex:article_bc639974d283826b3b928bf90f0951652db71fd4", "shape": "dot", "title": "http://example.org/kg/article_bc639974d283826b3b928bf90f0951652db71fd4"}, {"group": "Organization", "id": "http://example.org/kg/Special_Court_ORG", "label": "Special Court", "shape": "dot", "title": "http://example.org/kg/Special_Court_ORG"}, {"group": "FAC", "id": "http://example.org/kg/Manchester_City_FAC", "label": "Manchester City", "shape": "dot", "title": "http://example.org/kg/Manchester_City_FAC"}, {"group": "Article", "id": "http://example.org/kg/article_6f039b0d39932ac4bbd3bf85eba1690376ff50c5", "label": "ex:article_6f039b0d39932ac4bbd3bf85eba1690376ff50c5", "shape": "dot", "title": "http://example.org/kg/article_6f039b0d39932ac4bbd3bf85eba1690376ff50c5"}, {"group": "Place", "id": "http://example.org/kg/European_GPE", "label": "European", "shape": "dot", "title": "http://example.org/kg/European_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_bc1c4d12aabdcecab3d87c6f9a898e41c7cd3821", "label": "ex:article_bc1c4d12aabdcecab3d87c6f9a898e41c7cd3821", "shape": "dot", "title": "http://example.org/kg/article_bc1c4d12aabdcecab3d87c6f9a898e41c7cd3821"}, {"group": "Place", "id": "http://example.org/kg/Hungary_GPE", "label": "Hungary", "shape": "dot", "title": "http://example.org/kg/Hungary_GPE"}, {"group": "Place", "id": "http://example.org/kg/Smulian_GPE", "label": "Smulian", "shape": "dot", "title": "http://example.org/kg/Smulian_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_5ab7e96bffefe1ddcd7a6bc49936ebb96538f079", "label": "ex:article_5ab7e96bffefe1ddcd7a6bc49936ebb96538f079", "shape": "dot", "title": "http://example.org/kg/article_5ab7e96bffefe1ddcd7a6bc49936ebb96538f079"}, {"group": "Place", "id": "http://example.org/kg/Italy_GPE", "label": "Italy", "shape": "dot", "title": "http://example.org/kg/Italy_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_2ffa072b086f49c08ade87738c86e82509b1005f", "label": "ex:article_2ffa072b086f49c08ade87738c86e82509b1005f", "shape": "dot", "title": "http://example.org/kg/article_2ffa072b086f49c08ade87738c86e82509b1005f"}, {"group": "Organization", "id": "http://example.org/kg/Federal_Reserve_ORG", "label": "Federal Reserve", "shape": "dot", "title": "http://example.org/kg/Federal_Reserve_ORG"}, {"group": "Place", "id": "http://example.org/kg/Lima_GPE", "label": "Lima", "shape": "dot", "title": "http://example.org/kg/Lima_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_9838d5c70c0db67603b46f6210c9de3e8839a377", "label": "ex:article_9838d5c70c0db67603b46f6210c9de3e8839a377", "shape": "dot", "title": "http://example.org/kg/article_9838d5c70c0db67603b46f6210c9de3e8839a377"}, {"group": "Person", "id": "http://example.org/kg/Lee_Friedlander_PERSON", "label": "Lee Friedlander", "shape": "dot", "title": "http://example.org/kg/Lee_Friedlander_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_81e50c6cdbea4e55af6307d653135ef395b6d7fe", "label": "ex:article_81e50c6cdbea4e55af6307d653135ef395b6d7fe", "shape": "dot", "title": "http://example.org/kg/article_81e50c6cdbea4e55af6307d653135ef395b6d7fe"}, {"group": "Person", "id": "http://example.org/kg/Ready_PERSON", "label": "Ready", "shape": "dot", "title": "http://example.org/kg/Ready_PERSON"}, {"group": "Organization", "id": "http://example.org/kg/BBC_Sport_ORG", "label": "BBC Sport", "shape": "dot", "title": "http://example.org/kg/BBC_Sport_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_8e0d86f794299fa3272ba76f70069d7450dac569", "label": "ex:article_8e0d86f794299fa3272ba76f70069d7450dac569", "shape": "dot", "title": "http://example.org/kg/article_8e0d86f794299fa3272ba76f70069d7450dac569"}, {"group": "Person", "id": "http://example.org/kg/Muslim_Khan_PERSON", "label": "Muslim Khan", "shape": "dot", "title": "http://example.org/kg/Muslim_Khan_PERSON"}, {"group": "Place", "id": "http://example.org/kg/Prevnar_GPE", "label": "Prevnar", "shape": "dot", "title": "http://example.org/kg/Prevnar_GPE"}, {"group": "Person", "id": "http://example.org/kg/Conrad_Sutter_PERSON", "label": "Conrad Sutter", "shape": "dot", "title": "http://example.org/kg/Conrad_Sutter_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Tarija_PERSON", "label": "Tarija", "shape": "dot", "title": "http://example.org/kg/Tarija_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_a999aa661a4990e6d8423cfdf474e344aaffdc5a", "label": "ex:article_a999aa661a4990e6d8423cfdf474e344aaffdc5a", "shape": "dot", "title": "http://example.org/kg/article_a999aa661a4990e6d8423cfdf474e344aaffdc5a"}, {"group": "Organization", "id": "http://example.org/kg/State_Department_ORG", "label": "State Department", "shape": "dot", "title": "http://example.org/kg/State_Department_ORG"}, {"group": "Person", "id": "http://example.org/kg/Will_Herberg_PERSON", "label": "Will Herberg", "shape": "dot", "title": "http://example.org/kg/Will_Herberg_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_49da5c62a702063be1635e29a5c4e2e6206c5225", "label": "ex:article_49da5c62a702063be1635e29a5c4e2e6206c5225", "shape": "dot", "title": "http://example.org/kg/article_49da5c62a702063be1635e29a5c4e2e6206c5225"}, {"group": "Person", "id": "http://example.org/kg/Patrick_White_PERSON", "label": "Patrick White", "shape": "dot", "title": "http://example.org/kg/Patrick_White_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_4cf51ce9372dff8ff7f44f098eab1c1d7569af7a", "label": "ex:article_4cf51ce9372dff8ff7f44f098eab1c1d7569af7a", "shape": "dot", "title": "http://example.org/kg/article_4cf51ce9372dff8ff7f44f098eab1c1d7569af7a"}, {"group": "Person", "id": "http://example.org/kg/Noureddine_Yazid_Zerhouni_PERSON", "label": "Noureddine Yazid Zerhouni", "shape": "dot", "title": "http://example.org/kg/Noureddine_Yazid_Zerhouni_PERSON"}, {"group": "Place", "id": "http://example.org/kg/South_African_GPE", "label": "South African", "shape": "dot", "title": "http://example.org/kg/South_African_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_ee47ecf5ed7af51d771cb1089d3c7d05edb76943", "label": "ex:article_ee47ecf5ed7af51d771cb1089d3c7d05edb76943", "shape": "dot", "title": "http://example.org/kg/article_ee47ecf5ed7af51d771cb1089d3c7d05edb76943"}, {"group": "Person", "id": "http://example.org/kg/Les_Funtleyder_PERSON", "label": "Les Funtleyder", "shape": "dot", "title": "http://example.org/kg/Les_Funtleyder_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_d6c7e87b9c4b96d951f42fdbf21e0c1ea12ed1b5", "label": "ex:article_d6c7e87b9c4b96d951f42fdbf21e0c1ea12ed1b5", "shape": "dot", "title": "http://example.org/kg/article_d6c7e87b9c4b96d951f42fdbf21e0c1ea12ed1b5"}, {"group": "Organization", "id": "http://example.org/kg/U_N_ORG", "label": "U.N", "shape": "dot", "title": "http://example.org/kg/U_N_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_327ae4c12a2253aad4703380923b52d1cc6f506b", "label": "ex:article_327ae4c12a2253aad4703380923b52d1cc6f506b", "shape": "dot", "title": "http://example.org/kg/article_327ae4c12a2253aad4703380923b52d1cc6f506b"}, {"group": "Organization", "id": "http://example.org/kg/Obama_ORG", "label": "Obama", "shape": "dot", "title": "http://example.org/kg/Obama_ORG"}, {"group": "Organization", "id": "http://example.org/kg/Forbes_ORG", "label": "Forbes", "shape": "dot", "title": "http://example.org/kg/Forbes_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_d81639b8ffe8d43c077128935d53352caab5653d", "label": "ex:article_d81639b8ffe8d43c077128935d53352caab5653d", "shape": "dot", "title": "http://example.org/kg/article_d81639b8ffe8d43c077128935d53352caab5653d"}, {"group": "Organization", "id": "http://example.org/kg/DRM_ORG", "label": "DRM", "shape": "dot", "title": "http://example.org/kg/DRM_ORG"}, {"group": "Person", "id": "http://example.org/kg/Gates_PERSON", "label": "Gates", "shape": "dot", "title": "http://example.org/kg/Gates_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Hillary_Clinton_PERSON", "label": "Hillary Clinton", "shape": "dot", "title": "http://example.org/kg/Hillary_Clinton_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Lawson_PERSON", "label": "Lawson", "shape": "dot", "title": "http://example.org/kg/Lawson_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_01e9f168bef2efb6ed4200a8eaf1c89df48042c5", "label": "ex:article_01e9f168bef2efb6ed4200a8eaf1c89df48042c5", "shape": "dot", "title": "http://example.org/kg/article_01e9f168bef2efb6ed4200a8eaf1c89df48042c5"}, {"group": "Person", "id": "http://example.org/kg/Rabbi_Marvin_Hier_PERSON", "label": "Rabbi Marvin Hier", "shape": "dot", "title": "http://example.org/kg/Rabbi_Marvin_Hier_PERSON"}, {"group": "Place", "id": "http://example.org/kg/Massachusetts_GPE", "label": "Massachusetts", "shape": "dot", "title": "http://example.org/kg/Massachusetts_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_215f104b485df5a5a34ee342e5deec9bc2be35a6", "label": "ex:article_215f104b485df5a5a34ee342e5deec9bc2be35a6", "shape": "dot", "title": "http://example.org/kg/article_215f104b485df5a5a34ee342e5deec9bc2be35a6"}, {"group": "Person", "id": "http://example.org/kg/Kellermann_PERSON", "label": "Kellermann", "shape": "dot", "title": "http://example.org/kg/Kellermann_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Paulson_PERSON", "label": "Paulson", "shape": "dot", "title": "http://example.org/kg/Paulson_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Blacks_PERSON", "label": "Blacks", "shape": "dot", "title": "http://example.org/kg/Blacks_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_c483873d06833c991f455b11c848558e29135221", "label": "ex:article_c483873d06833c991f455b11c848558e29135221", "shape": "dot", "title": "http://example.org/kg/article_c483873d06833c991f455b11c848558e29135221"}, {"group": "Place", "id": "http://example.org/kg/California_GPE", "label": "California", "shape": "dot", "title": "http://example.org/kg/California_GPE"}, {"group": "Person", "id": "http://example.org/kg/Quidano_PERSON", "label": "Quidano", "shape": "dot", "title": "http://example.org/kg/Quidano_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Gary_Cook_PERSON", "label": "Gary Cook", "shape": "dot", "title": "http://example.org/kg/Gary_Cook_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_214f1bd9a1d5b0ff740f044720e4fae20b3007ce", "label": "ex:article_214f1bd9a1d5b0ff740f044720e4fae20b3007ce", "shape": "dot", "title": "http://example.org/kg/article_214f1bd9a1d5b0ff740f044720e4fae20b3007ce"}, {"group": "Person", "id": "http://example.org/kg/Alastair_Heane_PERSON", "label": "Alastair Heane", "shape": "dot", "title": "http://example.org/kg/Alastair_Heane_PERSON"}, {"group": "Organization", "id": "http://example.org/kg/Venezolana_ORG", "label": "Venezolana", "shape": "dot", "title": "http://example.org/kg/Venezolana_ORG"}, {"group": "Unknown", "id": "http://schema.org/Organization", "label": "schema1:Organization", "shape": "dot", "title": "http://schema.org/Organization"}, {"group": "Article", "id": "http://example.org/kg/article_945fffce679de13fdb58262b52046702e5f93d50", "label": "ex:article_945fffce679de13fdb58262b52046702e5f93d50", "shape": "dot", "title": "http://example.org/kg/article_945fffce679de13fdb58262b52046702e5f93d50"}, {"group": "Organization", "id": "http://example.org/kg/Parliament_ORG", "label": "Parliament", "shape": "dot", "title": "http://example.org/kg/Parliament_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_32f512e2e5e3ced7649faf6bccd2a9b274541626", "label": "ex:article_32f512e2e5e3ced7649faf6bccd2a9b274541626", "shape": "dot", "title": "http://example.org/kg/article_32f512e2e5e3ced7649faf6bccd2a9b274541626"}, {"group": "Person", "id": "http://example.org/kg/Adrian_Addison_PERSON", "label": "Adrian Addison", "shape": "dot", "title": "http://example.org/kg/Adrian_Addison_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Barclays_PERSON", "label": "Barclays", "shape": "dot", "title": "http://example.org/kg/Barclays_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_c511f362afef6d0a62c8a15e76d1c9258f9c1aba", "label": "ex:article_c511f362afef6d0a62c8a15e76d1c9258f9c1aba", "shape": "dot", "title": "http://example.org/kg/article_c511f362afef6d0a62c8a15e76d1c9258f9c1aba"}, {"group": "Person", "id": "http://example.org/kg/Ludwig_III_PERSON", "label": "Ludwig III", "shape": "dot", "title": "http://example.org/kg/Ludwig_III_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Abu_Zubaydah_PERSON", "label": "Abu Zubaydah", "shape": "dot", "title": "http://example.org/kg/Abu_Zubaydah_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_e35ec8afe496d466d673ac67d80ec5c21b163410", "label": "ex:article_e35ec8afe496d466d673ac67d80ec5c21b163410", "shape": "dot", "title": "http://example.org/kg/article_e35ec8afe496d466d673ac67d80ec5c21b163410"}, {"group": "Organization", "id": "http://example.org/kg/Ajax_ORG", "label": "Ajax", "shape": "dot", "title": "http://example.org/kg/Ajax_ORG"}, {"group": "Person", "id": "http://example.org/kg/Keith_Woods_PERSON", "label": "Keith Woods", "shape": "dot", "title": "http://example.org/kg/Keith_Woods_PERSON"}, {"group": "Place", "id": "http://example.org/kg/Brazil_GPE", "label": "Brazil", "shape": "dot", "title": "http://example.org/kg/Brazil_GPE"}, {"group": "Person", "id": "http://example.org/kg/Andrew_Smulian_PERSON", "label": "Andrew Smulian", "shape": "dot", "title": "http://example.org/kg/Andrew_Smulian_PERSON"}, {"group": "Organization", "id": "http://example.org/kg/Kaka_ORG", "label": "Kaka", "shape": "dot", "title": "http://example.org/kg/Kaka_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_99837ceb40660dac3b2f9249e38d5026a7a5e881", "label": "ex:article_99837ceb40660dac3b2f9249e38d5026a7a5e881", "shape": "dot", "title": "http://example.org/kg/article_99837ceb40660dac3b2f9249e38d5026a7a5e881"}, {"group": "Person", "id": "http://example.org/kg/Asif_Ali_Zardari_PERSON", "label": "Asif Ali Zardari", "shape": "dot", "title": "http://example.org/kg/Asif_Ali_Zardari_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_ea29e498c303964fc39c856ddf7037d5dfbc93fb", "label": "ex:article_ea29e498c303964fc39c856ddf7037d5dfbc93fb", "shape": "dot", "title": "http://example.org/kg/article_ea29e498c303964fc39c856ddf7037d5dfbc93fb"}, {"group": "Person", "id": "http://example.org/kg/Abdel_Rahman_Abu_Abdel_Nasser_PERSON", "label": "Abdel Rahman Abu Abdel Nasser", "shape": "dot", "title": "http://example.org/kg/Abdel_Rahman_Abu_Abdel_Nasser_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_9a8ee7eb582f293c617eecab5f37374d9400bb04", "label": "ex:article_9a8ee7eb582f293c617eecab5f37374d9400bb04", "shape": "dot", "title": "http://example.org/kg/article_9a8ee7eb582f293c617eecab5f37374d9400bb04"}, {"group": "Person", "id": "http://example.org/kg/Trade_PERSON", "label": "Trade", "shape": "dot", "title": "http://example.org/kg/Trade_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_1ffeb53de382a8f9b289e174b77e3e81e4f90f0c", "label": "ex:article_1ffeb53de382a8f9b289e174b77e3e81e4f90f0c", "shape": "dot", "title": "http://example.org/kg/article_1ffeb53de382a8f9b289e174b77e3e81e4f90f0c"}, {"group": "Place", "id": "http://example.org/kg/L_A__GPE", "label": "L.A.", "shape": "dot", "title": "http://example.org/kg/L_A__GPE"}, {"group": "Article", "id": "http://example.org/kg/article_c8b357de91b738eeaef4f006089dc777f9d6e7f4", "label": "ex:article_c8b357de91b738eeaef4f006089dc777f9d6e7f4", "shape": "dot", "title": "http://example.org/kg/article_c8b357de91b738eeaef4f006089dc777f9d6e7f4"}, {"group": "Place", "id": "http://example.org/kg/India_GPE", "label": "India", "shape": "dot", "title": "http://example.org/kg/India_GPE"}, {"group": "Article", "id": "http://example.org/kg/article_f924b8ce95c305203cfada04cf85551f6ad113d1", "label": "ex:article_f924b8ce95c305203cfada04cf85551f6ad113d1", "shape": "dot", "title": "http://example.org/kg/article_f924b8ce95c305203cfada04cf85551f6ad113d1"}, {"group": "Person", "id": "http://example.org/kg/Patricia_Hollingsworth_PERSON", "label": "Patricia Hollingsworth", "shape": "dot", "title": "http://example.org/kg/Patricia_Hollingsworth_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Abbie_Boudreau_PERSON", "label": "Abbie Boudreau", "shape": "dot", "title": "http://example.org/kg/Abbie_Boudreau_PERSON"}, {"group": "Person", "id": "http://example.org/kg/Sheikh_Mansour_PERSON", "label": "Sheikh Mansour", "shape": "dot", "title": "http://example.org/kg/Sheikh_Mansour_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_bf74899b892175a68325fa98013050c70374ab92", "label": "ex:article_bf74899b892175a68325fa98013050c70374ab92", "shape": "dot", "title": "http://example.org/kg/article_bf74899b892175a68325fa98013050c70374ab92"}, {"group": "Organization", "id": "http://example.org/kg/CEO_ORG", "label": "CEO", "shape": "dot", "title": "http://example.org/kg/CEO_ORG"}, {"group": "Organization", "id": "http://example.org/kg/Dow_Jones_ORG", "label": "Dow Jones", "shape": "dot", "title": "http://example.org/kg/Dow_Jones_ORG"}, {"group": "Person", "id": "http://example.org/kg/Bruce_John_Gotterup_PERSON", "label": "Bruce John Gotterup", "shape": "dot", "title": "http://example.org/kg/Bruce_John_Gotterup_PERSON"}, {"group": "Article", "id": "http://example.org/kg/article_6b9d017d16a725f04063f25e2facb1ad69831814", "label": "ex:article_6b9d017d16a725f04063f25e2facb1ad69831814", "shape": "dot", "title": "http://example.org/kg/article_6b9d017d16a725f04063f25e2facb1ad69831814"}, {"group": "Person", "id": "http://example.org/kg/James_Cadicamo_PERSON", "label": "James Cadicamo", "shape": "dot", "title": "http://example.org/kg/James_Cadicamo_PERSON"}, {"group": "Organization", "id": "http://example.org/kg/ADL_ORG", "label": "ADL", "shape": "dot", "title": "http://example.org/kg/ADL_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_56d7d67bb0fc32ee71cc006b915244776d883661", "label": "ex:article_56d7d67bb0fc32ee71cc006b915244776d883661", "shape": "dot", "title": "http://example.org/kg/article_56d7d67bb0fc32ee71cc006b915244776d883661"}, {"group": "Organization", "id": "http://example.org/kg/SAN_ORG", "label": "SAN", "shape": "dot", "title": "http://example.org/kg/SAN_ORG"}, {"group": "Article", "id": "http://example.org/kg/article_7382d171d71d3219c5ad0a13ea0ac92ac6b6998b", "label": "ex:article_7382d171d71d3219c5ad0a13ea0ac92ac6b6998b", "shape": "dot", "title": "http://example.org/kg/article_7382d171d71d3219c5ad0a13ea0ac92ac6b6998b"}, {"group": "Organization", "id": "http://example.org/kg/BHP_ORG", "label": "BHP", "shape": "dot", "title": "http://example.org/kg/BHP_ORG"}, {"group": "Organization", "id": "http://example.org/kg/Kharafi_ORG", "label": "Kharafi", "shape": "dot", "title": "http://example.org/kg/Kharafi_ORG"}, {"group": "Person", "id": "http://example.org/kg/Elise_Labott_PERSON", "label": "Elise Labott", "shape": "dot", "title": "http://example.org/kg/Elise_Labott_PERSON"}, {"group": "Organization", "id": "http://example.org/kg/Christ_ORG", "label": "Christ", "shape": "dot", "title": "http://example.org/kg/Christ_ORG"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "from": "http://example.org/kg/Germany_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/article_637fb45545c2867cb5e54463ee3f332b24133649", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Halifax_Bank_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_ec043d51d65662479c82cec8cd7f2d9f8fd908bc", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/United_States_GPE"}, {"arrows": "to", "from": "http://example.org/kg/Alan_Johnston_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Manchester_City_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_57fe1401e97cda271a7c61eb5f99a3490ccc8d6b", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Chelsea_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_7554bcdf4be93baf973eccf5a3423bd8b383ac72", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/United_Arab_Emirates_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_102d9b18344c158f1d069b9ddf17096f420a34df", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Reibel_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_bc639974d283826b3b928bf90f0951652db71fd4", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Special_Court_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Manchester_City_FAC"}, {"arrows": "to", "from": "http://example.org/kg/article_6f039b0d39932ac4bbd3bf85eba1690376ff50c5", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/European_GPE"}, {"arrows": "to", "from": "http://example.org/kg/article_bc1c4d12aabdcecab3d87c6f9a898e41c7cd3821", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Hungary_GPE"}, {"arrows": "to", "from": "http://example.org/kg/Smulian_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/article_5ab7e96bffefe1ddcd7a6bc49936ebb96538f079", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Italy_GPE"}, {"arrows": "to", "from": "http://example.org/kg/article_2ffa072b086f49c08ade87738c86e82509b1005f", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Federal_Reserve_ORG"}, {"arrows": "to", "from": "http://example.org/kg/Lima_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/article_9838d5c70c0db67603b46f6210c9de3e8839a377", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Lee_Friedlander_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_81e50c6cdbea4e55af6307d653135ef395b6d7fe", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Ready_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/BBC_Sport_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_8e0d86f794299fa3272ba76f70069d7450dac569", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Muslim_Khan_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Prevnar_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/article_102d9b18344c158f1d069b9ddf17096f420a34df", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Conrad_Sutter_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Tarija_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_a999aa661a4990e6d8423cfdf474e344aaffdc5a", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/State_Department_ORG"}, {"arrows": "to", "from": "http://example.org/kg/Will_Herberg_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_49da5c62a702063be1635e29a5c4e2e6206c5225", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Patrick_White_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_4cf51ce9372dff8ff7f44f098eab1c1d7569af7a", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Noureddine_Yazid_Zerhouni_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/South_African_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/article_ee47ecf5ed7af51d771cb1089d3c7d05edb76943", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Les_Funtleyder_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_d6c7e87b9c4b96d951f42fdbf21e0c1ea12ed1b5", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/U_N_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_327ae4c12a2253aad4703380923b52d1cc6f506b", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Obama_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_7554bcdf4be93baf973eccf5a3423bd8b383ac72", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Forbes_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_d81639b8ffe8d43c077128935d53352caab5653d", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/DRM_ORG"}, {"arrows": "to", "from": "http://example.org/kg/Gates_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/Hillary_Clinton_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/Lawson_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_01e9f168bef2efb6ed4200a8eaf1c89df48042c5", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Rabbi_Marvin_Hier_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Massachusetts_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/article_215f104b485df5a5a34ee342e5deec9bc2be35a6", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Kellermann_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Paulson_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/Blacks_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_c483873d06833c991f455b11c848558e29135221", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/California_GPE"}, {"arrows": "to", "from": "http://example.org/kg/Quidano_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Gary_Cook_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_637fb45545c2867cb5e54463ee3f332b24133649", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Italy_GPE"}, {"arrows": "to", "from": "http://example.org/kg/article_214f1bd9a1d5b0ff740f044720e4fae20b3007ce", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Alastair_Heane_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Venezolana_ORG", "label": "type", "title": "type", "to": "http://schema.org/Organization"}, {"arrows": "to", "from": "http://example.org/kg/article_945fffce679de13fdb58262b52046702e5f93d50", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Parliament_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_32f512e2e5e3ced7649faf6bccd2a9b274541626", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Adrian_Addison_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Barclays_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_c511f362afef6d0a62c8a15e76d1c9258f9c1aba", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Ludwig_III_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Abu_Zubaydah_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_e35ec8afe496d466d673ac67d80ec5c21b163410", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Ajax_ORG"}, {"arrows": "to", "from": "http://example.org/kg/Keith_Woods_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/Brazil_GPE", "label": "type", "title": "type", "to": "http://schema.org/Place"}, {"arrows": "to", "from": "http://example.org/kg/Andrew_Smulian_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_6bc757c6a12320a41b45d13bc4d540461814c2ae", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Kaka_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_99837ceb40660dac3b2f9249e38d5026a7a5e881", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Asif_Ali_Zardari_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_ea29e498c303964fc39c856ddf7037d5dfbc93fb", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Abdel_Rahman_Abu_Abdel_Nasser_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_9a8ee7eb582f293c617eecab5f37374d9400bb04", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Trade_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/article_1ffeb53de382a8f9b289e174b77e3e81e4f90f0c", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/L_A__GPE"}, {"arrows": "to", "from": "http://example.org/kg/article_c8b357de91b738eeaef4f006089dc777f9d6e7f4", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/India_GPE"}, {"arrows": "to", "from": "http://example.org/kg/article_f924b8ce95c305203cfada04cf85551f6ad113d1", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/Patricia_Hollingsworth_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/Abbie_Boudreau_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/Sheikh_Mansour_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_bf74899b892175a68325fa98013050c70374ab92", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/CEO_ORG"}, {"arrows": "to", "from": "http://example.org/kg/Dow_Jones_ORG", "label": "type", "title": "type", "to": "http://schema.org/Organization"}, {"arrows": "to", "from": "http://example.org/kg/Bruce_John_Gotterup_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/article_6b9d017d16a725f04063f25e2facb1ad69831814", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/James_Cadicamo_PERSON"}, {"arrows": "to", "from": "http://example.org/kg/ADL_ORG", "label": "type", "title": "type", "to": "http://schema.org/Organization"}, {"arrows": "to", "from": "http://example.org/kg/article_56d7d67bb0fc32ee71cc006b915244776d883661", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/SAN_ORG"}, {"arrows": "to", "from": "http://example.org/kg/article_7382d171d71d3219c5ad0a13ea0ac92ac6b6998b", "label": "mentions", "title": "mentions", "to": "http://example.org/kg/BHP_ORG"}, {"arrows": "to", "from": "http://example.org/kg/Kharafi_ORG", "label": "type", "title": "type", "to": "http://schema.org/Organization"}, {"arrows": "to", "from": "http://example.org/kg/Elise_Labott_PERSON", "label": "type", "title": "type", "to": "http://schema.org/Person"}, {"arrows": "to", "from": "http://example.org/kg/Christ_ORG", "label": "type", "title": "type", "to": "http://schema.org/Organization"}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+                      network.on("stabilizationProgress", function(params) {
+                          document.getElementById('loadingBar').removeAttribute("style");
+                          var maxWidth = 496;
+                          var minWidth = 20;
+                          var widthFactor = params.iterations/params.total;
+                          var width = Math.max(minWidth,maxWidth * widthFactor);
+                          document.getElementById('bar').style.width = width + 'px';
+                          document.getElementById('text').innerHTML = Math.round(widthFactor*100) + '%';
+                      });
+                      network.once("stabilizationIterationsDone", function() {
+                          document.getElementById('text').innerHTML = '100%';
+                          document.getElementById('bar').style.width = '496px';
+                          document.getElementById('loadingBar').style.opacity = 0;
+                          // really clean the dom element
+                          setTimeout(function () {document.getElementById('loadingBar').style.display = 'none';}, 500);
+                      });
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
