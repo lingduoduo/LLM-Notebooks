@@ -1,0 +1,9 @@
+{
+  "what do I need to do when I join the company": ["onboard_laptop", "onboard_equipment"],
+  "how much holiday do I get": ["pto_policy", "vacation_request"],
+  "getting money back after a business trip": ["expense_limits", "expense_submit"],
+  "signing in from home": ["vpn_access"],
+  "I am locked out of my account": ["password_reset"],
+  "DB-5012": ["err_5012"],
+  "who responds when production breaks at night": ["oncall_rotation", "incident_review"]
+}

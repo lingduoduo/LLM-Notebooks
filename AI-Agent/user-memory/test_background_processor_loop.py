@@ -52,7 +52,7 @@ class TestBackgroundProcessorLoop(unittest.TestCase):
 
         # Simulate the main agent saving a turn through its own instance
         agent_history = ConversationHistory(self.user_id)
-        agent_history.add_turn("session-1", "你好，我是小明", "你好小明！")
+        agent_history.add_turn("session-1", "Hi, I'm Alex", "Hello Alex!")
 
         processor.increment_conversation_count()
         self.assertTrue(processor.should_process())

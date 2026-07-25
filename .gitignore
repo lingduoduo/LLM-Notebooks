@@ -129,3 +129,10 @@ nebula-docker-compose/
 AI-Agent/user-memory/memory_trajectory.json
 AI-Agent/user-memory/logs/
 AI-Agent/user-memory/results/
+
+# Dependency manifests must never be caught by the blanket *.txt rule above
+!**/requirements.txt
+
+# Generated CLI output
+AI-Agent/*/result.json
+AI-Agent/*/out.json
