@@ -40,3 +40,11 @@ def test_save_history_with_empty_history_dir(tmp_path, monkeypatch):
     assert hist.history_file == "u1_history.json"
     hist.add_turn("s1", "hi", "hello")
     assert (tmp_path / "u1_history.json").exists()
+
+
+if __name__ == "__main__":
+    # These tests use pytest fixtures (tmp_path / monkeypatch), so running this
+    # file as a plain script would define them and exit without executing any.
+    import pytest
+
+    raise SystemExit(pytest.main([__file__, "-v"]))

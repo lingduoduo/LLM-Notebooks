@@ -29,3 +29,11 @@ def test_positive_limit_still_returns_recent(tmp_path, monkeypatch):
     t3 = ConversationTurn("s", "u3", "a3", "t3", 3)
     hist.conversations = [t1, t2, t3]
     assert hist.get_recent_turns(2) == [t2, t3]
+
+
+if __name__ == "__main__":
+    # These tests use pytest fixtures (tmp_path / monkeypatch), so running this
+    # file as a plain script would define them and exit without executing any.
+    import pytest
+
+    raise SystemExit(pytest.main([__file__, "-v"]))
