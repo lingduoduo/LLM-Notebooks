@@ -124,3 +124,8 @@ snips_clf/
 NLP-Trransformer-Models/qa/
 
 nebula-docker-compose/
+
+# User memory agent runtime artifacts
+AI-Agent/user-memory/memory_trajectory.json
+AI-Agent/user-memory/logs/
+AI-Agent/user-memory/results/
