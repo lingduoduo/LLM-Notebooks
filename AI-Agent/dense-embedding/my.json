@@ -1,0 +1,62 @@
+[
+  {
+    "doc_id": "onboard_laptop",
+    "title": "New Hire Laptop Setup",
+    "text": "New employees pick up their machine from the IT desk on day one and sign in with the temporary credentials mailed to their manager."
+  },
+  {
+    "doc_id": "onboard_equipment",
+    "title": "Getting Your Workstation",
+    "text": "Fresh joiners collect company hardware during their first week, then complete device enrollment before accessing internal systems."
+  },
+  {
+    "doc_id": "pto_policy",
+    "title": "Paid Time Off",
+    "text": "Full-time staff accrue fifteen days of paid leave per year, and unused days roll over up to a maximum of five."
+  },
+  {
+    "doc_id": "vacation_request",
+    "title": "Requesting Vacation",
+    "text": "Submit time-away requests at least two weeks ahead through the HR portal so your manager can approve them before the calendar locks."
+  },
+  {
+    "doc_id": "expense_limits",
+    "title": "Travel Expense Limits",
+    "text": "Meals are reimbursed up to 60 USD per day on domestic trips, and receipts must be attached within thirty days of the trip."
+  },
+  {
+    "doc_id": "expense_submit",
+    "title": "Filing a Reimbursement",
+    "text": "Upload your receipts to the finance tool and the money lands in your next payroll cycle once your manager signs off."
+  },
+  {
+    "doc_id": "vpn_access",
+    "title": "Remote Network Access",
+    "text": "Connecting from outside the office requires the corporate VPN client with multi-factor authentication enabled on your account."
+  },
+  {
+    "doc_id": "password_reset",
+    "title": "Account Lockout",
+    "text": "After five failed sign-in attempts the account locks for thirty minutes; the service desk can clear the lock immediately on request."
+  },
+  {
+    "doc_id": "err_5012",
+    "title": "Error DB-5012",
+    "text": "Error code DB-5012 means the connection pool is exhausted and the service should be restarted after raising the pool size."
+  },
+  {
+    "doc_id": "err_5013",
+    "title": "Error DB-5013",
+    "text": "Error code DB-5013 means a query exceeded the statement timeout and was cancelled by the database server."
+  },
+  {
+    "doc_id": "oncall_rotation",
+    "title": "On-Call Rotation",
+    "text": "Engineers take one week of primary on-call every six weeks, with a secondary responder available for escalations after ten minutes."
+  },
+  {
+    "doc_id": "incident_review",
+    "title": "Postmortem Process",
+    "text": "Every customer-facing outage gets a blameless write-up within five business days that records the timeline, impact and follow-up actions."
+  }
+]
