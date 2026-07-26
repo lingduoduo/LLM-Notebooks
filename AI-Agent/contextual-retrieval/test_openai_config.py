@@ -1,6 +1,7 @@
 import pytest
 
 from config import Config, LLMConfig
+from main import setup_environment
 
 
 def test_llm_config_defaults_to_openai_terra(monkeypatch):
@@ -38,3 +39,13 @@ def test_legacy_provider_environment_is_ignored(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "kimi")
     config = Config.from_env()
     assert not hasattr(config.llm, "provider")
+
+
+def test_startup_requires_only_openai_api_key(monkeypatch, caplog):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    assert setup_environment() is False
+    assert "OPENAI_API_KEY" in caplog.text
+    assert "MOONSHOT_API_KEY" not in caplog.text
+    assert "ARK_API_KEY" not in caplog.text
+    assert "SILICONFLOW_API_KEY" not in caplog.text
