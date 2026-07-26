@@ -88,7 +88,6 @@ def test_basic_functionality():
     try:
         agent = AgenticRAG(config)
         print(f"  Model: {agent.model}")
-        print(f"  Model: {config.llm.model}")
         print("✅ Agent initialized")
     except Exception as e:
         print(f"❌ Agent initialization error: {e}")
@@ -96,7 +95,7 @@ def test_basic_functionality():
         return False
     
     # Test simple query (if API key is available)
-    if os.getenv("OPENAI_API_KEY"):
+    if os.getenv("OPENAI_API_KEY") and os.getenv("RUN_LIVE_SMOKE_TESTS") == "1":
         print("\n💬 Testing Simple Query...")
         try:
             # Add some test data
