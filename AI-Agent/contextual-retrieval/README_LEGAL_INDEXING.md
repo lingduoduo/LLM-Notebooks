@@ -21,10 +21,8 @@ Unlike traditional RAG that loses context when chunking, this script:
 
 1. Set up your LLM API key:
    ```bash
-   export MOONSHOT_API_KEY="your_api_key"  # Default: Kimi
-   # Or use other providers:
    export OPENAI_API_KEY="your_api_key"
-   export SILICONFLOW_API_KEY="your_api_key"
+   # LLM_MODEL defaults to gpt-5.6-terra; set it to override the OpenAI model.
    ```
 
 2. Ensure retrieval pipeline is running:
@@ -57,8 +55,8 @@ python index_local_laws_contextual.py --max-docs 10
 # Process specific categories
 python index_local_laws_contextual.py --categories "constitution" "civil_code"
 
-# Use different LLM provider
-python index_local_laws_contextual.py --llm-provider openai --llm-model gpt-5.6-luna
+# Override the OpenAI model
+python index_local_laws_contextual.py --llm-model gpt-5.6-terra
 
 # Custom batch size for indexing
 python index_local_laws_contextual.py --batch-size 20
@@ -71,13 +69,12 @@ python index_local_laws_contextual.py --no-cleanup
 
 Context generation requires LLM API calls:
 - ~150 tokens per chunk for context generation
-- Costs vary by provider (OpenAI: ~$0.03/1K tokens, Others: ~$0.01/1K tokens)
 - Cache reduces costs for duplicate content
 
 Estimate for 288 legal documents:
 - ~3000-5000 chunks total
 - ~450K-750K tokens
-- Cost: $5-15 depending on provider
+- Estimate token usage against the selected OpenAI model's current pricing
 
 ## Document Store
 

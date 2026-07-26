@@ -121,7 +121,7 @@ def test_basic_functionality():
             print(f"⚠️  Query error: {e}")
             print("  This might be due to retrieval pipeline not running")
     else:
-        print("\n⚠️  Skipping query test (no API key found)")
+        print("\n⚠️  Skipping query test (requires OPENAI_API_KEY and RUN_LIVE_SMOKE_TESTS=1)")
     
     print("\n" + "="*60)
     print("🎉 Basic functionality test complete!")

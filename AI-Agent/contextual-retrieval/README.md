@@ -64,7 +64,7 @@ Document → Basic Chunking → Context Generation (optional LLM)
 ```bash
 pip install -r requirements.txt
 cp env.example .env
-# MOONSHOT_API_KEY / ARK_API_KEY / OPENAI_API_KEY / etc.
+# Set OPENAI_API_KEY in .env (LLM_MODEL defaults to gpt-5.6-terra).
 
 # Separate terminal for full e2e with pipeline:
 cd ../retrieval-pipeline
@@ -83,6 +83,9 @@ python main.py
 python main.py --query "What does Article 1 of the Constitution say" --mode agentic
 python main.py --query "What does Article 1 of the Constitution say" --mode compare
 ```
+
+`--model` is an optional OpenAI model override for `main.py`. The indexing
+script accepts `--llm-model` as an optional OpenAI model override.
 
 ### Context generation process
 
@@ -109,4 +112,3 @@ Please give a short, succinct context to situate this chunk within the overall d
 
 - [Anthropic Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval)  
 - Educational project for learning purposes. Acknowledgments: Anthropic engineering research.
-
