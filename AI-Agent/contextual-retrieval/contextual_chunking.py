@@ -20,11 +20,9 @@ from config import ChunkingConfig, KnowledgeBaseConfig, KnowledgeBaseType, LLMCo
 
 
 def _reasoning_safe_temperature(model, requested=1.0):
-    """Reasoning models (Kimi K3, GPT-5, ...) only accept temperature=1.
-    Return 1 for those; otherwise the requested value so non-reasoning
-    providers (Doubao, DeepSeek, older Moonshot) are unchanged."""
+    """GPT-5 models only accept temperature=1."""
     m = str(model or "").lower().replace("/", "-")
-    return 1 if ("kimi-k3" in m or "gpt-5" in m) else requested
+    return 1 if "gpt-5" in m else requested
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -106,17 +104,10 @@ class ContextualChunker:
         logger.info(f"Initialized ContextualChunker (contextual={use_contextual})")
     
     def _init_llm_client(self):
-        """Initialize LLM client for context generation"""
-        client_config, model = self.llm_config.get_client_config()
-        base_url = client_config.pop("base_url", None)
-        
-        if base_url:
-            self.client = OpenAI(base_url=base_url, **client_config)
-        else:
-            self.client = OpenAI(**client_config)
-        
-        self.model = model
-        logger.info(f"Using {self.llm_config.provider} ({self.model}) for context generation")
+        """Initialize the official OpenAI client for context generation."""
+        client_config, self.model = self.llm_config.get_client_config()
+        self.client = OpenAI(**client_config)
+        logger.info("Using OpenAI model %s for context generation", self.model)
     
     def chunk_document(self, 
                      text: str, 
@@ -527,12 +518,8 @@ Please give a short succinct context to situate this chunk within the overall do
         else:
             stats["cache_hit_rate"] = 0
         
-        # Cost estimation
-        if self.llm_config.provider == "openai":
-            cost_per_1k = 0.03
-        else:
-            cost_per_1k = 0.01
-        
+        # OpenAI cost estimation
+        cost_per_1k = 0.03
         stats["estimated_cost"] = (stats["total_context_tokens"] / 1000) * cost_per_1k
         
         return stats

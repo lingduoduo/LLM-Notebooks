@@ -12,11 +12,9 @@ from tools import KnowledgeBaseTools, get_tool_definitions
 
 
 def _reasoning_safe_temperature(model, requested=1.0):
-    """Reasoning models only accept temperature=1.
-    Return 1 for those; otherwise the requested value so non-reasoning
-    providers (Doubao, DeepSeek, older Moonshot) are unchanged."""
+    """GPT-5 models only accept temperature=1."""
     m = str(model or "").lower().replace("/", "-")
-    return 1 if ("kimi-k3" in m or "gpt-5" in m) else requested
+    return 1 if "gpt-5" in m else requested
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,7 +32,7 @@ class Message:
 
 
 class AgenticRAG:
-    """Agentic RAG system with ReAct pattern and multiple LLM provider support"""
+    """OpenAI-backed Agentic RAG system with a ReAct pattern."""
     
     def __init__(self, config: Optional[Config] = None):
         """Initialize the agent"""
@@ -52,23 +50,13 @@ class AgenticRAG:
         # Tool definitions
         self.tools = get_tool_definitions()
         
-        logger.info(f"Initialized AgenticRAG with provider: {self.config.llm.provider}")
+        logger.info("Initialized AgenticRAG")
     
     def _init_llm_client(self):
-        """Initialize the LLM client based on provider"""
-        client_config, model = self.config.llm.get_client_config()
-        
-        # Extract base_url if present
-        base_url = client_config.pop("base_url", None)
-        
-        # Create OpenAI client
-        if base_url:
-            self.client = OpenAI(base_url=base_url, **client_config)
-        else:
-            self.client = OpenAI(**client_config)
-        
-        self.model = model
-        logger.info(f"Using model: {self.model}")
+        """Initialize the official OpenAI client."""
+        client_config, self.model = self.config.llm.get_client_config()
+        self.client = OpenAI(**client_config)
+        logger.info("Using OpenAI model: %s", self.model)
     
     def _get_system_prompt(self) -> str:
         """Generate the system prompt"""
