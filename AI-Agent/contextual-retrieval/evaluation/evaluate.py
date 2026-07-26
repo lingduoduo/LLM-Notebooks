@@ -169,7 +169,6 @@ class RAGEvaluator:
             "dataset": dataset_path,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "config": {
-                "llm_provider": self.config.llm.provider,
                 "llm_model": self.agent.model,
                 "kb_type": self.config.knowledge_base.type.value
             },
@@ -297,7 +296,6 @@ class RAGEvaluator:
         print("=" * 80)
         
         print(f"\nConfiguration:")
-        print(f"  LLM Provider: {results['config']['llm_provider']}")
         print(f"  LLM Model: {results['config']['llm_model']}")
         print(f"  Knowledge Base: {results['config']['kb_type']}")
         
@@ -370,7 +368,6 @@ def main():
                        help="Path to evaluation dataset")
     parser.add_argument("--output", type=str, default="results",
                        help="Output directory for results")
-    parser.add_argument("--provider", type=str, help="Override LLM provider")
     parser.add_argument("--model", type=str, help="Override LLM model")
     parser.add_argument("--kb-type", choices=["local", "dify"], help="Knowledge base type")
     
@@ -378,8 +375,6 @@ def main():
     
     # Configure
     config = Config.from_env()
-    if args.provider:
-        config.llm.provider = args.provider
     if args.model:
         config.llm.model = args.model
     if args.kb_type:

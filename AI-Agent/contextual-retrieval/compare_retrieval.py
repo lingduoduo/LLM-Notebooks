@@ -244,7 +244,7 @@ def single_query_compare(chunks: List[Dict], query: str, top_k: int, use_jieba: 
 def embedding_unavailable_notice(method: str):
     print(f"\n[note] --method {method} calls an embedding API (dense vectors) and "
           f"cannot run offline.")
-    print("       Set OPENAI_API_KEY / SILICONFLOW_API_KEY etc. in .env and use the")
+    print("       Set OPENAI_API_KEY in .env and use the")
     print("       embedding/hybrid retrieval in contextual_tools.ContextualKnowledgeBaseTools.")
     print("       The default --method bm25 already reproduces the book's headline result:")
     print("       that context prefixes improve BM25 recall.")

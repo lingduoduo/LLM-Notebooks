@@ -551,18 +551,14 @@ def main():
     parser.add_argument("--no-cleanup", action="store_true", help="Don't clean existing indexes")
     parser.add_argument("--compare", action="store_true", help="Run comparison test after indexing")
     parser.add_argument("--batch-size", type=int, default=10, help="Batch size for indexing")
-    parser.add_argument("--llm-provider", default="kimi", help="LLM provider for context generation")
     parser.add_argument("--llm-model", help="Specific LLM model to use")
     
     args = parser.parse_args()
     
     # Configure LLM if specified
     llm_config = None
-    if args.llm_provider or args.llm_model:
-        llm_config = LLMConfig(
-            provider=args.llm_provider,
-            model=args.llm_model
-        )
+    if args.llm_model:
+        llm_config = LLMConfig(model=args.llm_model)
     
     # Create indexer
     indexer = ContextualLegalIndexer(

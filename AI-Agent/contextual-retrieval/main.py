@@ -23,8 +23,7 @@ def setup_environment():
     try:
         api_key = config.llm.get_api_key()
         if not api_key:
-            logger.warning("No OpenAI API key found. Set OPENAI_API_KEY")
-            logger.info("Please set the OPENAI_API_KEY environment variable")
+            logger.warning("Please set OPENAI_API_KEY")
             return False
     except Exception as e:
         logger.error(f"Error checking API keys: {e}")

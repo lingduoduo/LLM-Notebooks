@@ -30,7 +30,7 @@ def test_basic_functionality():
     print("\n📋 Testing Configuration...")
     try:
         config = Config.from_env()
-        print(f"  Provider: {config.llm.provider}")
+        print(f"  Model: {config.llm.model}")
         print(f"  KB Type: {config.knowledge_base.type}")
         print(f"  Chunk Size: {config.chunking.chunk_size}")
         print("✅ Configuration loaded")
@@ -88,7 +88,7 @@ def test_basic_functionality():
     try:
         agent = AgenticRAG(config)
         print(f"  Model: {agent.model}")
-        print(f"  Provider: {config.llm.provider}")
+        print(f"  Model: {config.llm.model}")
         print("✅ Agent initialized")
     except Exception as e:
         print(f"❌ Agent initialization error: {e}")
@@ -96,7 +96,7 @@ def test_basic_functionality():
         return False
     
     # Test simple query (if API key is available)
-    if os.getenv("MOONSHOT_API_KEY") or os.getenv("OPENAI_API_KEY"):
+    if os.getenv("OPENAI_API_KEY"):
         print("\n💬 Testing Simple Query...")
         try:
             # Add some test data
