@@ -416,8 +416,10 @@ Please give a short succinct context to situate this chunk within the overall do
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=_reasoning_safe_temperature(self.model, 0.3),  # Low temperature for consistency
-                max_tokens=100  # Anthropic mentions 50-100 tokens typically
+                temperature=_reasoning_safe_temperature(
+                    self.model, self.llm_config.temperature
+                ),
+                max_tokens=self.llm_config.max_tokens,
             )
             
             context = response.choices[0].message.content.strip()
