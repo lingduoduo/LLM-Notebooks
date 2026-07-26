@@ -29,6 +29,16 @@ def test_model_can_be_overridden_from_environment(monkeypatch):
     assert Config.from_env().llm.model == "gpt-4.1-mini"
 
 
+def test_openai_generation_settings_can_be_overridden_from_environment(monkeypatch):
+    monkeypatch.setenv("LLM_TEMPERATURE", "0.3")
+    monkeypatch.setenv("LLM_MAX_TOKENS", "150")
+
+    llm = Config.from_env().llm
+
+    assert llm.temperature == 0.3
+    assert llm.max_tokens == 150
+
+
 def test_missing_openai_api_key_has_actionable_error(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):

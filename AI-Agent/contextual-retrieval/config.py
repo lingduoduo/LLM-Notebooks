@@ -111,6 +111,10 @@ class Config:
         # Override from env
         if model := os.getenv("LLM_MODEL"):
             config.llm.model = model
+        if temperature := os.getenv("LLM_TEMPERATURE"):
+            config.llm.temperature = float(temperature)
+        if max_tokens := os.getenv("LLM_MAX_TOKENS"):
+            config.llm.max_tokens = int(max_tokens)
         if kb_type := os.getenv("KB_TYPE"):
             config.knowledge_base.type = KnowledgeBaseType(kb_type.lower())
 

@@ -555,10 +555,11 @@ def main():
     
     args = parser.parse_args()
     
-    # Configure LLM if specified
-    llm_config = None
+    # Start with the OpenAI settings from the environment; a CLI model override
+    # takes precedence over LLM_MODEL while retaining the other LLM settings.
+    llm_config = Config.from_env().llm
     if args.llm_model:
-        llm_config = LLMConfig(model=args.llm_model)
+        llm_config.model = args.llm_model
     
     # Create indexer
     indexer = ContextualLegalIndexer(

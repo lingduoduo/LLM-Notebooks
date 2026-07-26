@@ -80,3 +80,56 @@ def test_simple_smoke_query_requires_explicit_opt_in(monkeypatch):
 
     assert module.test_basic_functionality() is True
     assert query_calls == []
+
+
+def test_contextual_indexer_uses_environment_config_by_default(monkeypatch):
+    import index_local_laws_contextual as indexing
+
+    captured = {}
+
+    class FakeIndexer:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def process_all_documents(self, **kwargs):
+            captured["process_args"] = kwargs
+
+    monkeypatch.setattr(indexing, "ContextualLegalIndexer", FakeIndexer)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-4.1-mini")
+    monkeypatch.setenv("LLM_TEMPERATURE", "0.3")
+    monkeypatch.setenv("LLM_MAX_TOKENS", "150")
+    monkeypatch.setattr(sys, "argv", ["index_local_laws_contextual.py"])
+
+    indexing.main()
+
+    llm = captured["llm_config"]
+    assert llm.get_api_key() == "test-key"
+    assert llm.model == "gpt-4.1-mini"
+    assert llm.temperature == 0.3
+    assert llm.max_tokens == 150
+
+
+def test_contextual_indexer_cli_model_overrides_environment(monkeypatch):
+    import index_local_laws_contextual as indexing
+
+    captured = {}
+
+    class FakeIndexer:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def process_all_documents(self, **kwargs):
+            pass
+
+    monkeypatch.setattr(indexing, "ContextualLegalIndexer", FakeIndexer)
+    monkeypatch.setenv("LLM_MODEL", "gpt-4.1-mini")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["index_local_laws_contextual.py", "--llm-model", "gpt-5.6-terra"],
+    )
+
+    indexing.main()
+
+    assert captured["llm_config"].model == "gpt-5.6-terra"
