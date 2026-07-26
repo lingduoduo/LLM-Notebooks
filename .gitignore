@@ -136,3 +136,9 @@ AI-Agent/user-memory/results/
 # Generated CLI output
 AI-Agent/*/result.json
 AI-Agent/*/out.json
+
+# Structured-index generated output and test cache
+AI-Agent/structured-index/demo_result.json
+AI-Agent/*/indexes/
+AI-Agent/*/cache/
+.pytest_cache/
