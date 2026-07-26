@@ -4,6 +4,18 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 from enum import Enum
+from dotenv import load_dotenv
+
+
+_environment_loaded = False
+
+
+def _load_environment_once() -> None:
+    """Load project .env values before configuration is constructed."""
+    global _environment_loaded
+    if not _environment_loaded:
+        load_dotenv()
+        _environment_loaded = True
 
 
 class KnowledgeBaseType(str, Enum):
@@ -106,6 +118,7 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         """Create config from environment variables"""
+        _load_environment_once()
         config = cls()
 
         # Override from env

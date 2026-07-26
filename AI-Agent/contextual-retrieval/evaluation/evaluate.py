@@ -368,7 +368,7 @@ def main():
                        help="Path to evaluation dataset")
     parser.add_argument("--output", type=str, default="results",
                        help="Output directory for results")
-    parser.add_argument("--model", type=str, help="Override LLM model")
+    parser.add_argument("--model", type=str, help="OpenAI model ID override")
     parser.add_argument("--kb-type", choices=["local", "dify"], help="Knowledge base type")
     
     args = parser.parse_args()

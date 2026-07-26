@@ -3,6 +3,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).parent
 
@@ -25,8 +27,9 @@ def test_evaluation_records_model_without_provider():
     assert '"llm_provider"' not in source
 
 
-def test_simple_smoke_query_requires_explicit_opt_in(monkeypatch):
+def test_simple_smoke_query_requires_explicit_opt_in(monkeypatch, tmp_path):
     query_calls = []
+    document_store_paths = []
 
     class FakeConfig:
         llm = types.SimpleNamespace(model="gpt-5.6-terra")
@@ -47,7 +50,7 @@ def test_simple_smoke_query_requires_explicit_opt_in(monkeypatch):
 
     class FakeKnowledgeBaseTools:
         def __init__(self, config):
-            pass
+            document_store_paths.append(config.document_store_path)
 
         def add_document(self, *args, **kwargs):
             pass
@@ -78,8 +81,60 @@ def test_simple_smoke_query_requires_explicit_opt_in(monkeypatch):
     assert spec.loader is not None
     spec.loader.exec_module(module)
 
-    assert module.test_basic_functionality() is True
+    assert module.test_basic_functionality(tmp_path) is None
     assert query_calls == []
+    assert document_store_paths == [str(tmp_path / "document_store.json")]
+
+
+def test_quickstart_initializes_contextual_components_with_shared_config(monkeypatch):
+    """Quickstart must use Config.from_env settings without contacting any service."""
+    initialized_chunkers = []
+    initialized_knowledge_bases = []
+    llm_config = object()
+    knowledge_base_config = object()
+
+    class StopAfterInitialization(Exception):
+        pass
+
+    class FakeConfig:
+        llm = llm_config
+        knowledge_base = knowledge_base_config
+
+        @classmethod
+        def from_env(cls):
+            return cls()
+
+    class FakeChunker:
+        def __init__(self, chunking_config=None, llm_config=None, use_contextual=True):
+            initialized_chunkers.append((llm_config, use_contextual))
+
+    class FakeKnowledgeBase:
+        def __init__(self, config=None, use_contextual=True, enable_comparison=False):
+            initialized_knowledge_bases.append((config, use_contextual))
+            if len(initialized_knowledge_bases) == 2:
+                raise StopAfterInitialization
+
+    monkeypatch.setitem(sys.modules, "config", types.SimpleNamespace(Config=FakeConfig))
+    monkeypatch.setitem(sys.modules, "contextual_chunking", types.SimpleNamespace(ContextualChunker=FakeChunker))
+    monkeypatch.setitem(
+        sys.modules,
+        "contextual_tools",
+        types.SimpleNamespace(ContextualKnowledgeBaseTools=FakeKnowledgeBase),
+    )
+
+    spec = importlib.util.spec_from_file_location("quickstart_initialization", ROOT / "quickstart.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    with pytest.raises(StopAfterInitialization):
+        module.main()
+
+    assert initialized_chunkers == [(llm_config, True), (llm_config, False)]
+    assert initialized_knowledge_bases == [
+        (knowledge_base_config, True),
+        (knowledge_base_config, False),
+    ]
 
 
 def test_contextual_indexer_uses_environment_config_by_default(monkeypatch):

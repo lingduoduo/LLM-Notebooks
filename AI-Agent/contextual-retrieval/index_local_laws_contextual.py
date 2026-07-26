@@ -551,7 +551,7 @@ def main():
     parser.add_argument("--no-cleanup", action="store_true", help="Don't clean existing indexes")
     parser.add_argument("--compare", action="store_true", help="Run comparison test after indexing")
     parser.add_argument("--batch-size", type=int, default=10, help="Batch size for indexing")
-    parser.add_argument("--llm-model", help="Specific LLM model to use")
+    parser.add_argument("--llm-model", help="OpenAI model ID override")
     
     args = parser.parse_args()
     

@@ -192,7 +192,7 @@ def main():
                        help="Output file for batch results")
 
     # Configuration options
-    parser.add_argument("--model", type=str, help="LLM model")
+    parser.add_argument("--model", type=str, help="OpenAI model ID override")
     parser.add_argument("--kb-type", choices=["local", "dify"], help="Knowledge base type")
     parser.add_argument("--verbose", action="store_true", help="Verbose output (default: True)")
     parser.add_argument("--no-verbose", action="store_true", help="Disable verbose output")

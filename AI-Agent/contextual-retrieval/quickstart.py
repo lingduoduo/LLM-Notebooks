@@ -56,11 +56,11 @@ def main():
     config = Config.from_env()
     
     # Create both contextual and non-contextual systems
-    contextual_chunker = ContextualChunker(use_contextual=True)
-    non_contextual_chunker = ContextualChunker(use_contextual=False)
+    contextual_chunker = ContextualChunker(llm_config=config.llm, use_contextual=True)
+    non_contextual_chunker = ContextualChunker(llm_config=config.llm, use_contextual=False)
     
-    contextual_kb = ContextualKnowledgeBaseTools(use_contextual=True)
-    non_contextual_kb = ContextualKnowledgeBaseTools(use_contextual=False)
+    contextual_kb = ContextualKnowledgeBaseTools(config.knowledge_base, use_contextual=True)
+    non_contextual_kb = ContextualKnowledgeBaseTools(config.knowledge_base, use_contextual=False)
     
     print("\nStep 2: Processing document...")
     print("-" * 40)
