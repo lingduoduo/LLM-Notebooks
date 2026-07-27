@@ -142,3 +142,6 @@ AI-Agent/structured-index/demo_result.json
 AI-Agent/*/indexes/
 AI-Agent/*/cache/
 .pytest_cache/
+
+# Local isolated Git worktrees
+.worktrees/
