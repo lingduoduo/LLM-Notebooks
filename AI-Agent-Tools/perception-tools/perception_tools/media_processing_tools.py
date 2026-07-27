@@ -21,52 +21,18 @@ from .base import ActionResponse, validate_file_path
 load_dotenv()
 
 
-def _map_model_for_openrouter(model: str) -> str:
-    """Map a plain model id onto OpenRouter's `provider/model` form."""
-    if "/" in model:
-        return model
-    m = model.lower()
-    if m.startswith(("gpt-", "o1-", "o3-", "o4-")):
-        return f"openai/{model}"
-    if m.startswith("claude-"):
-        return "anthropic/claude-opus-4.8"
-    return model
-
-
 def _make_vision_client(default_model: str = "gpt-5.6-luna"):
-    """Build an OpenAI-compatible vision client with a universal fallback.
-
-    Preferred path uses OPENAI_API_KEY directly. When it is absent but an
-    OPENROUTER_API_KEY is set, transparently route through OpenRouter (mapping
-    the model id to provider/model form) so the vision tools still run.
-
-    Returns (client, model). Raises ValueError with the accepted keys listed
-    when neither credential is available.
-    """
+    """Build the official OpenAI client used by hosted vision tools."""
     import os
     from openai import OpenAI
 
-    model = os.getenv("PERCEPTION_VISION_MODEL", default_model)
-    or_key = os.getenv("OPENROUTER_API_KEY")
-    # gpt-5.x (incl. gpt-5.6*) needs OpenAI org-verification on the direct API;
-    # when an OpenRouter key is present, prefer routing these ids through it.
-    if or_key and model.lower().startswith("gpt-5"):
-        client = OpenAI(api_key=or_key, base_url="https://openrouter.ai/api/v1")
-        return client, _map_model_for_openrouter(model)
-
     api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
-        base_url = os.getenv("OPENAI_BASE_URL")
-        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-        return client, model
-
-    if or_key:
-        client = OpenAI(api_key=or_key, base_url="https://openrouter.ai/api/v1")
-        return client, _map_model_for_openrouter(model)
-
-    raise ValueError(
-        "No LLM key configured. Set OPENAI_API_KEY or OPENROUTER_API_KEY (universal fallback)."
-    )
+    if not api_key:
+        raise ValueError(
+            "OpenAI API key required. Set the OPENAI_API_KEY environment variable."
+        )
+    model = os.getenv("PERCEPTION_VISION_MODEL", default_model)
+    return OpenAI(api_key=api_key), model
 
 
 async def transcribe_audio_whisper(

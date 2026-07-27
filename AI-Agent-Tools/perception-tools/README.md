@@ -199,13 +199,10 @@ Parameters:
 - `image_path` (str): Path to image file or URL
 - `use_llm` (bool, default=True): Use LLM for analysis
 
-> **Vision LLM keys / OpenRouter fallback**: AI image/video analysis
-> (`analyze_image_ai` / `analyze_video_ai`) use `OPENAI_API_KEY` when set.
-> If it is absent but `OPENROUTER_API_KEY` is set, they transparently route
-> through OpenRouter (`base_url=https://openrouter.ai/api/v1`, model mapped to
-> `provider/model` form). Override the model via `PERCEPTION_VISION_MODEL`.
-> (Local Whisper transcription still needs `OPENAI_API_KEY` — OpenRouter has no
-> audio-transcription API.)
+> **Hosted AI models**: image and video analysis use the official OpenAI API
+> through `OPENAI_API_KEY`. Override the vision model with
+> `PERCEPTION_VISION_MODEL`. Local Whisper transcription remains available
+> without an API key when the optional Whisper package is installed.
 
 ##### `video_parser`
 Parse and extract metadata from video files.
