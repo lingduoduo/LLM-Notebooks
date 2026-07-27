@@ -129,7 +129,7 @@ Notes:
 
 - Each tool is async and returns a unified `ActionResponse` (JSON); the CLI runs the event loop, parses JSON, and prints friendly output.
 - Tools are lazy-imported: `list` / `info` / offline `demo` still work if optional deps (e.g. `whisper`, `waybackpy`) are missing; modules load only when those tools are actually called.
-- Network tools are marked「联网」in `list`; tools needing auth/API keys are annotated accordingly.
+- Network tools are marked `network` in `list`; tools needing authentication or API keys include an explanatory note.
 
 #### Using with MCP Clients
 
