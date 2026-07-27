@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "perception-tools"
+version = "0.1.0"
+description = "MCP perception and data-retrieval tools for AI agents"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=0.9.0",
+  "pydantic>=2.0.0",
+  "python-dotenv>=1.0.0",
+  "requests>=2.31.0",
+  "beautifulsoup4>=4.12.0",
+]
+
+[project.scripts]
+perception-tools = "perception_tools.cli:main"
+perception-tools-mcp = "perception_tools.server:main"
+
+[tool.setuptools.packages.find]
+include = ["perception_tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "live: requires network access or external credentials",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
