@@ -2,22 +2,19 @@
 Real API tests for Yahoo Finance tools.
 These tests make actual API calls to Yahoo Finance to verify functionality.
 """
-import asyncio
 import json
 import pytest
-from pathlib import Path
-import sys
 from datetime import datetime, timedelta
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from yahoo_finance_tools import (
+from perception_tools.yahoo_finance_tools import (
     get_stock_quote,
     get_historical_data,
     get_company_info,
     get_financial_statements
 )
+
+pytestmark = pytest.mark.live
 
 
 class TestYFinanceQuote:

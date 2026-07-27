@@ -4,15 +4,13 @@ Test script for new perception tools: crypto prices, location search, and POI se
 import asyncio
 import json
 import logging
-import sys
-from pathlib import Path
+import pytest
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from public_data_tools import get_crypto_price, search_location, search_poi
+from perception_tools.public_data_tools import get_crypto_price, search_location, search_poi
 
 logging.basicConfig(level=logging.INFO)
+pytestmark = pytest.mark.live
 
 
 async def test_new_tools():

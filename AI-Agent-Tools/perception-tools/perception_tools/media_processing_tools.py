@@ -8,7 +8,7 @@ import traceback
 import subprocess
 import base64
 from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Union
 
 from dotenv import load_dotenv
 from mcp.types import TextContent
@@ -187,7 +187,7 @@ async def extract_audio_metadata(
                 "channels": int(audio_stream.get("channels", 0)) if audio_stream.get("channels") else None
             }
             
-            logging.info(f"✅ Audio metadata extracted")
+            logging.info("✅ Audio metadata extracted")
             
             action_response = ActionResponse(
                 success=True,
@@ -340,7 +340,7 @@ async def analyze_image_ai(
             "model": model
         }
         
-        logging.info(f"✅ AI analysis completed")
+        logging.info("✅ AI analysis completed")
         
         action_response = ActionResponse(
             success=True,
@@ -725,7 +725,7 @@ async def get_image_metadata(
             "has_exif": "exif" in metadata
         }
         
-        logging.info(f"✅ Image metadata extracted")
+        logging.info("✅ Image metadata extracted")
         
         action_response = ActionResponse(
             success=True,

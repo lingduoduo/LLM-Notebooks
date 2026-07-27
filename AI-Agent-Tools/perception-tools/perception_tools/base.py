@@ -1,10 +1,8 @@
 """
 Base models and utilities for perception tools MCP server.
 """
-import logging
 import os
 import tempfile
-import traceback
 import importlib
 from pathlib import Path
 from urllib.parse import urlparse

@@ -7,8 +7,6 @@ until GC. Release now happens in a finally.
 """
 import asyncio
 import json
-import os
-import sys
 import types
 from pathlib import Path
 
@@ -16,33 +14,11 @@ import cv2
 import numpy as np
 import pytest
 
-SRC = os.path.join(os.path.dirname(__file__), "src")
-
-
-class _TextContent:
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
 
 @pytest.fixture
-def media_processing_tools(monkeypatch):
-    """Import the chapter module with its optional runtime deps stubbed only for
-    the duration of the test. monkeypatch restores sys.modules / sys.path
-    afterwards, so we never permanently overwrite a real `mcp` / `dotenv` (or
-    leave a partial stub in the global cache for other tests to pick up)."""
-    monkeypatch.syspath_prepend(SRC)
-    monkeypatch.setitem(
-        sys.modules, "dotenv", types.SimpleNamespace(load_dotenv=lambda: None)
-    )
-    mcp = types.ModuleType("mcp")
-    mcp_types = types.ModuleType("mcp.types")
-    mcp_types.TextContent = _TextContent
-    monkeypatch.setitem(sys.modules, "mcp", mcp)
-    monkeypatch.setitem(sys.modules, "mcp.types", mcp_types)
-    # Force a fresh import under the stubs even if another test already imported
-    # the module; monkeypatch restores the original entry on teardown.
-    monkeypatch.delitem(sys.modules, "media_processing_tools", raising=False)
-    import media_processing_tools
+def media_processing_tools():
+    """Return the packaged media module."""
+    from perception_tools import media_processing_tools
 
     return media_processing_tools
 

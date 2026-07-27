@@ -2,16 +2,13 @@
 Tests for document processing tools.
 Uses real files for testing.
 """
-import asyncio
 import json
 import pytest
 import tempfile
 from pathlib import Path
-import sys
 
-sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from document_processing_tools import (
+from perception_tools.document_processing_tools import (
     extract_pdf_text,
     extract_docx_content,
     extract_pptx_content,

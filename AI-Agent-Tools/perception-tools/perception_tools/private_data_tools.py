@@ -36,12 +36,11 @@ async def get_calendar_events(
         TextContent with calendar events
     """
     try:
-        from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
         from google.auth.transport.requests import Request
         import pickle
         
-        logging.info(f"📅 Getting calendar events")
+        logging.info("📅 Getting calendar events")
         
         # Token file path
         token_path = os.path.expanduser("~/.perception-tools/google_token.pickle")

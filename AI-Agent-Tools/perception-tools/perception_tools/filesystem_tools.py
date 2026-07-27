@@ -3,9 +3,7 @@ File system tools: file reading, grep search, and text summarization.
 """
 import json
 import logging
-import os
 import re
-import subprocess
 import traceback
 from pathlib import Path
 from typing import Union

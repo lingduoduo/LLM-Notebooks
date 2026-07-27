@@ -12,7 +12,7 @@ from urllib.parse import quote
 import requests
 from dotenv import load_dotenv
 from mcp.types import TextContent
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .base import ActionResponse
 
@@ -87,7 +87,7 @@ class PubChemClient:
             elif response.status_code == 202:
                 # Async operation - wait and retry
                 if max_retries > 0:
-                    logging.info(f"PubChem async operation, waiting 2s before retry...")
+                    logging.info("PubChem async operation, waiting 2s before retry...")
                     time.sleep(2)
                     return self.make_request(url, params, max_retries - 1)
                 else:

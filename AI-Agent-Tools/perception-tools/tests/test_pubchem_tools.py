@@ -2,21 +2,18 @@
 Real API tests for PubChem tools.
 These tests make actual API calls to PubChem to verify functionality.
 """
-import asyncio
 import json
 import pytest
-from pathlib import Path
-import sys
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from pubchem_tools import (
+from perception_tools.pubchem_tools import (
     search_compounds,
     get_compound_properties,
     get_compound_synonyms,
     search_similar_compounds
 )
+
+pytestmark = pytest.mark.live
 
 
 class TestPubChemSearch:
@@ -107,7 +104,7 @@ class TestPubChemSearch:
         message = data["message"]
         assert len(message["compounds"]) > 0
         
-        print(f"✅ Found compound by SMILES")
+        print("✅ Found compound by SMILES")
     
     @pytest.mark.asyncio
     async def test_search_invalid_query(self):
@@ -163,7 +160,7 @@ class TestPubChemProperties:
         assert "MolecularFormula" in props
         assert props["MolecularFormula"] == "C9H8O4"
         
-        print(f"✅ Retrieved properties for aspirin:")
+        print("✅ Retrieved properties for aspirin:")
         print(f"   Formula: {props['MolecularFormula']}")
         print(f"   Weight: {props['MolecularWeight']}")
     

@@ -84,7 +84,7 @@ async def google_search_api(
             text=json.dumps(action_response.model_dump())
         )
         
-    except Exception as e:
+    except Exception:
         logging.error(f"Google API search failed: {traceback.format_exc()}")
         return await _fallback_google_search(query, num_results)
 

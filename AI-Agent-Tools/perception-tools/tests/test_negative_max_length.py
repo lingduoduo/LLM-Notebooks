@@ -1,32 +1,10 @@
 """Regression: negative max_length must not drop the last character."""
-import asyncio
 import json
-import sys
-import types
 from pathlib import Path
 
 import pytest
 
-
-def _stub():
-    for name in ["dotenv", "requests", "mcp", "mcp.types", "mcp.server", "mcp.server.fastmcp"]:
-        sys.modules.setdefault(name, types.ModuleType(name))
-    sys.modules["dotenv"].load_dotenv = lambda *a, **k: None
-    class TextContent:
-        def __init__(self, type=None, text=None):
-            self.type = type
-            self.text = text
-    sys.modules["mcp.types"].TextContent = TextContent
-    class FastMCP:
-        def __init__(self, *a, **k): pass
-        def tool(self, *a, **k):
-            def deco(fn): return fn
-            return deco
-    sys.modules["mcp.server.fastmcp"].FastMCP = FastMCP
-
-
-_stub()
-from filesystem_tools import read_file  # noqa: E402
+from perception_tools.filesystem_tools import read_file
 
 
 @pytest.mark.asyncio

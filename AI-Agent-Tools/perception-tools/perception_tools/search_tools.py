@@ -3,7 +3,6 @@ Search tools: knowledge base, web search, and file download.
 """
 import json
 import logging
-import os
 import time
 import traceback
 from pathlib import Path
@@ -13,9 +12,9 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from mcp.types import TextContent
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from .base import ActionResponse, is_url, download_file_from_url
+from .base import ActionResponse, download_file_from_url
 
 
 load_dotenv()

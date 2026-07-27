@@ -5,8 +5,7 @@ Based on AWorld MCP server implementation.
 import json
 import logging
 import traceback
-from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Union
 
 from dotenv import load_dotenv
 from mcp.types import TextContent

@@ -2,16 +2,13 @@
 Real API tests for YouTube transcript extraction.
 These tests make actual API calls to YouTube to verify functionality.
 """
-import asyncio
 import json
 import pytest
-from pathlib import Path
-import sys
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from multimodal_tools import extract_youtube_transcript
+from perception_tools.multimodal_tools import extract_youtube_transcript
+
+pytestmark = pytest.mark.live
 
 
 class TestYouTubeTranscript:
@@ -60,7 +57,7 @@ class TestYouTubeTranscript:
         message = data["message"]
         assert message["video_id"] == "dQw4w9WgXcQ"
         
-        print(f"✅ Extracted transcript from URL")
+        print("✅ Extracted transcript from URL")
         print(f"   Video ID parsed: {message['video_id']}")
     
     @pytest.mark.asyncio
@@ -80,7 +77,7 @@ class TestYouTubeTranscript:
         message = data["message"]
         assert message["video_id"] == "dQw4w9WgXcQ"
         
-        print(f"✅ Extracted transcript from short URL")
+        print("✅ Extracted transcript from short URL")
     
     @pytest.mark.asyncio
     async def test_extract_transcript_with_timestamps(self):
@@ -106,7 +103,7 @@ class TestYouTubeTranscript:
         # Timestamp should be in MM:SS format
         assert ":" in first_entry["timestamp"]
         
-        print(f"✅ Transcript has proper timestamps")
+        print("✅ Transcript has proper timestamps")
         print(f"   Example: {first_entry['timestamp']} - {first_entry['text'][:50]}")
     
     @pytest.mark.asyncio
@@ -129,7 +126,7 @@ class TestYouTubeTranscript:
         
         is_truncated = message["full_text_length"] > len(message["full_text"])
         
-        print(f"✅ Full text provided")
+        print("✅ Full text provided")
         print(f"   Preview length: {len(message['full_text'])} chars")
         print(f"   Total length: {message['full_text_length']} chars")
         print(f"   Truncated: {is_truncated}")
@@ -167,7 +164,7 @@ class TestYouTubeTranscript:
         assert "translated" in metadata
         assert metadata["translated"] is False
         
-        print(f"✅ Metadata included")
+        print("✅ Metadata included")
         print(f"   Language: {metadata['language']}")
         print(f"   Translated: {metadata['translated']}")
 
@@ -194,11 +191,11 @@ class TestYouTubeTranscriptTranslation:
             assert message["language"] == "es"
             assert data["metadata"]["translated"] is True
             
-            print(f"✅ Transcript translated to Spanish")
+            print("✅ Transcript translated to Spanish")
             print(f"   Total entries: {message['total_entries']}")
         else:
             # Translation failed, which is acceptable
-            print(f"⚠️  Translation not available for this video")
+            print("⚠️  Translation not available for this video")
 
 
 class TestYouTubeTranscriptFormats:
@@ -233,7 +230,7 @@ class TestYouTubeTranscriptFormats:
             assert "timestamp" in entry
             assert "text" in entry
         
-        print(f"✅ Transcript structure validated")
+        print("✅ Transcript structure validated")
         print(f"   Fields: {', '.join(message.keys())}")
 
 

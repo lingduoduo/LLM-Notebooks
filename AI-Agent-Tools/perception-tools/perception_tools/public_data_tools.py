@@ -3,8 +3,6 @@ Public data source tools: weather, stocks, currency, Wiki, ArXiv, Wayback Machin
 """
 import json
 import logging
-import os
-import time
 import traceback
 from datetime import datetime
 from typing import Union
@@ -12,7 +10,6 @@ from typing import Union
 import requests
 from dotenv import load_dotenv
 from mcp.types import TextContent
-from pydantic import BaseModel, Field
 
 from .base import ActionResponse, optional_import
 

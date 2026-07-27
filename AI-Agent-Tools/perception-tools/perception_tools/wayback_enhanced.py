@@ -3,7 +3,6 @@ Enhanced Wayback Machine tools.
 """
 import json
 import logging
-import traceback
 from typing import Union
 
 import requests

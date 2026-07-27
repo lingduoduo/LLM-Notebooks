@@ -12,7 +12,7 @@ from typing import Union, Literal
 
 from dotenv import load_dotenv
 from mcp.types import TextContent
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .base import ActionResponse, optional_import
 

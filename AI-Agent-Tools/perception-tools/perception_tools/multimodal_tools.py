@@ -3,7 +3,6 @@ Multimodal understanding tools: web, documents, images, and videos.
 """
 import json
 import logging
-import os
 import traceback
 from pathlib import Path
 from typing import Optional, Union
@@ -13,7 +12,6 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from mcp.types import TextContent
-from pydantic import Field
 
 from .base import ActionResponse, validate_file_path, download_file_from_url, is_url
 
@@ -76,7 +74,7 @@ async def read_webpage(
                 })
             result["links"] = links[:50]  # Limit to first 50 links
         
-        logging.info(f"✅ Successfully extracted webpage content")
+        logging.info("✅ Successfully extracted webpage content")
         
         action_response = ActionResponse(
             success=True,
@@ -147,7 +145,7 @@ async def read_document(
     try:
         # Handle URL downloads
         if is_url(file_path):
-            logging.info(f"📥 Downloading document from URL")
+            logging.info("📥 Downloading document from URL")
             temp_path, _ = download_file_from_url(file_path)
             file_path = temp_path
         
@@ -216,7 +214,7 @@ async def read_document(
         else:
             raise ValueError(f"Unsupported file type: {file_ext}")
         
-        logging.info(f"✅ Successfully extracted document content")
+        logging.info("✅ Successfully extracted document content")
         
         action_response = ActionResponse(
             success=True,
@@ -262,7 +260,7 @@ async def parse_image(
     try:
         # Handle URL downloads
         if is_url(image_path):
-            logging.info(f"📥 Downloading image from URL")
+            logging.info("📥 Downloading image from URL")
             temp_path, _ = download_file_from_url(image_path)
             image_path = temp_path
         
@@ -290,7 +288,7 @@ async def parse_image(
                 result["base64_data"] = img_base64[:100] + "..."  # Truncated for display
                 result["note"] = "Full base64 data available for vision API analysis"
         
-        logging.info(f"✅ Successfully parsed image")
+        logging.info("✅ Successfully parsed image")
         
         action_response = ActionResponse(
             success=True,
@@ -338,7 +336,7 @@ async def parse_video(
     try:
         # Handle URL downloads
         if is_url(video_path):
-            logging.info(f"📥 Downloading video from URL")
+            logging.info("📥 Downloading video from URL")
             temp_path, _ = download_file_from_url(video_path, max_size_mb=500)
             video_path = temp_path
         
@@ -368,7 +366,7 @@ async def parse_video(
         
         video.release()
         
-        logging.info(f"✅ Successfully parsed video metadata")
+        logging.info("✅ Successfully parsed video metadata")
         
         action_response = ActionResponse(
             success=True,

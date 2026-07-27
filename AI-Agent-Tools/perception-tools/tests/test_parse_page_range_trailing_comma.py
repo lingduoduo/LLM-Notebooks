@@ -1,16 +1,6 @@
 """Trailing commas in page_range must not crash parse_page_range."""
-import importlib.util
-from pathlib import Path
 
-_SRC = Path(__file__).resolve().parent / "src" / "document_processing_tools.py"
-_spec = importlib.util.spec_from_file_location("document_processing_tools_page_range", _SRC)
-_mod = importlib.util.module_from_spec(_spec)
-# Load only parse_page_range without heavy optional deps (PyPDF2, etc.).
-source = _SRC.read_text(encoding="utf-8")
-start = source.index("def parse_page_range")
-ns = {}
-exec(compile(source[start:], str(_SRC), "exec"), ns)
-parse_page_range = ns["parse_page_range"]
+from perception_tools.document_processing_tools import parse_page_range
 
 
 def test_trailing_comma_does_not_raise():
