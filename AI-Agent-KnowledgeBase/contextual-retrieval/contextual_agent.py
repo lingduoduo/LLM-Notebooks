@@ -4,14 +4,13 @@ This module extends the base AgenticRAG to use contextual retrieval,
 demonstrating the improved answer quality from better retrieval.
 """
 
-import json
 import logging
-from typing import List, Dict, Any, Optional, Generator
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from agent import AgenticRAG, Message
+from agent import AgenticRAG
 from config import Config
-from contextual_tools import ContextualKnowledgeBaseTools, ContextualSearchResult
+from contextual_tools import ContextualKnowledgeBaseTools
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +110,7 @@ Remember that contextual chunks have been enhanced with additional information t
                 top_k = arguments.get("top_k", 20)
                 
                 logger.info(f"\n{'='*60}")
-                logger.info(f"CONTEXTUAL SEARCH EXECUTION")
+                logger.info("CONTEXTUAL SEARCH EXECUTION")
                 logger.info(f"{'='*60}")
                 logger.info(f"Query: {query}")
                 logger.info(f"Method: {method}")
@@ -127,7 +126,7 @@ Remember that contextual chunks have been enhanced with additional information t
                 
                 # Log retrieval quality
                 avg_score = sum(r.score for r in results) / len(results)
-                logger.info(f"\nRetrieval Statistics:")
+                logger.info("\nRetrieval Statistics:")
                 logger.info(f"  Results found: {len(results)}")
                 logger.info(f"  Average score: {avg_score:.4f}")
                 logger.info(f"  Top score: {results[0].score:.4f}")
@@ -138,7 +137,7 @@ Remember that contextual chunks have been enhanced with additional information t
                     embedding_only = sum(1 for r in results if r.embedding_score > 0 and r.bm25_score == 0)
                     both = sum(1 for r in results if r.bm25_score > 0 and r.embedding_score > 0)
                     
-                    logger.info(f"\nRetrieval Method Distribution:")
+                    logger.info("\nRetrieval Method Distribution:")
                     logger.info(f"  BM25 only: {bm25_only}")
                     logger.info(f"  Embedding only: {embedding_only}")
                     logger.info(f"  Both methods: {both}")

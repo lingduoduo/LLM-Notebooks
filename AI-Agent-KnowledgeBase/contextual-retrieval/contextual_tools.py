@@ -8,7 +8,7 @@ import json
 import logging
 import requests
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from dataclasses import dataclass
 from datetime import datetime
 import time
@@ -290,11 +290,9 @@ class ContextualKnowledgeBaseTools(KnowledgeBaseTools):
         """
         if use_contextual and self.bm25_contextual_index:
             index = self.bm25_contextual_index
-            corpus = self.bm25_contextual_corpus
             chunk_store = self.contextual_chunk_store
         elif self.bm25_index:
             index = self.bm25_index
-            corpus = self.bm25_corpus
             chunk_store = self.chunk_store
         else:
             logger.warning("BM25 index not available")

@@ -171,7 +171,6 @@ def print_comparison_table(plain: Optional[Dict], contextual: Optional[Dict], ks
     print("\n" + "=" * 68)
     print("Retrieval recall: plain chunks  vs.  contextual retrieval (BM25)")
     print("=" * 68)
-    header = "  k  | " + " | ".join(f"recall@{k:<3}" for k in ks)
     # Print one row per method
     col_w = 12
     line = f"{'Method':<16}" + "".join(f"recall@{k}".rjust(col_w) for k in ks)

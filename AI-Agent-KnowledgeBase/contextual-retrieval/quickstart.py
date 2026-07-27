@@ -6,7 +6,6 @@ with a sample document and see the improvements.
 """
 
 import logging
-from pathlib import Path
 from config import Config
 from contextual_chunking import ContextualChunker
 from contextual_tools import ContextualKnowledgeBaseTools
@@ -143,7 +142,7 @@ def main():
     # Get statistics
     stats = contextual_chunker.get_statistics()
     
-    print(f"\nContextual Chunking Statistics:")
+    print("\nContextual Chunking Statistics:")
     print(f"  Chunks processed: {stats['total_chunks']}")
     print(f"  Context tokens used: {stats['total_context_tokens']}")
     print(f"  Estimated cost: ${stats['estimated_cost']:.4f}")

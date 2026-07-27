@@ -8,13 +8,11 @@ This script:
 5. Indexes them with contextual enhancement
 """
 
-import os
 import sys
 import json
 import logging
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from dataclasses import dataclass
 import time
 import requests
 
@@ -442,20 +440,20 @@ class ContextualLegalIndexer:
             print(f"Chunks indexed: {self.stats['chunks_indexed']}")
             
             # Token usage
-            print(f"\nContext Generation Statistics:")
+            print("\nContext Generation Statistics:")
             print(f"  Total context tokens: {chunker_stats.get('total_context_tokens', 0):,}")
             print(f"  Average tokens per chunk: {chunker_stats.get('avg_context_tokens', 0):.1f}")
             print(f"  Total generation time: {chunker_stats.get('total_generation_time', 0):.2f}s")
             print(f"  Average time per chunk: {chunker_stats.get('avg_generation_time', 0):.2f}s")
             
             # Cache statistics
-            print(f"\nCache Performance:")
+            print("\nCache Performance:")
             print(f"  Cache hits: {chunker_stats.get('cache_hits', 0)}")
             print(f"  Cache misses: {chunker_stats.get('cache_misses', 0)}")
             print(f"  Hit rate: {chunker_stats.get('cache_hit_rate', 0):.1%}")
             
             # Cost estimation
-            print(f"\nCost Estimation:")
+            print("\nCost Estimation:")
             print(f"  Estimated cost: ${chunker_stats.get('estimated_cost', 0):.2f}")
         else:
             print(f"Chunks indexed: {self.stats['chunks_indexed']}")
@@ -529,7 +527,7 @@ class ContextualLegalIndexer:
                             
                             print(f"    Preview: {text[:150]}...")
                     else:
-                        print(f"  No results found")
+                        print("  No results found")
                 else:
                     print(f"✗ Query '{query}' failed: {response.status_code}")
                     
