@@ -34,7 +34,7 @@
 - Produces: `perception_tools.server:main`
 - Preserves: all existing tool function names and `ActionResponse`
 
-- [ ] **Step 1: Write failing package and metadata tests**
+- [x] **Step 1: Write failing package and metadata tests**
 
 ```python
 from importlib import import_module
@@ -59,7 +59,7 @@ def test_console_entry_points_are_declared():
     assert scripts["perception-tools-mcp"] == "perception_tools.server:main"
 ```
 
-- [ ] **Step 2: Run the focused tests and verify expected failures**
+- [x] **Step 2: Run the focused tests and verify expected failures**
 
 Run:
 
@@ -70,14 +70,14 @@ python -m pytest -q tests/test_package_entrypoints.py
 
 Expected: import and metadata failures because the package and `pyproject.toml` do not exist.
 
-- [ ] **Step 3: Move production files into the package**
+- [x] **Step 3: Move production files into the package**
 
 Use `git mv` for tracked files after the project is staged. Rename `src/main.py`
 to `perception_tools/server.py` and root `cli.py` to
 `perception_tools/cli.py`. Move the three `src/test_*.py` modules to `tests/`
 instead of the package.
 
-- [ ] **Step 4: Convert internal imports to package-relative imports**
+- [x] **Step 4: Convert internal imports to package-relative imports**
 
 Use exact forms such as:
 
@@ -88,7 +88,7 @@ from .search_tools import search_web, download_file, search_knowledge_base
 
 Delete all production `sys.path` mutations.
 
-- [ ] **Step 5: Add package metadata**
+- [x] **Step 5: Add package metadata**
 
 `pyproject.toml` must include:
 
@@ -122,7 +122,7 @@ target-version = "py311"
 line-length = 100
 ```
 
-- [ ] **Step 6: Add callable module entry points**
+- [x] **Step 6: Add callable module entry points**
 
 `perception_tools/server.py` must expose:
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 `perception_tools/cli.py` must retain a callable `main(argv: list[str] | None = None) -> int`
 and use `raise SystemExit(main())` only inside its `__main__` guard.
 
-- [ ] **Step 7: Run package tests**
+- [x] **Step 7: Run package tests**
 
 Run:
 
@@ -149,7 +149,7 @@ python -m build
 
 Expected: tests pass and both wheel and source distribution build.
 
-- [ ] **Step 8: Commit the package boundary**
+- [x] **Step 8: Commit the package boundary**
 
 ```bash
 git add AI-Agent-Tools/perception-tools
@@ -172,7 +172,7 @@ git commit -m "refactor: package perception tools"
 - Produces: English `list`, `info`, `run`, and `demo` commands
 - Produces: static English-only audit
 
-- [ ] **Step 1: Write failing English-only and CLI tests**
+- [x] **Step 1: Write failing English-only and CLI tests**
 
 ```python
 from pathlib import Path
@@ -206,7 +206,7 @@ def test_cli_help_is_english(capsys):
     assert "Search" in output
 ```
 
-- [ ] **Step 2: Run focused tests and verify failures**
+- [x] **Step 2: Run focused tests and verify failures**
 
 Run:
 
@@ -216,13 +216,13 @@ python -m pytest -q tests/test_english_only.py tests/test_cli.py
 
 Expected: Han-character and English-help assertions fail.
 
-- [ ] **Step 3: Translate the registry and CLI**
+- [x] **Step 3: Translate the registry and CLI**
 
 Translate category labels, all 53 tool descriptions, dependency notes, help
 text, errors, demo fixtures, comments, docstrings, and console output. Preserve
 command names, tool names, parameter names, and JSON field names.
 
-- [ ] **Step 4: Make CLI exit behavior testable**
+- [x] **Step 4: Make CLI exit behavior testable**
 
 Parse passed arguments:
 
@@ -235,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
 
 Do not call `sys.exit` outside the `__main__` guard.
 
-- [ ] **Step 5: Run CLI smoke checks**
+- [x] **Step 5: Run CLI smoke checks**
 
 Run:
 
@@ -248,7 +248,7 @@ python -m perception_tools.cli demo --offline
 
 Expected: every command exits 0 and prints English output.
 
-- [ ] **Step 6: Run English-only tests**
+- [x] **Step 6: Run English-only tests**
 
 Run:
 
@@ -258,7 +258,7 @@ python -m pytest -q tests/test_english_only.py tests/test_cli.py
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit English conversion**
+- [x] **Step 7: Commit English conversion**
 
 ```bash
 git add AI-Agent-Tools/perception-tools
@@ -280,7 +280,7 @@ git commit -m "refactor: make perception tools English-only"
 - Produces: `_make_vision_client(default_model: str) -> tuple[OpenAI, str]`
 - Removes: OpenRouter and custom LLM base URL behavior
 
-- [ ] **Step 1: Write failing OpenAI-only tests**
+- [x] **Step 1: Write failing OpenAI-only tests**
 
 ```python
 from unittest.mock import patch
@@ -308,7 +308,7 @@ def test_missing_openai_key_is_actionable(monkeypatch):
 Add a static audit asserting `OPENROUTER`, `openrouter`, and
 `OPENAI_BASE_URL` are absent from active source, docs, and `env.example`.
 
-- [ ] **Step 2: Run tests and verify expected failures**
+- [x] **Step 2: Run tests and verify expected failures**
 
 Run:
 
@@ -318,7 +318,7 @@ python -m pytest -q tests/test_openai_only.py
 
 Expected: current code routes GPT-5 through OpenRouter and accepts alternate keys/base URLs.
 
-- [ ] **Step 3: Implement the minimal official-client boundary**
+- [x] **Step 3: Implement the minimal official-client boundary**
 
 ```python
 def _make_vision_client(default_model: str = "gpt-5.6-luna"):
@@ -336,7 +336,7 @@ def _make_vision_client(default_model: str = "gpt-5.6-luna"):
 
 Delete `_map_model_for_openrouter` and all alternate routing.
 
-- [ ] **Step 4: Update configuration surfaces**
+- [x] **Step 4: Update configuration surfaces**
 
 `env.example` documents only:
 
@@ -347,7 +347,7 @@ PERCEPTION_VISION_MODEL=gpt-5.6-luna
 
 Retain unrelated Google Calendar and Notion configuration.
 
-- [ ] **Step 5: Run OpenAI-only tests**
+- [x] **Step 5: Run OpenAI-only tests**
 
 Run:
 
@@ -357,7 +357,7 @@ python -m pytest -q tests/test_openai_only.py
 
 Expected: all tests pass without network calls.
 
-- [ ] **Step 6: Commit provider cleanup**
+- [x] **Step 6: Commit provider cleanup**
 
 ```bash
 git add AI-Agent-Tools/perception-tools
@@ -381,7 +381,7 @@ git commit -m "refactor: use OpenAI-only perception models"
 - Produces: structured missing-dependency failures at invocation time
 - Preserves: registered MCP tool names
 
-- [ ] **Step 1: Write failing optional-dependency tests**
+- [x] **Step 1: Write failing optional-dependency tests**
 
 Use `monkeypatch` on `builtins.__import__` or `sys.modules` to simulate absent
 `wikipedia`, `arxiv`, `yfinance`, `cv2`, Google, and Notion packages. Assert:
@@ -397,7 +397,7 @@ def test_package_import_survives_missing_wikipedia(block_import):
 For an invoked unavailable tool, parse the returned `TextContent.text` and
 assert `success` is false and the message names the missing package.
 
-- [ ] **Step 2: Run focused tests and verify failures**
+- [x] **Step 2: Run focused tests and verify failures**
 
 Run:
 
@@ -407,7 +407,7 @@ python -m pytest -q tests/test_optional_dependencies.py tests/test_server.py
 
 Expected: eager imports fail.
 
-- [ ] **Step 3: Move specialized imports into tool functions or guarded helpers**
+- [x] **Step 3: Move specialized imports into tool functions or guarded helpers**
 
 Use:
 
@@ -424,7 +424,7 @@ def _require_dependency(module_name: str, install_hint: str):
 Convert expected missing-dependency errors into the existing structured
 `ActionResponse`.
 
-- [ ] **Step 4: Separate core and optional dependency declarations**
+- [x] **Step 4: Separate core and optional dependency declarations**
 
 Keep server/CLI core dependencies in `[project.dependencies]`; define extras
 such as:
@@ -440,13 +440,13 @@ all = ["perception-tools[documents,media,data,private]"]
 
 Keep `requirements.txt` as the full installation list used by Docker.
 
-- [ ] **Step 5: Verify server construction and tool registry**
+- [x] **Step 5: Verify server construction and tool registry**
 
 Tests must assert the expected count derived from the registry rather than a
 duplicated magic number, and verify representative tool names from each
 category.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -456,7 +456,7 @@ python -m pytest -q tests/test_optional_dependencies.py tests/test_server.py
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit lazy integrations**
+- [x] **Step 7: Commit lazy integrations**
 
 ```bash
 git add AI-Agent-Tools/perception-tools
@@ -476,20 +476,20 @@ git commit -m "fix: isolate optional perception integrations"
 - Produces: default offline pytest suite
 - Produces: explicit `live` marker gated by `RUN_LIVE_PERCEPTION_TESTS=1`
 
-- [ ] **Step 1: Classify every existing test module**
+- [x] **Step 1: Classify every existing test module**
 
 For each file, record whether it is deterministic, requires an optional local
 binary, or requires network/API access. Preserve regression assertions for CSV,
 grep, negative lengths, page ranges, media cleanup, keyframes, wiki dates,
 YouTube, PubChem, and Yahoo Finance.
 
-- [ ] **Step 2: Replace executable smoke scripts with pytest functions**
+- [x] **Step 2: Replace executable smoke scripts with pytest functions**
 
 `test_imports.py` must become assertions and must not print or call `sys.exit`.
 Network demos such as `test_new_tools.py` become either mocked unit tests or
 explicitly marked live tests.
 
-- [ ] **Step 3: Add live-test gating**
+- [x] **Step 3: Add live-test gating**
 
 In `tests/conftest.py`:
 
@@ -503,7 +503,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 ```
 
-- [ ] **Step 4: Run tests and diagnose failures one at a time**
+- [x] **Step 4: Run tests and diagnose failures one at a time**
 
 Run:
 
@@ -514,7 +514,7 @@ python -m pytest -q
 For each product defect, add or retain a failing regression test before editing
 production code. Do not weaken assertions or silently catch exceptions.
 
-- [ ] **Step 5: Verify no test mutates import paths or exits during collection**
+- [x] **Step 5: Verify no test mutates import paths or exits during collection**
 
 Run:
 
@@ -525,7 +525,7 @@ python -m pytest --collect-only -q
 
 Expected: only the CLI `__main__` guard may raise `SystemExit`; collection exits 0.
 
-- [ ] **Step 6: Commit deterministic tests and repairs**
+- [x] **Step 6: Commit deterministic tests and repairs**
 
 ```bash
 git add AI-Agent-Tools/perception-tools
@@ -547,7 +547,7 @@ git commit -m "test: make perception suite deterministic"
 - Produces: accurate fresh-checkout install, CLI, MCP, Docker, and test instructions
 - Produces: container command `perception-tools-mcp`
 
-- [ ] **Step 1: Add failing documentation consistency tests**
+- [x] **Step 1: Add failing documentation consistency tests**
 
 Assert active docs contain the canonical path and console commands, and exclude:
 
@@ -561,7 +561,7 @@ RETIRED_TEXT = (
 )
 ```
 
-- [ ] **Step 2: Replace Dockerfile with an official Python base**
+- [x] **Step 2: Replace Dockerfile with an official Python base**
 
 Use:
 
@@ -578,7 +578,7 @@ ENTRYPOINT ["perception-tools-mcp"]
 Add only required OS libraries for enabled full-install features and use
 English OCR language data only.
 
-- [ ] **Step 3: Consolidate documentation around implemented behavior**
+- [x] **Step 3: Consolidate documentation around implemented behavior**
 
 README must cover:
 
@@ -594,7 +594,7 @@ README must cover:
 
 Update or remove stale supporting documents so they do not contradict README.
 
-- [ ] **Step 4: Run documentation and English audits**
+- [x] **Step 4: Run documentation and English audits**
 
 Run:
 
@@ -605,7 +605,7 @@ rg -n --pcre2 '[\\p{Han}]' .
 
 Expected: tests pass and `rg` returns no matches in active project files.
 
-- [ ] **Step 5: Build and inspect Docker image if Docker is available**
+- [x] **Step 5: Build and inspect Docker image if Docker is available**
 
 Run:
 
@@ -617,7 +617,7 @@ docker run --rm perception-tools:test
 For stdio-server smoke validation, use a bounded process or MCP client probe;
 do not leave a blocking container running.
 
-- [ ] **Step 6: Commit operational integration**
+- [x] **Step 6: Commit operational integration**
 
 ```bash
 git add AI-Agent-Tools/perception-tools
@@ -634,7 +634,7 @@ git commit -m "docs: integrate perception tools with repository"
 **Interfaces:**
 - Produces: release-ready validation evidence
 
-- [ ] **Step 1: Create a clean virtual environment outside the project**
+- [x] **Step 1: Create a clean virtual environment outside the project**
 
 Run:
 
@@ -645,7 +645,7 @@ python -m venv /tmp/perception-tools-venv
   AI-Agent-Tools/perception-tools
 ```
 
-- [ ] **Step 2: Run installed entry-point smoke checks**
+- [x] **Step 2: Run installed entry-point smoke checks**
 
 Run:
 
@@ -658,7 +658,7 @@ Run:
 
 Expected: all commands exit 0 with English output.
 
-- [ ] **Step 3: Run the complete project verification**
+- [x] **Step 3: Run the complete project verification**
 
 Run:
 
@@ -674,7 +674,7 @@ git diff --check
 
 Expected: all commands exit 0; live tests are skipped unless explicitly enabled.
 
-- [ ] **Step 4: Run final static audits**
+- [x] **Step 4: Run final static audits**
 
 Run:
 
@@ -687,7 +687,7 @@ rg -n "sys\\.path|sys\\.exit" perception_tools tests
 Expected: no prohibited language, provider routing, stale paths, counts, or
 import-path mutations. `SystemExit` is allowed only in CLI/module guards.
 
-- [ ] **Step 5: Review the full diff**
+- [x] **Step 5: Review the full diff**
 
 Run:
 
@@ -699,7 +699,7 @@ git diff --check
 
 Confirm no unrelated repository files are included.
 
-- [ ] **Step 6: Commit final fixes if needed**
+- [x] **Step 6: Commit final fixes if needed**
 
 ```bash
 git add AI-Agent-Tools/perception-tools

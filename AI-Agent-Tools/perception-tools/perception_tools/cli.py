@@ -319,9 +319,11 @@ async def _demo(offline: bool) -> None:
 
         print("\n[1/3] File-system perception")
         grep = _unwrap(await grep_search("Protocol", temp_dir, "*.md"))
-        print(f"  grep found {grep.get('total_found', 0)} matches")
+        matches = grep.get("message", {}).get("total_found", 0)
+        print(f"  grep found {matches} matches")
         read = _unwrap(await read_file(str(notes), max_length=200))
-        preview = str(read.get("message", "")).splitlines()[0]
+        content = read.get("message", {}).get("content", "")
+        preview = str(content).splitlines()[0] if content else ""
         print(f"  first line: {preview}")
 
         print("\n[2/3] Local knowledge-base search")
