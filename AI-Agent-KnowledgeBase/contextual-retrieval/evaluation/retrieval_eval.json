@@ -1,6 +1,6 @@
 {
-  "description": "Retrieval-recall evaluation set for contextual retrieval vs traditional chunking (experiment 3-11). gold_chunk_id is the hand-labelled relevant chunk; the reason for each label is in the note field. The corpus is the Constitution and Prosecutors Law chunks already indexed in document_store.json. Chunk ids are derived from the source document filenames, so they must match whatever corpus you indexed.",
-  "corpus": "document_store.json",
+  "description": "Retrieval-recall evaluation set for contextual retrieval vs traditional chunking (experiment 3-11). gold_chunk_id is the curated relevant chunk and the reason for each label is in the note field. The bundled corpus is an educational paraphrase fixture derived from official Constitution and Procurators Law publications.",
+  "corpus": "evaluation/contextual_retrieval_corpus.json",
   "queries": [
     {
       "id": "q01",

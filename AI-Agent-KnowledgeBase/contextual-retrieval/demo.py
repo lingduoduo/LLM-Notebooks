@@ -7,12 +7,7 @@ This script provides an interactive demonstration showing:
 3. Side-by-side comparison of retrieval quality
 """
 
-import json
 import logging
-from pathlib import Path
-from typing import List
-import time
-from datetime import datetime
 
 from config import Config
 from contextual_chunking import ContextualChunker

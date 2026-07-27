@@ -9,14 +9,12 @@ This module demonstrates the key insight from Anthropic's research:
 import json
 import hashlib
 import logging
-import requests
 from typing import List, Dict, Any, Optional, Tuple
-from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
 import time
 from openai import OpenAI
-from config import ChunkingConfig, KnowledgeBaseConfig, KnowledgeBaseType, LLMConfig
+from config import ChunkingConfig, LLMConfig
 
 
 def _reasoning_safe_temperature(model, requested=1.0):
@@ -302,9 +300,6 @@ class ContextualChunker:
         - This dramatically improves retrieval accuracy
         """
         contextual_chunks = []
-        
-        # No document summary needed - Anthropic's approach doesn't use it
-        doc_summary = None
         
         for i, chunk in enumerate(basic_chunks):
             logger.info(f"Generating context for chunk {i+1}/{len(basic_chunks)}")

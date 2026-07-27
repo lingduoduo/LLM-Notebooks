@@ -1,10 +1,8 @@
 """Main entry point for Agentic RAG system"""
 
-import os
 import json
 import logging
 import argparse
-from typing import Optional
 from config import Config, KnowledgeBaseType
 from agent import AgenticRAG
 from chunking import DocumentIndexer
@@ -39,7 +37,7 @@ def setup_environment():
                 logger.warning("Local retrieval pipeline not responding")
                 logger.info(f"Please ensure the retrieval pipeline is running at {config.knowledge_base.local_base_url}")
                 logger.info("Run: cd ../retrieval-pipeline && python main.py")
-        except:
+        except requests.RequestException:
             logger.warning("Cannot connect to local retrieval pipeline")
             logger.info("Will continue anyway - searches may fail")
 

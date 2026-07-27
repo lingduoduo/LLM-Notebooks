@@ -295,7 +295,7 @@ class RAGEvaluator:
         print("EVALUATION SUMMARY")
         print("=" * 80)
         
-        print(f"\nConfiguration:")
+        print("\nConfiguration:")
         print(f"  LLM Model: {results['config']['llm_model']}")
         print(f"  Knowledge Base: {results['config']['kb_type']}")
         

@@ -5,7 +5,7 @@ import json
 import hashlib
 import logging
 import requests
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
 from config import ChunkingConfig, KnowledgeBaseConfig, KnowledgeBaseType

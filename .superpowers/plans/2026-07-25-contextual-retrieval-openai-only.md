@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make every LLM path in `AI-Agent/contextual-retrieval` use the official OpenAI client, `OPENAI_API_KEY`, and the default model `gpt-5.6-terra`.
+**Goal:** Make every LLM path in `AI-Agent-KnowledgeBase/contextual-retrieval` use the official OpenAI client, `OPENAI_API_KEY`, and the default model `gpt-5.6-terra`.
 
 **Architecture:** Replace the provider router in `LLMConfig` with one OpenAI configuration boundary shared by the agent and contextual chunker. Preserve Chat Completions and all retrieval-backend choices while removing provider selection from CLIs, evaluation metadata, examples, and documentation.
 
@@ -22,8 +22,8 @@
 ### Task 1: Replace provider routing with direct OpenAI configuration
 
 **Files:**
-- Create: `AI-Agent/contextual-retrieval/test_openai_config.py`
-- Modify: `AI-Agent/contextual-retrieval/config.py`
+- Create: `AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_config.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/config.py`
 
 **Interfaces:**
 - Produces: `LLMConfig.get_api_key() -> Optional[str]`
@@ -81,7 +81,7 @@ def test_legacy_provider_environment_is_ignored(monkeypatch):
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_config.py -v
 ```
 
@@ -129,7 +129,7 @@ if model := os.getenv("LLM_MODEL"):
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_config.py -v
 ```
 
@@ -138,7 +138,7 @@ Expected: all six tests pass.
 - [ ] **Step 5: Commit the configuration boundary**
 
 ```bash
-git add AI-Agent/contextual-retrieval/config.py AI-Agent/contextual-retrieval/test_openai_config.py
+git add AI-Agent-KnowledgeBase/contextual-retrieval/config.py AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_config.py
 git commit -m "refactor: use OpenAI-only LLM configuration"
 ```
 
@@ -147,9 +147,9 @@ git commit -m "refactor: use OpenAI-only LLM configuration"
 ### Task 2: Make agent and contextual chunking clients OpenAI-only
 
 **Files:**
-- Create: `AI-Agent/contextual-retrieval/test_openai_clients.py`
-- Modify: `AI-Agent/contextual-retrieval/agent.py`
-- Modify: `AI-Agent/contextual-retrieval/contextual_chunking.py`
+- Create: `AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_clients.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/agent.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/contextual_chunking.py`
 
 **Interfaces:**
 - Consumes: `LLMConfig.get_client_config() -> tuple[dict[str, str], str]`
@@ -202,7 +202,7 @@ def test_gpt5_temperature_remains_reasoning_safe():
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_clients.py -v
 ```
 
@@ -248,7 +248,7 @@ Do not change the Chat Completions calls or retrieval behavior.
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_clients.py test_openai_config.py test_history_limit_zero.py test_document_ids.py -v
 ```
 
@@ -257,7 +257,7 @@ Expected: all tests pass without network calls.
 - [ ] **Step 6: Commit runtime conversion**
 
 ```bash
-git add AI-Agent/contextual-retrieval/agent.py AI-Agent/contextual-retrieval/contextual_chunking.py AI-Agent/contextual-retrieval/test_openai_clients.py
+git add AI-Agent-KnowledgeBase/contextual-retrieval/agent.py AI-Agent-KnowledgeBase/contextual-retrieval/contextual_chunking.py AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_clients.py
 git commit -m "refactor: initialize OpenAI clients directly"
 ```
 
@@ -266,12 +266,12 @@ git commit -m "refactor: initialize OpenAI clients directly"
 ### Task 3: Remove provider selection from CLIs, evaluation, and smoke tests
 
 **Files:**
-- Create: `AI-Agent/contextual-retrieval/test_openai_cli.py`
-- Modify: `AI-Agent/contextual-retrieval/main.py`
-- Modify: `AI-Agent/contextual-retrieval/index_local_laws_contextual.py`
-- Modify: `AI-Agent/contextual-retrieval/evaluation/evaluate.py`
-- Modify: `AI-Agent/contextual-retrieval/test_simple.py`
-- Modify: `AI-Agent/contextual-retrieval/compare_retrieval.py`
+- Create: `AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_cli.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/main.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/index_local_laws_contextual.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/evaluation/evaluate.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/test_simple.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/compare_retrieval.py`
 
 **Interfaces:**
 - Consumes: `LLMConfig(model: str = "gpt-5.6-terra", api_key: Optional[str] = None)`
@@ -311,7 +311,7 @@ def test_evaluation_records_model_without_provider():
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_cli.py -v
 ```
 
@@ -332,7 +332,7 @@ Apply these exact behavior changes:
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_cli.py test_openai_config.py test_openai_clients.py test_history_limit_zero.py test_document_ids.py -v
 python main.py --help
 python index_local_laws_contextual.py --help
@@ -344,7 +344,7 @@ Expected: tests pass; help output contains model options but no provider option.
 - [ ] **Step 5: Commit executable-surface cleanup**
 
 ```bash
-git add AI-Agent/contextual-retrieval/main.py AI-Agent/contextual-retrieval/index_local_laws_contextual.py AI-Agent/contextual-retrieval/evaluation/evaluate.py AI-Agent/contextual-retrieval/test_simple.py AI-Agent/contextual-retrieval/compare_retrieval.py AI-Agent/contextual-retrieval/test_openai_cli.py
+git add AI-Agent-KnowledgeBase/contextual-retrieval/main.py AI-Agent-KnowledgeBase/contextual-retrieval/index_local_laws_contextual.py AI-Agent-KnowledgeBase/contextual-retrieval/evaluation/evaluate.py AI-Agent-KnowledgeBase/contextual-retrieval/test_simple.py AI-Agent-KnowledgeBase/contextual-retrieval/compare_retrieval.py AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_cli.py
 git commit -m "refactor: remove alternate LLM provider options"
 ```
 
@@ -353,10 +353,10 @@ git commit -m "refactor: remove alternate LLM provider options"
 ### Task 4: Align environment template and documentation
 
 **Files:**
-- Create: `AI-Agent/contextual-retrieval/test_openai_only_surfaces.py`
-- Modify: `AI-Agent/contextual-retrieval/env.example`
-- Modify: `AI-Agent/contextual-retrieval/README.md`
-- Modify: `AI-Agent/contextual-retrieval/README_LEGAL_INDEXING.md`
+- Create: `AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_only_surfaces.py`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/env.example`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/README.md`
+- Modify: `AI-Agent-KnowledgeBase/contextual-retrieval/README_LEGAL_INDEXING.md`
 
 **Interfaces:**
 - Produces: documented setup using `OPENAI_API_KEY`
@@ -414,7 +414,7 @@ def test_environment_template_uses_openai_defaults():
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_only_surfaces.py -v
 ```
 
@@ -449,7 +449,7 @@ In both README files:
 Run:
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest test_openai_only_surfaces.py test_openai_cli.py test_openai_clients.py test_openai_config.py test_history_limit_zero.py test_document_ids.py -v
 python -m compileall -q .
 ```
@@ -462,17 +462,17 @@ Run:
 
 ```bash
 rg -n -i "kimi|moonshot|doubao|siliconflow|openrouter|groq|together|deepseek|LLM_PROVIDER|--provider|--llm-provider" \
-  AI-Agent/contextual-retrieval/config.py \
-  AI-Agent/contextual-retrieval/agent.py \
-  AI-Agent/contextual-retrieval/contextual_chunking.py \
-  AI-Agent/contextual-retrieval/main.py \
-  AI-Agent/contextual-retrieval/index_local_laws_contextual.py \
-  AI-Agent/contextual-retrieval/compare_retrieval.py \
-  AI-Agent/contextual-retrieval/test_simple.py \
-  AI-Agent/contextual-retrieval/env.example \
-  AI-Agent/contextual-retrieval/README.md \
-  AI-Agent/contextual-retrieval/README_LEGAL_INDEXING.md \
-  AI-Agent/contextual-retrieval/evaluation/evaluate.py
+  AI-Agent-KnowledgeBase/contextual-retrieval/config.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/agent.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/contextual_chunking.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/main.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/index_local_laws_contextual.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/compare_retrieval.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/test_simple.py \
+  AI-Agent-KnowledgeBase/contextual-retrieval/env.example \
+  AI-Agent-KnowledgeBase/contextual-retrieval/README.md \
+  AI-Agent-KnowledgeBase/contextual-retrieval/README_LEGAL_INDEXING.md \
+  AI-Agent-KnowledgeBase/contextual-retrieval/evaluation/evaluate.py
 ```
 
 Expected: no output. A reference to Anthropic's Contextual Retrieval research is allowed and is intentionally not part of this search.
@@ -480,7 +480,7 @@ Expected: no output. A reference to Anthropic's Contextual Retrieval research is
 - [ ] **Step 7: Commit documentation and audit coverage**
 
 ```bash
-git add AI-Agent/contextual-retrieval/env.example AI-Agent/contextual-retrieval/README.md AI-Agent/contextual-retrieval/README_LEGAL_INDEXING.md AI-Agent/contextual-retrieval/test_openai_only_surfaces.py
+git add AI-Agent-KnowledgeBase/contextual-retrieval/env.example AI-Agent-KnowledgeBase/contextual-retrieval/README.md AI-Agent-KnowledgeBase/contextual-retrieval/README_LEGAL_INDEXING.md AI-Agent-KnowledgeBase/contextual-retrieval/test_openai_only_surfaces.py
 git commit -m "docs: document OpenAI-only contextual retrieval"
 ```
 
@@ -497,7 +497,7 @@ git commit -m "docs: document OpenAI-only contextual retrieval"
 - [ ] **Step 1: Run the complete local test set**
 
 ```bash
-cd AI-Agent/contextual-retrieval
+cd AI-Agent-KnowledgeBase/contextual-retrieval
 python -m pytest -v
 ```
 
