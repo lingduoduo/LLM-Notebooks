@@ -1,0 +1,96 @@
+{
+  "description": "Retrieval-recall evaluation set for contextual retrieval vs traditional chunking (experiment 3-11). gold_chunk_id is the hand-labelled relevant chunk; the reason for each label is in the note field. The corpus is the Constitution and Prosecutors Law chunks already indexed in document_store.json. Chunk ids are derived from the source document filenames, so they must match whatever corpus you indexed.",
+  "corpus": "document_store.json",
+  "queries": [
+    {
+      "id": "q01",
+      "query": "In which year was the Constitution adopted, and how many times has it been amended since?",
+      "gold_chunk_id": "constitution_chunk_0",
+      "note": "chunk_0 opens the Constitution and lists the 1982 adoption date and the dates of each amendment."
+    },
+    {
+      "id": "q02",
+      "query": "What is the fundamental task of the state?",
+      "gold_chunk_id": "constitution_chunk_1",
+      "note": "chunk_1 is the preamble, which states outright that 'the fundamental task of the state is ...'."
+    },
+    {
+      "id": "q03",
+      "query": "What are the basic principles governing ethnic relations, and the Five Principles of foreign policy?",
+      "gold_chunk_id": "constitution_chunk_2",
+      "note": "chunk_2 covers socialist ethnic relations and the Five Principles of Peaceful Coexistence."
+    },
+    {
+      "id": "q04",
+      "query": "How is regional autonomy exercised in areas where ethnic minorities live in compact communities?",
+      "gold_chunk_id": "constitution_chunk_3",
+      "note": "chunk_3 spans Article 4, covering regional ethnic autonomy and rule of law."
+    },
+    {
+      "id": "q05",
+      "query": "How does the Constitution protect the non-public economy, such as individual and private businesses?",
+      "gold_chunk_id": "constitution_chunk_4",
+      "note": "chunk_4 contains Articles 11-13 on the non-public economy and protection of private property."
+    },
+    {
+      "id": "q06",
+      "query": "What does the Constitution say about establishing special administrative regions and the rights of foreigners in China?",
+      "gold_chunk_id": "constitution_chunk_6",
+      "note": "chunk_6 contains Articles 31 and 32, the special administrative region and foreigner clauses."
+    },
+    {
+      "id": "q07",
+      "query": "What rights of supervision do citizens have over unlawful or negligent conduct by state personnel?",
+      "gold_chunk_id": "constitution_chunk_7",
+      "note": "chunk_7 is Article 41, granting the rights to criticize, suggest, appeal, complain and report."
+    },
+    {
+      "id": "q08",
+      "query": "What are the functions and powers of the Standing Committee of the National People's Congress?",
+      "gold_chunk_id": "constitution_chunk_10",
+      "note": "Flagship comparison case: chunk_10 begins mid-list with '(4) to interpret laws ...' and its body contains neither 'Standing Committee' nor 'functions and powers'. Only the context prefix ('Article 67: The Standing Committee of the National People's Congress exercises the following functions and powers') anchors it; without context, chunk_9/chunk_11 easily win instead."
+    },
+    {
+      "id": "q09",
+      "query": "What are the functions and powers of the President of the state?",
+      "gold_chunk_id": "constitution_chunk_12",
+      "note": "chunk_12 contains Articles 80-82: promulgating laws, appointing and removing the Premier, etc."
+    },
+    {
+      "id": "q10",
+      "query": "How are the terms of office and the election of deputies to local people's congresses regulated?",
+      "gold_chunk_id": "constitution_chunk_14",
+      "note": "chunk_14 is Articles 97-99, on electing local deputies and their five-year terms."
+    },
+    {
+      "id": "q11",
+      "query": "What restrictions on holding concurrent posts apply to members of local people's congress standing committees at or above county level?",
+      "gold_chunk_id": "constitution_chunk_15",
+      "note": "chunk_15 bars standing committee members from holding posts in administrative, supervisory, judicial or procuratorial organs."
+    },
+    {
+      "id": "q12",
+      "query": "What is the nature, composition and term of office of the supervisory commissions?",
+      "gold_chunk_id": "constitution_chunk_17",
+      "note": "chunk_17 is Section 7 on supervisory commissions, covering their nature, composition and term."
+    },
+    {
+      "id": "q13",
+      "query": "When was the Prosecutors Law revised?",
+      "gold_chunk_id": "prosecutors_law_2019_04_23_chunk_0",
+      "note": "chunk_0 lists the 1995 adoption of the Prosecutors Law, its amendments, and the 2019 revision date."
+    },
+    {
+      "id": "q14",
+      "query": "Who sits on the prosecutor selection committee, and what must a lawyer meet to enter open selection?",
+      "gold_chunk_id": "prosecutors_law_2019_04_23_chunk_2",
+      "note": "chunk_2 is Article 16, on the composition of provincial selection committees and the conditions for lawyers entering open selection."
+    },
+    {
+      "id": "q15",
+      "query": "Under what circumstances must a prosecutor be removed from office?",
+      "gold_chunk_id": "prosecutors_law_2019_04_23_chunk_3",
+      "note": "chunk_3 lists the grounds for removing a prosecutor and the procedure for revoking an appointment made in breach of the conditions."
+    }
+  ]
+}

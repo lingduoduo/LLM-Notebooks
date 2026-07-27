@@ -1,0 +1,15 @@
+{
+  "queries": [
+    "Before running the ADDPS instruction, which control register bit must the operating system set to 1?",
+    "What is the difference between the vector registers used by SSE and AVX?",
+    "Give me an overview of the x86 SIMD instruction sets"
+  ],
+  "multi_hop": {
+    "query": "Before running the ADDPS instruction, which control register bit must the operating system set to 1?",
+    "start": "ADDPS",
+    "paths": [
+      "ADDPS --belongs_to--> SSE --requires_enabling--> CR4.OSFXSR",
+      "ADDPS --belongs_to--> SSE --requires_cleared--> CR0.EM"
+    ]
+  }
+}

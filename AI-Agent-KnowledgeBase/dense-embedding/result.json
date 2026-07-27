@@ -1,0 +1,76 @@
+{
+  "top_k": 5,
+  "embedding_model": "BAAI/bge-m3",
+  "query": "a cat playing",
+  "eval": {
+    "k": 5,
+    "per_query": {
+      "what do I need to do when I join the company": {
+        "recall": 1.0,
+        "precision": 0.4,
+        "rr": 1.0,
+        "hits": [
+          "onboard_equipment",
+          "onboard_laptop"
+        ]
+      },
+      "how much holiday do I get": {
+        "recall": 1.0,
+        "precision": 0.4,
+        "rr": 1.0,
+        "hits": [
+          "pto_policy",
+          "vacation_request"
+        ]
+      },
+      "getting money back after a business trip": {
+        "recall": 1.0,
+        "precision": 0.4,
+        "rr": 1.0,
+        "hits": [
+          "expense_limits",
+          "expense_submit"
+        ]
+      },
+      "signing in from home": {
+        "recall": 1.0,
+        "precision": 0.2,
+        "rr": 1.0,
+        "hits": [
+          "vpn_access"
+        ]
+      },
+      "I am locked out of my account": {
+        "recall": 1.0,
+        "precision": 0.2,
+        "rr": 1.0,
+        "hits": [
+          "password_reset"
+        ]
+      },
+      "DB-5012": {
+        "recall": 1.0,
+        "precision": 0.2,
+        "rr": 1.0,
+        "hits": [
+          "err_5012"
+        ]
+      },
+      "who responds when production breaks at night": {
+        "recall": 1.0,
+        "precision": 0.4,
+        "rr": 1.0,
+        "hits": [
+          "oncall_rotation",
+          "incident_review"
+        ]
+      }
+    },
+    "macro": {
+      "recall@k": 1.0,
+      "precision@k": 0.31428571428571433,
+      "mrr": 1.0,
+      "miss_rate@k": 0.0
+    }
+  }
+}
