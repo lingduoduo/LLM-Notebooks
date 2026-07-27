@@ -80,7 +80,7 @@ def tokenize(text: str, use_jieba: bool = True) -> List[str]:
 # Corpus loading
 # ---------------------------------------------------------------------------
 def load_corpus(path: str) -> List[Dict]:
-    """Load chunks from document_store.json as [{chunk_id, contextual, plain, context}].
+    """Load a chunk-store JSON file as [{chunk_id, contextual, plain, context}].
 
     Each chunk's `content` field is "context prefix + original text", while
     metadata.original_text is the raw text without context -- exactly the pair
@@ -259,9 +259,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
                "  python compare_retrieval.py --query \"What are the powers of the President?\" --top-k 5\n"
                "  python compare_retrieval.py --mode both --k 1 3 5 --output result.json",
     )
-    p.add_argument("--corpus", default="document_store.json",
+    p.add_argument("--corpus", default="evaluation/contextual_retrieval_corpus.json",
                    help="Corpus file (chunk store with `content` and metadata.original_text); "
-                        "default document_store.json")
+                        "default evaluation/contextual_retrieval_corpus.json")
     p.add_argument("--eval", dest="eval_path", default="evaluation/retrieval_eval.json",
                    help="Evaluation set (query + gold_chunk_id); default evaluation/retrieval_eval.json")
     p.add_argument("--query", default=None,

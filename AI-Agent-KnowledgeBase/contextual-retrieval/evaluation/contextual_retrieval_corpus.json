@@ -1,0 +1,122 @@
+{
+  "constitution_chunk_0": {
+    "content": "Constitution adoption and amendment history.\n\nThe current Constitution was adopted in 1982 and was subsequently amended in 1988, 1993, 1999, 2004, and 2018.",
+    "metadata": {
+      "original_text": "The current Constitution was adopted in 1982 and was subsequently amended in 1988, 1993, 1999, 2004, and 2018.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_1": {
+    "content": "Constitution preamble: the state's fundamental task.\n\nThe fundamental state task is to concentrate on socialist modernization along the path of socialism with Chinese characteristics.",
+    "metadata": {
+      "original_text": "The fundamental state task is to concentrate on socialist modernization along the path of socialism with Chinese characteristics.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_2": {
+    "content": "Constitution preamble: ethnic relations and foreign policy principles.\n\nThe state promotes equality, unity, mutual assistance, and harmony among ethnic groups. Foreign relations follow mutual respect for sovereignty and territorial integrity, mutual nonaggression, noninterference, equality and mutual benefit, and peaceful coexistence.",
+    "metadata": {
+      "original_text": "The state promotes equality, unity, mutual assistance, and harmony among ethnic groups. Foreign relations follow mutual respect for sovereignty and territorial integrity, mutual nonaggression, noninterference, equality and mutual benefit, and peaceful coexistence.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_3": {
+    "content": "Constitution Article 4: regional ethnic autonomy.\n\nRegional autonomy is practiced where ethnic minorities live in compact communities. Autonomous organs exercise the power of autonomy within those areas.",
+    "metadata": {
+      "original_text": "Regional autonomy is practiced where ethnic minorities live in compact communities. Autonomous organs exercise the power of autonomy within those areas.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_4": {
+    "content": "Constitution Articles 11 through 13: non-public economy and private property.\n\nIndividual and private businesses operating within the law are important parts of the socialist market economy. The state protects their lawful rights and protects citizens' lawful private property and inheritance rights.",
+    "metadata": {
+      "original_text": "Individual and private businesses operating within the law are important parts of the socialist market economy. The state protects their lawful rights and protects citizens' lawful private property and inheritance rights.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_6": {
+    "content": "Constitution Articles 31 and 32: special administrative regions and foreigners.\n\nThe state may establish special administrative regions when necessary. It protects the lawful rights and interests of foreigners in China, who must obey Chinese law.",
+    "metadata": {
+      "original_text": "The state may establish special administrative regions when necessary. It protects the lawful rights and interests of foreigners in China, who must obey Chinese law.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_7": {
+    "content": "Constitution Article 41: citizen supervision of state personnel.\n\nCitizens may criticize and make suggestions concerning state organs and personnel. They may appeal, complain, or report unlawful conduct or dereliction of duty, but may not fabricate or distort facts.",
+    "metadata": {
+      "original_text": "Citizens may criticize and make suggestions concerning state organs and personnel. They may appeal, complain, or report unlawful conduct or dereliction of duty, but may not fabricate or distort facts.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_10": {
+    "content": "Constitution Article 67: functions and powers of the Standing Committee of the National People's Congress.\n\nIt interprets laws, supervises constitutional enforcement, reviews State Council regulations, decides on certain appointments, and performs other powers assigned by the national legislature.",
+    "metadata": {
+      "original_text": "It interprets laws, supervises constitutional enforcement, reviews State Council regulations, decides on certain appointments, and performs other powers assigned by the national legislature.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_12": {
+    "content": "Constitution Articles 80 through 82: functions and powers of the President of the People's Republic of China.\n\nThe President promulgates laws, appoints or removes leading State Council officials pursuant to legislative decisions, confers state honors, issues special pardons, and performs related state functions.",
+    "metadata": {
+      "original_text": "The President promulgates laws, appoints or removes leading State Council officials pursuant to legislative decisions, confers state honors, issues special pardons, and performs related state functions.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_14": {
+    "content": "Constitution Articles 97 through 99: local people's congress deputies and terms.\n\nDeputies to local people's congresses are elected as prescribed by law. Local people's congresses at every level have five-year terms.",
+    "metadata": {
+      "original_text": "Deputies to local people's congresses are elected as prescribed by law. Local people's congresses at every level have five-year terms.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_15": {
+    "content": "Constitution rules for local people's congress standing committee membership.\n\nA standing committee member of a local people's congress at or above county level may not concurrently hold office in a state administrative, supervisory, adjudicatory, or procuratorial organ.",
+    "metadata": {
+      "original_text": "A standing committee member of a local people's congress at or above county level may not concurrently hold office in a state administrative, supervisory, adjudicatory, or procuratorial organ.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "constitution_chunk_17": {
+    "content": "Constitution Section 7: nature, composition, and term of supervisory commissions.\n\nSupervisory commissions are state supervisory organs. A commission consists of a chairperson, vice chairpersons, and members; the chairperson's term follows that of the corresponding people's congress.",
+    "metadata": {
+      "original_text": "Supervisory commissions are state supervisory organs. A commission consists of a chairperson, vice chairpersons, and members; the chairperson's term follows that of the corresponding people's congress.",
+      "source": "https://english.www.gov.cn/archive/lawregulations/201911/20/content_WS5ed8856ec6d0b3f0e9499913.html",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "prosecutors_law_2019_04_23_chunk_0": {
+    "content": "Procurators Law enactment, amendment, and revision history.\n\nThe law was adopted in 1995, amended in 2001 and 2017, revised on April 23, 2019, and the revised law took effect on October 1, 2019.",
+    "metadata": {
+      "original_text": "The law was adopted in 1995, amended in 2001 and 2017, revised on April 23, 2019, and the revised law took effect on October 1, 2019.",
+      "source": "https://en.moj.gov.cn/2021-06/24/c_635994.htm",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "prosecutors_law_2019_04_23_chunk_2": {
+    "content": "Procurators Law Article 16: prosecutor selection committees and open selection.\n\nProvincial selection committees include procurators and representatives from other legal professions. Lawyers entering open selection must meet professional qualification and practice-experience conditions.",
+    "metadata": {
+      "original_text": "Provincial selection committees include procurators and representatives from other legal professions. Lawyers entering open selection must meet professional qualification and practice-experience conditions.",
+      "source": "https://en.moj.gov.cn/2021-06/24/c_635994.htm",
+      "fixture": "curated_paraphrase"
+    }
+  },
+  "prosecutors_law_2019_04_23_chunk_3": {
+    "content": "Procurators Law: circumstances requiring removal of a prosecutor.\n\nRemoval is required after loss of nationality, transfer out of a procuratorial organ, inability to perform duties, disqualification in an appraisal, resignation, dismissal, or another statutory ground. An appointment made contrary to qualification rules must be revoked.",
+    "metadata": {
+      "original_text": "Removal is required after loss of nationality, transfer out of a procuratorial organ, inability to perform duties, disqualification in an appraisal, resignation, dismissal, or another statutory ground. An appointment made contrary to qualification rules must be revoked.",
+      "source": "https://en.moj.gov.cn/2021-06/24/c_635994.htm",
+      "fixture": "curated_paraphrase"
+    }
+  }
+}
