@@ -8,14 +8,15 @@ import traceback
 from pathlib import Path
 from typing import Union, Dict, Any
 
-import pandas as pd
-from docx import Document
-from pptx import Presentation
-import PyPDF2
 from dotenv import load_dotenv
 from mcp.types import TextContent
 
-from .base import ActionResponse, validate_file_path
+from .base import ActionResponse, optional_import, validate_file_path
+
+pd = optional_import("pandas")
+docx = optional_import("docx")
+pptx = optional_import("pptx")
+PyPDF2 = optional_import("PyPDF2")
 
 
 load_dotenv()
@@ -116,7 +117,7 @@ async def extract_docx_content(
         
         logging.info(f"📄 Extracting DOCX: {path}")
         
-        doc = Document(path)
+        doc = docx.Document(path)
         
         # Extract paragraphs
         paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
@@ -189,7 +190,7 @@ async def extract_pptx_content(
         
         logging.info(f"📊 Extracting PPTX: {path}")
         
-        prs = Presentation(path)
+        prs = pptx.Presentation(path)
         
         slides_content = []
         for slide_num, slide in enumerate(prs.slides, 1):

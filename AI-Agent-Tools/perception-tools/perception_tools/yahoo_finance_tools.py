@@ -10,12 +10,13 @@ import traceback
 from datetime import datetime
 from typing import Union, Literal
 
-import yfinance as yf
 from dotenv import load_dotenv
 from mcp.types import TextContent
 from pydantic import BaseModel, Field
 
-from .base import ActionResponse
+from .base import ActionResponse, optional_import
+
+yf = optional_import("yfinance")
 
 
 load_dotenv()

@@ -15,7 +15,8 @@ python-pptx>=0.6.23
 Pillow>=10.0.0
 
 # Video processing
-opencv-python>=4.8.0
+numpy>=1.24,<2.3
+opencv-python-headless>=4.8.0,<5
 
 # YouTube
 youtube-transcript-api>=0.6.0
@@ -27,7 +28,7 @@ arxiv>=2.0.0
 yfinance>=0.2.0
 pandas>=2.0.0
 waybackpy>=3.0.0
-chardet>=5.0.0
+chardet>=5.0.0,<6
 
 # Media processing
 openai>=1.0.0

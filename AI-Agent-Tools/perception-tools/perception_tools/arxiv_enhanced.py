@@ -7,11 +7,12 @@ import logging
 import traceback
 from typing import Union
 
-import arxiv
 from dotenv import load_dotenv
 from mcp.types import TextContent
 
-from .base import ActionResponse
+from .base import ActionResponse, optional_import
+
+arxiv = optional_import("arxiv")
 
 
 load_dotenv()

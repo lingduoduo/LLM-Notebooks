@@ -10,11 +10,12 @@ from datetime import datetime
 from typing import Union
 
 import requests
-import wikipedia
 from dotenv import load_dotenv
 from mcp.types import TextContent
 
-from .base import ActionResponse
+from .base import ActionResponse, optional_import
+
+wikipedia = optional_import("wikipedia")
 
 
 load_dotenv()

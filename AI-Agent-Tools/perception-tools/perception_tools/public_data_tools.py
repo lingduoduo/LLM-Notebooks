@@ -13,9 +13,10 @@ import requests
 from dotenv import load_dotenv
 from mcp.types import TextContent
 from pydantic import BaseModel, Field
-import wikipedia
 
-from .base import ActionResponse
+from .base import ActionResponse, optional_import
+
+wikipedia = optional_import("wikipedia")
 
 
 load_dotenv()

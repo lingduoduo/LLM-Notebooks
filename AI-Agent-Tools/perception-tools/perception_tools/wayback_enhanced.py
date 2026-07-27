@@ -10,9 +10,9 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from mcp.types import TextContent
-from waybackpy import WaybackMachineCDXServerAPI
+from .base import ActionResponse, optional_import
 
-from .base import ActionResponse
+waybackpy = optional_import("waybackpy")
 
 
 load_dotenv()
@@ -36,7 +36,7 @@ async def get_archived_content(
         logging.info(f"🕰️ Getting archived content: {url} at {timestamp}")
         
         # Query for closest snapshot
-        cdx_api = WaybackMachineCDXServerAPI(url)
+        cdx_api = waybackpy.WaybackMachineCDXServerAPI(url)
         snapshot = cdx_api.near(wayback_machine_timestamp=timestamp)
         
         if not snapshot:

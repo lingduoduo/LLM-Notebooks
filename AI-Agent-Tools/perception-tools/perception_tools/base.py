@@ -5,12 +5,34 @@ import logging
 import os
 import tempfile
 import traceback
+import importlib
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any
 
 import requests
 from pydantic import BaseModel, Field
+
+
+class MissingOptionalDependency:
+    """Proxy that raises an actionable error when an optional package is used."""
+
+    def __init__(self, module_name: str):
+        self.module_name = module_name
+
+    def __getattr__(self, name: str):
+        raise ImportError(
+            f"Optional dependency '{self.module_name}' is required for this tool. "
+            f"Install the appropriate perception-tools extra."
+        )
+
+
+def optional_import(module_name: str):
+    """Import an optional module without breaking package or server startup."""
+    try:
+        return importlib.import_module(module_name)
+    except ImportError:
+        return MissingOptionalDependency(module_name)
 
 
 class ActionResponse(BaseModel):

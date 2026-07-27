@@ -10,12 +10,13 @@ import base64
 from pathlib import Path
 from typing import Union, Dict, Any
 
-import cv2
-from PIL import Image
 from dotenv import load_dotenv
 from mcp.types import TextContent
 
-from .base import ActionResponse, validate_file_path
+from .base import ActionResponse, optional_import, validate_file_path
+
+cv2 = optional_import("cv2")
+Image = optional_import("PIL.Image")
 
 
 load_dotenv()
