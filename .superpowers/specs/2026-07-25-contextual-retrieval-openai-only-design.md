@@ -2,7 +2,7 @@
 
 ## Goal
 
-Convert all LLM configuration and usage under `AI-Agent/contextual-retrieval` to use the official OpenAI API exclusively. The application will authenticate with `OPENAI_API_KEY`, default to `gpt-5.6-terra`, and contain no active routing or instructions for Kimi, Moonshot, Doubao, SiliconFlow, OpenRouter, Groq, Together, or DeepSeek.
+Convert all LLM configuration and usage under `AI-Agent-KnowledgeBase/contextual-retrieval` to use the official OpenAI API exclusively. The application will authenticate with `OPENAI_API_KEY`, default to `gpt-5.6-terra`, and contain no active routing or instructions for Kimi, Moonshot, Doubao, SiliconFlow, OpenRouter, Groq, Together, or DeepSeek.
 
 ## Scope
 
@@ -90,7 +90,7 @@ Tests that make real API calls will remain conditional on `OPENAI_API_KEY`; unit
 
 ## Success Criteria
 
-- Every active LLM path under `AI-Agent/contextual-retrieval` uses the official OpenAI client and `OPENAI_API_KEY`.
+- Every active LLM path under `AI-Agent-KnowledgeBase/contextual-retrieval` uses the official OpenAI client and `OPENAI_API_KEY`.
 - `gpt-5.6-terra` is the single default LLM model.
 - Users may override the model but cannot select a different provider through configuration or CLI options.
 - No non-OpenAI provider routing remains in executable code or setup instructions.
