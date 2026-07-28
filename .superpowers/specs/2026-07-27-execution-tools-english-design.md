@@ -51,14 +51,9 @@ fallback will no longer be accepted or documented.
 Translate the Chinese text in `execution-tools/cli.py`,
 `execution-tools/execution_tools.py`, and any other maintained source,
 documentation, configuration, or test file found by a repository-wide Unicode
-scan. Use concise technical English and consistent terminology:
-
-- "execution tools" for 执行工具
-- "workspace" for 工作区 or 工作目录
-- "validation" for 校验
-- "approval" for 审批
-- "truncation and persistence" for 截断与持久化
-- "offline demo" for 离线演示
+scan. Use concise technical English and consistently use the terms
+"execution tools", "workspace", "validation", "approval",
+"truncation and persistence", and "offline demo".
 
 No unrelated refactoring or packaging changes are included.
 
