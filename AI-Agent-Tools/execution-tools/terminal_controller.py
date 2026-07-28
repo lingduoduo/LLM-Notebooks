@@ -7,19 +7,24 @@ import os
 import subprocess
 import traceback
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 
 from config import Config
+from execution_tools import prepare_output
+from llm_helper import LLMHelper
+from safety import detect_dangerous_command
 
 
 class TerminalController:
     """Terminal controller with directory navigation and file operations."""
-    
-    def __init__(self):
+
+    def __init__(self, llm_helper: Optional[LLMHelper] = None):
         self.workspace_dir = Path(Config.WORKSPACE_DIR).resolve()
         self.current_directory = self.workspace_dir
         self.command_history = []
         self.max_history = 100
+        # Created lazily elsewhere; constructing one needs no API key.
+        self.llm_helper = llm_helper or LLMHelper()
     
     def _is_safe_path(self, path: Path) -> bool:
         """Check if path is within workspace."""
@@ -51,12 +56,30 @@ class TerminalController:
         Returns:
             Dictionary with command output
         """
+        # Add to history before any gate, so a refused command is still on the
+        # record of what the agent attempted.
+        self.command_history.append(command)
+        if len(self.command_history) > self.max_history:
+            self.command_history.pop(0)
+
+        # This tool is reachable over MCP, so it carries the same approval gate
+        # as virtual_terminal rather than executing whatever it is handed.
+        if Config.REQUIRE_APPROVAL_FOR_DANGEROUS_OPS:
+            detected = detect_dangerous_command(command)
+            if detected:
+                approved, reason = self.llm_helper.request_approval(
+                    "terminal_command",
+                    {"command": command, "detected_patterns": detected},
+                )
+                if not approved:
+                    return {
+                        "success": False,
+                        "command": command,
+                        "error": f"Command execution not approved: {reason}",
+                        "cwd": str(self.current_directory),
+                    }
+
         try:
-            # Add to history
-            self.command_history.append(command)
-            if len(self.command_history) > self.max_history:
-                self.command_history.pop(0)
-            
             # Execute command
             result = subprocess.run(
                 command,
@@ -66,16 +89,27 @@ class TerminalController:
                 timeout=timeout,
                 cwd=str(self.current_directory)
             )
-            
+
+            # Bound what reaches the agent's context; the full text is saved.
+            stdout, stdout_file = prepare_output(
+                self.llm_helper, "terminal_execute", result.stdout
+            )
+            stderr, stderr_file = prepare_output(
+                self.llm_helper, "terminal_execute", result.stderr
+            )
+
             return {
                 "success": result.returncode == 0,
                 "command": command,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
+                "stdout": stdout,
+                "stderr": stderr,
+                "stdout_file": stdout_file,
+                "stderr_file": stderr_file,
                 "returncode": result.returncode,
                 "cwd": str(self.current_directory)
             }
-            
+
+
         except subprocess.TimeoutExpired:
             return {
                 "success": False,

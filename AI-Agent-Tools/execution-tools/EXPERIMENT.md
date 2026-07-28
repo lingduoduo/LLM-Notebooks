@@ -18,21 +18,27 @@ This experiment explores three critical aspects of execution tools:
 
 The safety layer implements a multi-level protection system:
 
-**LLM-Based Approval**: Before executing irreversible operations (file overwrite, system commands, external API calls), the system consults a secondary LLM to evaluate the risk. The approval process analyzes the operation for potential data loss, security risks, and resource consumption concerns. This mirrors real-world approval workflows where critical operations require managerial sign-off or risk control review.
+**LLM-Based Approval**: Before executing irreversible operations (file overwrite, file deletion, system commands, external API calls), the system consults a secondary LLM to evaluate the risk. The approval process analyzes the operation for potential data loss, security risks, and resource consumption concerns. This mirrors real-world approval workflows where critical operations require managerial sign-off or risk control review.
 
-**Result Summarization**: When execution tools (code interpreter or virtual terminal) produce output exceeding 10,000 characters, the system automatically invokes an LLM to distill the essential information. Outputs under this threshold are returned as-is to preserve full detail for smaller results. This summarization focuses on key results, errors, warnings, and actionable insights, enabling the primary agent to process information more efficiently without being overwhelmed by raw data.
+Two details matter for the gate to mean anything. First, detection is structural rather than textual: shell commands are tokenized so the command word and its flags are examined (`rm -fr` and `rm -r -f` are caught, `git rm --cached` is not), and code is matched with word-boundary patterns keyed on a canonical language name so that an alias like `python3` cannot land on an empty rule table. Second, the reviewed operation is passed to the reviewer inside a delimited untrusted-content block with an explicit instruction to ignore directives found inside it; interpolating the reviewed code straight into the prompt lets the code address its own reviewer.
 
-**Automatic Verification**: Operations that produce verifiable outputs undergo automated validation. Code files are checked for syntax errors, terminal commands are evaluated for successful execution, and API responses are validated against expected schemas. Verification results feed back into the agent's context, allowing it to self-correct without manual intervention.
+**Result Summarization**: When a tool produces output exceeding 10,000 characters, the system invokes an LLM to distill the essential information from the *complete* text, and writes that complete text to a file whose path is returned. Ordering matters here: summarizing after truncation means the summarizer only ever sees the already-trimmed head and tail, which is both useless and, since the trimmed text is under the threshold, effectively unreachable. Outputs under the threshold are returned as-is.
+
+**Automatic Verification**: Python is validated locally with `compile()`, which is authoritative. Other languages are validated by their own compiler or interpreter when the code runs, which is also authoritative and needs no LLM. Verification reports `passed`, `failed`, `unverified` or `skipped`. The `unverified` state exists deliberately: a verifier that cannot run must not report success, and answering "valid" whenever the check raised turned an unreachable verifier into a silent clean bill of health.
 
 ### Tool Implementation
 
 #### File System Tools
 
-The file system tools provide safe, verified file operations. The write operation supports automatic syntax checking for code files in Python, JavaScript, and TypeScript, preventing the creation of invalid source files. The edit operation generates diff previews before applying changes, allowing the agent to understand the impact of modifications. Both operations enforce workspace boundaries, preventing accidental file access outside designated directories.
+The file system tools provide safe, verified file operations. The write operation supports automatic syntax checking for code files in Python, JavaScript, and TypeScript, preventing the creation of invalid source files. It refuses to replace an existing file unless `overwrite=true` is passed, and asks for approval when it does — a flag that only triggers a review, with no branch that actually refuses, is not a safety control. The edit operation generates diff previews before applying changes. Both enforce workspace boundaries, preventing file access outside designated directories.
+
+The enhanced filesystem tools extend this to reading, searching, inspecting, moving, copying, deleting and creating, with approval required for the destructive operations.
 
 #### Generic Execution Tools
 
-The code interpreter executes Python code in a controlled environment with namespace restrictions. It captures both standard output and error streams, detects dangerous function calls like system commands or eval statements, and provides detailed error analysis when execution fails. The virtual terminal executes shell commands with configurable timeouts, monitors for destructive operations, and automatically summarizes verbose output to highlight relevant information.
+The code interpreter executes code in nine languages, each in a fresh temporary directory as a subprocess. It captures both standard output and error streams, detects dangerous constructs before running, and provides error analysis when execution fails. Auxiliary files are written as UTF-8 text unless they carry an explicit `base64:` prefix; inferring binary content from the character set silently corrupts ordinary words that happen to be valid base64. The virtual terminal executes shell commands with configurable timeouts and the same approval gate. A separate stateful terminal session keeps a working directory and command history across calls.
+
+**Isolation caveat**: "temporary directory plus subprocess" is containment, not a security sandbox. There are no resource limits, no network restrictions and no privilege separation, so untrusted code should be run through the provided `Dockerfile` rather than directly on a workstation.
 
 #### External Integration Tools
 
@@ -58,18 +64,14 @@ pip install -r requirements.txt
 cp env.example .env
 ```
 
-2. Configure your LLM provider:
+2. Configure the OpenAI API key:
 
 ```bash
-PROVIDER=kimi
-KIMI_API_KEY=your-key
+OPENAI_API_KEY=your-key
 ```
 
-**Supported Providers:**
-- **SiliconFlow**: `SILICONFLOW_API_KEY` - Uses Qwen/Qwen3-235B-A22B-Thinking-2507
-- **Doubao**: `DOUBAO_API_KEY` - Uses doubao-seed-1-6-thinking-250715
-- **Kimi/Moonshot**: `KIMI_API_KEY` - Uses kimi-k3 (default)
-- **OpenRouter**: `OPENROUTER_API_KEY` - Uses google/gemini-3.5-flash
+The LLM steps call the OpenAI API directly. `MODEL` is optional and defaults to
+`gpt-5.6`; set it to any OpenAI model id to override.
 
 3. (Optional) Configure external services:
 ```bash
@@ -87,6 +89,7 @@ GITHUB_TOKEN=ghp_...
 REQUIRE_APPROVAL_FOR_DANGEROUS_OPS=true
 AUTO_SUMMARIZE_COMPLEX_OUTPUT=true
 AUTO_VERIFY_CODE=true
+AUTO_ANALYZE_ERRORS=true
 MAX_OUTPUT_LENGTH=1000
 ```
 
@@ -100,18 +103,20 @@ python quickstart.py
 
 This demonstrates all major features with minimal setup.
 
-### Individual Tool Tests
+### Test Suite
 
 ```bash
-# Test file operations
-python test_file_tools.py
+# Everything (offline, isolated temporary workspace)
+python -m pytest
 
-# Test code execution
-python test_execution_tools.py
-
-# Test external integrations (requires credentials)
-python test_external_tools.py
+# One area at a time
+python -m pytest test_file_tools.py
+python -m pytest test_execution_tools.py
+python -m pytest test_safety_layer.py
+python -m pytest test_tool_registry.py
 ```
+
+Language cases whose toolchain is not installed are skipped rather than failed.
 
 ### Comprehensive Examples
 
@@ -169,7 +174,7 @@ Automatic summarization significantly reduces token consumption when dealing wit
 
 ### Verification Limitations
 
-While syntax verification catches many issues before execution, it cannot predict runtime failures or logical errors. The system works best when combined with error analysis that provides suggestions for fixing failed operations. For Python, compile-time syntax checking is highly accurate; for other languages, LLM-based validation serves as a reasonable approximation.
+While syntax verification catches many issues before execution, it cannot predict runtime failures or logical errors. The system works best when combined with error analysis that provides suggestions for fixing failed operations. For Python, compile-time syntax checking is highly accurate. For other languages the real compiler or interpreter is the authoritative check, so no pre-flight approximation is attempted at execution time; a written source file that is never executed has no such fallback and is reported as `unverified`.
 
 ## Discussion Questions
 

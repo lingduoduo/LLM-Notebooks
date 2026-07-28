@@ -57,9 +57,21 @@ class FileTools:
                 "error": f"Path {path} is outside workspace directory"
             }
         
-        # Check if file exists and overwrite is not allowed
-        if resolved_path.exists() and not overwrite:
-            # Request approval for overwriting
+        # An existing file is only replaced when the caller explicitly asked
+        # for it. The previous code merely requested approval here and then
+        # fell through to the write regardless, so overwrite=False destroyed
+        # the file whenever approval was disabled.
+        if resolved_path.exists():
+            if not overwrite:
+                return {
+                    "success": False,
+                    "error": (
+                        f"File {path} already exists. "
+                        f"Pass overwrite=true to replace it."
+                    )
+                }
+
+            # Replacing existing content is destructive; ask before doing it.
             if Config.REQUIRE_APPROVAL_FOR_DANGEROUS_OPS:
                 approved, reason = self.llm_helper.request_approval(
                     "file_overwrite",
@@ -69,35 +81,39 @@ class FileTools:
                         "new_content_size": len(content)
                     }
                 )
-                
+
                 if not approved:
                     return {
                         "success": False,
                         "error": f"Overwrite not approved: {reason}"
                     }
-        
+
         # Verify code syntax if it's a code file
+        verification = "skipped"
         if Config.AUTO_VERIFY_CODE and resolved_path.suffix in ['.py', '.js', '.ts']:
             language = {'.py': 'python', '.js': 'javascript', '.ts': 'typescript'}[resolved_path.suffix]
-            is_valid, error_msg = self.llm_helper.verify_code_syntax(content, language)
-            
-            if not is_valid:
+            status, error_msg = self.llm_helper.verify_code_syntax(content, language)
+
+            if status == "invalid":
                 return {
                     "success": False,
                     "error": f"Syntax validation failed: {error_msg}",
                     "verification": "failed"
                 }
-        
+            # Unlike executed code, a written file has no compiler to fall back
+            # on, so record plainly that nothing was checked.
+            verification = "passed" if status == "valid" else "unverified"
+
         # Write the file
         try:
             resolved_path.parent.mkdir(parents=True, exist_ok=True)
             resolved_path.write_text(content)
-            
+
             return {
                 "success": True,
                 "path": str(resolved_path),
                 "bytes_written": len(content),
-                "verification": "passed" if Config.AUTO_VERIFY_CODE else "skipped"
+                "verification": verification
             }
         except Exception as e:
             return {
@@ -168,26 +184,28 @@ class FileTools:
         diff_preview = self._generate_diff(current_content, new_content)
         
         # Verify new content if it's code
+        verification = "skipped"
         if Config.AUTO_VERIFY_CODE and resolved_path.suffix in ['.py', '.js', '.ts']:
             language = {'.py': 'python', '.js': 'javascript', '.ts': 'typescript'}[resolved_path.suffix]
-            is_valid, error_msg = self.llm_helper.verify_code_syntax(new_content, language)
-            
-            if not is_valid:
+            status, error_msg = self.llm_helper.verify_code_syntax(new_content, language)
+
+            if status == "invalid":
                 return {
                     "success": False,
                     "error": f"Syntax validation failed after edit: {error_msg}",
                     "diff_preview": diff_preview
                 }
-        
+            verification = "passed" if status == "valid" else "unverified"
+
         # Write the modified content
         try:
             resolved_path.write_text(new_content)
-            
+
             return {
                 "success": True,
                 "path": str(resolved_path),
                 "diff_preview": diff_preview,
-                "verification": "passed" if Config.AUTO_VERIFY_CODE else "skipped"
+                "verification": verification
             }
         except Exception as e:
             return {

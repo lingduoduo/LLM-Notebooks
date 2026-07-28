@@ -2,57 +2,33 @@
 Real tests for enhanced filesystem tools.
 These tests perform actual file operations to verify functionality.
 """
-import asyncio
 import json
 import pytest
-import tempfile
-import shutil
 from pathlib import Path
-import sys
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-# Mock Config for testing
-class Config:
-    WORKSPACE_DIR = Path(tempfile.mkdtemp())
-    AUTO_VERIFY_CODE = False
-    REQUIRE_APPROVAL_FOR_DANGEROUS_OPS = False
-
-# Set config before import
-sys.modules['config'] = type(sys)('config')
-sys.modules['config'].Config = Config
-
+from config import Config
 from filesystem_enhanced import FilesystemEnhanced
 
 
 @pytest.fixture(scope="function")
-def fs():
-    """Create filesystem instance with temp workspace."""
-    # Create new temp dir for each test
-    Config.WORKSPACE_DIR = Path(tempfile.mkdtemp())
-    filesystem = FilesystemEnhanced()
-    yield filesystem
-    # Cleanup
-    if Config.WORKSPACE_DIR.exists():
-        try:
-            shutil.rmtree(Config.WORKSPACE_DIR)
-        except Exception:
-            pass
+def fs(workspace, offline_safety):
+    """Create a filesystem instance rooted at the isolated test workspace.
+
+    Approval is disabled here: these tests cover the mechanics of each
+    operation. The approval gate on the destructive ones is covered in
+    test_tool_registry.py.
+    """
+    return FilesystemEnhanced()
 
 
 @pytest.fixture(scope="function")
 def test_files(fs):
     """Create test files for testing."""
-    # Create some test files
-    try:
-        (Config.WORKSPACE_DIR / "test1.txt").write_text("Hello World")
-        (Config.WORKSPACE_DIR / "test2.txt").write_text("Python Testing\nLine 2\nLine 3")
-        (Config.WORKSPACE_DIR / "data.json").write_text('{"key": "value"}')
-        (Config.WORKSPACE_DIR / "subdir").mkdir()
-        (Config.WORKSPACE_DIR / "subdir" / "nested.txt").write_text("Nested file")
-    except Exception as e:
-        print(f"Error creating test files: {e}")
+    (Config.WORKSPACE_DIR / "test1.txt").write_text("Hello World")
+    (Config.WORKSPACE_DIR / "test2.txt").write_text("Python Testing\nLine 2\nLine 3")
+    (Config.WORKSPACE_DIR / "data.json").write_text('{"key": "value"}')
+    (Config.WORKSPACE_DIR / "subdir").mkdir()
+    (Config.WORKSPACE_DIR / "subdir" / "nested.txt").write_text("Nested file")
     return fs
 
 

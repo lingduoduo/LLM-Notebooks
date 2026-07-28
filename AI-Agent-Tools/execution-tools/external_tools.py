@@ -105,15 +105,9 @@ class ExternalTools:
         Returns:
             Result dictionary with event details
         """
-        try:
-            service = self._get_google_calendar_service()
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to initialize Google Calendar: {str(e)}"
-            }
-        
-        # Parse times
+        # Validate the inputs before building a client. Doing this the other
+        # way round made every check unreachable without credentials, so bad
+        # input was reported as a credentials problem.
         try:
             start_dt = self._parse_datetime(start_time)
             end_dt = self._parse_datetime(end_time)
@@ -122,14 +116,14 @@ class ExternalTools:
                 "success": False,
                 "error": f"Invalid datetime format: {str(e)}"
             }
-        
+
         # Validate times
         if end_dt <= start_dt:
             return {
                 "success": False,
                 "error": "End time must be after start time"
             }
-        
+
         # Request approval
         if Config.REQUIRE_APPROVAL_FOR_DANGEROUS_OPS:
             approved, reason = self.llm_helper.request_approval(
@@ -147,7 +141,16 @@ class ExternalTools:
                     "success": False,
                     "error": f"Calendar event creation not approved: {reason}"
                 }
-        
+
+        # Only now build the client, so a refused event never authenticates.
+        try:
+            service = self._get_google_calendar_service()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to initialize Google Calendar: {str(e)}"
+            }
+
         # Create event
         event = {
             'summary': summary,
@@ -207,21 +210,14 @@ class ExternalTools:
         Returns:
             Result dictionary with PR details
         """
-        try:
-            github = self._get_github_client()
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to initialize GitHub client: {str(e)}"
-            }
-        
-        # Validate repository name
+        # Validate before authenticating, so malformed input is reported as
+        # malformed input rather than as a credentials failure.
         if '/' not in repo_name:
             return {
                 "success": False,
                 "error": "Repository name must be in format: owner/repo"
             }
-        
+
         # Request approval
         if Config.REQUIRE_APPROVAL_FOR_DANGEROUS_OPS:
             approved, reason = self.llm_helper.request_approval(
@@ -240,7 +236,16 @@ class ExternalTools:
                     "success": False,
                     "error": f"PR creation not approved: {reason}"
                 }
-        
+
+        # Only now authenticate, so a refused PR never contacts GitHub.
+        try:
+            github = self._get_github_client()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to initialize GitHub client: {str(e)}"
+            }
+
         try:
             # Get repository
             repo = github.get_repo(repo_name)
