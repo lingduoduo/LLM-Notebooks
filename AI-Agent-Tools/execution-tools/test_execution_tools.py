@@ -1,96 +1,95 @@
-"""Test execution tools."""
+"""Tests for the generic execution tools (code interpreter, virtual terminal)."""
 
-import asyncio
-from llm_helper import LLMHelper
+import pytest
+
+from config import Config
 from execution_tools import ExecutionTools
+from llm_helper import LLMHelper
 
 
-async def test_code_interpreter():
-    """Test code interpreter functionality."""
-    print("Testing code interpreter...")
-    
-    llm_helper = LLMHelper()
-    execution_tools = ExecutionTools(llm_helper)
-    
-    # Test valid code
-    result = await execution_tools.code_interpreter(
-        code='print("Test successful")\nresult = 2 + 2\nprint(f"2 + 2 = {result}")'
-    )
-    
-    assert result["success"], f"Code execution failed: {result.get('error')}"
-    assert "Test successful" in result["stdout"]
-    print(f"✓ Code execution successful: {result}")
-    
-    # Test error handling
-    result = await execution_tools.code_interpreter(
-        code='x = 1 / 0'
-    )
-    
-    assert not result["success"], "Should fail with division by zero"
-    assert "error_analysis" in result
-    print(f"✓ Error handling works: {result['error'][:100]}...")
+@pytest.fixture
+def tools(offline_safety):
+    return ExecutionTools(LLMHelper())
 
 
-async def test_virtual_terminal():
-    """Test virtual terminal functionality."""
-    print("\nTesting virtual terminal...")
-    
-    llm_helper = LLMHelper()
-    execution_tools = ExecutionTools(llm_helper)
-    
-    # Test successful command
-    result = await execution_tools.virtual_terminal(
-        command='echo "Terminal test"'
-    )
-    
-    assert result["success"], f"Command failed: {result.get('error')}"
-    assert "Terminal test" in result["stdout"]
-    print(f"✓ Command execution successful: {result}")
-    
-    # Test failed command
-    result = await execution_tools.virtual_terminal(
-        command='ls /nonexistent_directory_12345'
-    )
-    
-    assert not result["success"], "Should fail with non-existent directory"
-    assert "error_analysis" in result
-    print(f"✓ Error handling works: returncode={result['returncode']}")
+@pytest.fixture
+def analysis_stub(monkeypatch):
+    """Record analyze_error calls without contacting a provider."""
+    calls = []
+
+    def fake_analyze(self, tool_name, command, error_output):
+        calls.append({"tool": tool_name, "command": command, "error": error_output})
+        return "root cause: stubbed"
+
+    monkeypatch.setattr(LLMHelper, "analyze_error", fake_analyze)
+    return calls
 
 
-async def test_syntax_verification():
-    """Test syntax verification."""
-    print("\nTesting syntax verification...")
-    
-    llm_helper = LLMHelper()
-    execution_tools = ExecutionTools(llm_helper)
-    
-    # Test syntax error detection
-    result = await execution_tools.code_interpreter(
-        code='print("Unclosed string'
-    )
-    
-    assert not result["success"], "Should detect syntax error"
-    print(f"✓ Syntax verification works: {result['error'][:100]}...")
+class TestCodeInterpreter:
+    async def test_runs_python_and_captures_stdout(self, tools):
+        result = await tools.code_interpreter(
+            code='print("Test successful")\nprint(f"2 + 2 = {2 + 2}")'
+        )
+
+        assert result["success"], result.get("error")
+        assert "Test successful" in result["stdout"]
+        assert "2 + 2 = 4" in result["stdout"]
+
+    async def test_runtime_failure_reports_error_analysis(self, tools, analysis_stub):
+        result = await tools.code_interpreter(code="x = 1 / 0")
+
+        assert result["success"] is False
+        assert result["error_analysis"] == "root cause: stubbed"
+        assert "ZeroDivisionError" in analysis_stub[0]["error"]
+
+    async def test_syntax_error_is_caught_before_execution(self, tools):
+        result = await tools.code_interpreter(code='print("Unclosed string')
+
+        assert result["success"] is False
+        assert result["verification"] == "failed"
+        assert "Syntax error" in result["error"]
+
+    async def test_successful_run_has_no_error_analysis(self, tools, analysis_stub):
+        result = await tools.code_interpreter(code="print('fine')")
+
+        assert result["success"] is True
+        assert "error_analysis" not in result
+        assert analysis_stub == []
+
+    async def test_error_analysis_can_be_disabled(self, tools, analysis_stub, monkeypatch):
+        monkeypatch.setattr(Config, "AUTO_ANALYZE_ERRORS", False)
+
+        result = await tools.code_interpreter(code="x = 1 / 0")
+
+        assert result["success"] is False
+        assert "error_analysis" not in result
+        assert analysis_stub == []
 
 
-async def main():
-    """Run all tests."""
-    print("=== Execution Tools Tests ===\n")
-    
-    try:
-        await test_code_interpreter()
-        await test_virtual_terminal()
-        await test_syntax_verification()
-        
-        print("\n✓ All execution tools tests passed!")
-        
-    except AssertionError as e:
-        print(f"\n✗ Test failed: {e}")
-    except Exception as e:
-        print(f"\n✗ Error: {e}")
-        import traceback
-        traceback.print_exc()
+class TestVirtualTerminal:
+    async def test_runs_command_and_captures_stdout(self, tools):
+        result = await tools.virtual_terminal(command='echo "Terminal test"')
 
+        assert result["success"], result.get("error")
+        assert "Terminal test" in result["stdout"]
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    async def test_failing_command_reports_error_analysis(self, tools, analysis_stub):
+        result = await tools.virtual_terminal(command="ls /nonexistent_directory_12345")
+
+        assert result["success"] is False
+        assert result["returncode"] != 0
+        assert result["error_analysis"] == "root cause: stubbed"
+        assert analysis_stub[0]["command"] == "ls /nonexistent_directory_12345"
+
+    async def test_successful_command_has_no_error_analysis(self, tools, analysis_stub):
+        result = await tools.virtual_terminal(command="echo ok")
+
+        assert result["success"] is True
+        assert "error_analysis" not in result
+        assert analysis_stub == []
+
+    async def test_timeout_is_reported(self, tools):
+        result = await tools.virtual_terminal(command="sleep 5", timeout=1)
+
+        assert result["success"] is False
+        assert "timed out" in result["error"]

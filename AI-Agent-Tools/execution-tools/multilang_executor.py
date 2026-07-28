@@ -1,18 +1,21 @@
 """Multi-language code execution support inspired by SandboxFusion."""
 
 import asyncio
+import base64
+import binascii
+import logging
+import os
+import psutil
 import subprocess
 import tempfile
-import os
-import shutil
 import time
-import base64
-import psutil
 from typing import Dict, Any, Optional, List
 from enum import Enum
-import logging
 
 logger = logging.getLogger(__name__)
+
+# Auxiliary file contents are text unless they carry this prefix.
+BASE64_PREFIX = "base64:"
 
 
 def try_decode(s: bytes) -> str:
@@ -68,6 +71,51 @@ class ExecutionStatus(str, Enum):
     ERROR = "error"
 
 
+# Every accepted spelling of a language maps to exactly one canonical name.
+# Safety tables (dangerous patterns, syntax verification) are keyed on the
+# canonical name, so an alias can never be used to slip past a check that the
+# canonical name would have triggered.
+LANGUAGE_ALIASES = {
+    "python": "python",
+    "python3": "python",
+    "py": "python",
+    "javascript": "javascript",
+    "js": "javascript",
+    "node": "javascript",
+    "nodejs": "javascript",
+    "typescript": "typescript",
+    "ts": "typescript",
+    "go": "go",
+    "golang": "go",
+    "java": "java",
+    "cpp": "cpp",
+    "c++": "cpp",
+    "cxx": "cpp",
+    "rust": "rust",
+    "rs": "rust",
+    "php": "php",
+    "bash": "bash",
+    "shell": "bash",
+    "sh": "bash",
+}
+
+DEFAULT_LANGUAGE = "python"
+
+
+def normalize_language(language: Optional[str]) -> str:
+    """Resolve a language name or alias to its canonical form.
+
+    Unknown names are returned lowercased so the caller can reject them with a
+    meaningful message rather than silently defaulting to another language.
+    """
+    if language is None:
+        return DEFAULT_LANGUAGE
+    key = str(language).strip().lower()
+    if not key:
+        return DEFAULT_LANGUAGE
+    return LANGUAGE_ALIASES.get(key, key)
+
+
 class LanguageExecutor:
     """Multi-language code executor."""
     
@@ -98,36 +146,29 @@ class LanguageExecutor:
         Returns:
             Execution result dictionary
         """
-        if language is None:
-            language = "python"
-        language = language.lower()
-        
-        # Map language to executor
+        language = normalize_language(language)
+
+        # Keyed on canonical names only; aliases are resolved above.
         executors = {
             'python': self._run_python,
-            'python3': self._run_python,
             'javascript': self._run_javascript,
-            'js': self._run_javascript,
             'typescript': self._run_typescript,
-            'ts': self._run_typescript,
             'go': self._run_go,
             'java': self._run_java,
             'cpp': self._run_cpp,
-            'c++': self._run_cpp,
             'rust': self._run_rust,
             'php': self._run_php,
             'bash': self._run_bash,
-            'shell': self._run_bash,
-            'sh': self._run_bash,
-            'nodejs': self._run_javascript,
-            'node': self._run_javascript,
         }
-        
+
         executor = executors.get(language)
         if not executor:
             return {
                 "status": ExecutionStatus.ERROR,
-                "error": f"Unsupported language: {language}. Supported: {', '.join(sorted(set(executors.keys())))}"
+                "error": (
+                    f"Unsupported language: {language}. "
+                    f"Supported: {', '.join(sorted(executors))}"
+                )
             }
         
         try:
@@ -229,37 +270,38 @@ class LanguageExecutor:
                 kill_process_tree(process.pid)
     
     def _write_files(self, tmp_dir: str, files: Dict[str, str]):
-        """Write additional files to tmp directory."""
+        """Write additional files into the execution directory.
+
+        Content is written verbatim as UTF-8 text unless it carries the
+        explicit ``base64:`` prefix. Binary payloads must opt in: the previous
+        heuristic guessed at base64 from the character set and length, so
+        ordinary words like "data" were decoded into binary garbage without
+        any error.
+        """
         for filename, content in files.items():
             if not content or "IGNORE_THIS_FILE" in filename:
                 continue
-                
+
             filepath = os.path.join(tmp_dir, filename)
             dirpath = os.path.dirname(filepath)
-            
+
             if dirpath:
                 os.makedirs(dirpath, exist_ok=True)
-            
-            # Handle base64 encoded content
-            try:
-                if self._is_base64(content):
-                    with open(filepath, 'wb') as f:
-                        f.write(base64.b64decode(content))
-                else:
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(content)
-            except Exception as e:
-                logger.warning(f"Failed to write file {filename}: {e}")
-    
-    def _is_base64(self, s: str) -> bool:
-        """Check if string is base64 encoded."""
-        try:
-            if len(s) % 4 != 0 or not all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in s):
-                return False
-            base64.b64decode(s, validate=True)
-            return True
-        except Exception:
-            return False
+
+            if content.startswith(BASE64_PREFIX):
+                payload = content[len(BASE64_PREFIX):]
+                try:
+                    decoded = base64.b64decode(payload, validate=True)
+                except (binascii.Error, ValueError) as e:
+                    raise ValueError(
+                        f"File {filename!r} declared a {BASE64_PREFIX!r} payload "
+                        f"that is not valid base64: {e}"
+                    ) from e
+                with open(filepath, 'wb') as f:
+                    f.write(decoded)
+            else:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
     
     async def _run_python(
         self,

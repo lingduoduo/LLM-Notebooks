@@ -1,0 +1,35 @@
+# The Dockerfile uses `COPY . .`, so anything not excluded here is baked into
+# the image layer -- and stays in it even if a later layer deletes the file.
+# .gitignore does not apply to Docker builds; secrets must be excluded again.
+
+# Secrets and credentials
+.env
+.env.*
+!env.example
+credentials.json
+token.json
+*.pem
+*.key
+
+# Version control
+.git
+.gitignore
+
+# Python build and test artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store

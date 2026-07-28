@@ -7,17 +7,40 @@ import os
 import shutil
 import traceback
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 from config import Config
+import output_store
+from llm_helper import LLMHelper
 
 
 class FilesystemEnhanced:
     """Enhanced filesystem operations with safety and validation."""
-    
-    def __init__(self):
+
+    def __init__(self, llm_helper: Optional[LLMHelper] = None):
         self.workspace_dir = Path(Config.WORKSPACE_DIR).resolve()
         self.allowed_directories = [self.workspace_dir]
+        # Constructing the helper needs no API key; the client is lazy.
+        self.llm_helper = llm_helper or LLMHelper()
+
+    def _require_approval(self, operation: str, details: Dict[str, Any]):
+        """Gate an irreversible operation. Returns None when it may proceed.
+
+        These operations became reachable over MCP when the module was
+        registered, so deleting or replacing files now passes the same review
+        step as the other destructive tools instead of running unconditionally.
+        """
+        if not Config.REQUIRE_APPROVAL_FOR_DANGEROUS_OPS:
+            return None
+
+        approved, reason = self.llm_helper.request_approval(operation, details)
+        if approved:
+            return None
+
+        return {
+            "success": False,
+            "error": f"Operation not approved: {reason}",
+        }
     
     def _resolve_path(self, path: str) -> Path:
         """Resolve path relative to workspace."""
@@ -40,6 +63,16 @@ class FilesystemEnhanced:
         except Exception:
             return False
     
+    def _is_readable_path(self, path: Path) -> bool:
+        """Reads additionally allow output this process persisted.
+
+        Truncated tool output tells the agent to read the saved file, so
+        refusing that exact path made the instruction impossible to follow.
+        The allowance is read-only and covers only files the output store
+        actually wrote -- mutating operations still use `_is_safe_path`.
+        """
+        return self._is_safe_path(path) or output_store.owns(path)
+
     async def read_text_file(
         self,
         file_path: str,
@@ -59,19 +92,19 @@ class FilesystemEnhanced:
         """
         try:
             resolved_path = self._resolve_path(file_path)
-            
-            if not self._is_safe_path(resolved_path):
+
+            if not self._is_readable_path(resolved_path):
                 return {
                     "success": False,
                     "error": f"Path {file_path} is outside allowed directories"
                 }
-            
+
             if not resolved_path.exists():
                 return {
                     "success": False,
                     "error": f"File {file_path} does not exist"
                 }
-            
+
             # Check file size
             file_size = resolved_path.stat().st_size
             max_size_bytes = max_size_mb * 1024 * 1024
@@ -472,7 +505,19 @@ class FilesystemEnhanced:
                     "success": False,
                     "error": f"Destination {destination} already exists. Use overwrite=True to replace."
                 }
-            
+
+            if dest_path.exists():
+                refusal = self._require_approval(
+                    "file_move_overwrite",
+                    {
+                        "source": str(source_path),
+                        "destination": str(dest_path),
+                        "destination_is_directory": dest_path.is_dir(),
+                    },
+                )
+                if refusal:
+                    return refusal
+
             # Perform move
             if dest_path.exists():
                 if dest_path.is_dir():
@@ -533,7 +578,19 @@ class FilesystemEnhanced:
                     "success": False,
                     "error": f"Destination {destination} already exists"
                 }
-            
+
+            if dest_path.exists():
+                refusal = self._require_approval(
+                    "file_copy_overwrite",
+                    {
+                        "source": str(source_path),
+                        "destination": str(dest_path),
+                        "destination_is_directory": dest_path.is_dir(),
+                    },
+                )
+                if refusal:
+                    return refusal
+
             # Perform copy
             if source_path.is_dir():
                 if dest_path.exists():
@@ -586,13 +643,29 @@ class FilesystemEnhanced:
                     "error": f"Path {file_path} does not exist"
                 }
             
+            is_directory = resolved_path.is_dir()
+            if is_directory and not recursive:
+                return {
+                    "success": False,
+                    "error": "Cannot delete directory without recursive=True"
+                }
+
+            refusal = self._require_approval(
+                "file_delete",
+                {
+                    "path": str(resolved_path),
+                    "is_directory": is_directory,
+                    "recursive": recursive,
+                    "entry_count": (
+                        sum(1 for _ in resolved_path.rglob("*")) if is_directory else 1
+                    ),
+                },
+            )
+            if refusal:
+                return refusal
+
             # Delete
-            if resolved_path.is_dir():
-                if not recursive:
-                    return {
-                        "success": False,
-                        "error": "Cannot delete directory without recursive=True"
-                    }
+            if is_directory:
                 shutil.rmtree(resolved_path)
             else:
                 resolved_path.unlink()
