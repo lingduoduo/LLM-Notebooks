@@ -2,13 +2,13 @@
 
 ## Goal
 
-Convert all maintained user-facing and developer-facing Chinese text in
-`execution-tools` to clear English and replace its multi-provider Chinese-model
-configuration with a direct OpenAI-only integration.
+Make all maintained human-language content in `AI-Agent-Tools` English and
+replace `execution-tools`' multi-provider Chinese-model configuration with a
+direct OpenAI-only integration.
 
 ## Scope
 
-The conversion covers:
+The repository-wide English conversion covers:
 
 - CLI descriptions, option help, errors, headings, and demo output
 - Runtime messages returned by execution tools
@@ -19,12 +19,14 @@ The conversion covers:
 - Tests or fixtures whose maintained text is Chinese
 - Provider selection, API-key configuration, model defaults, documentation,
   and tests for the LLM integration
+- All maintained source, documentation, examples, configuration, and tests in
+  both `execution-tools` and `perception-tools`
 
 Remove support and references for SiliconFlow, Doubao, Kimi/Moonshot, and
 OpenRouter. Use the direct OpenAI API, `OPENAI_API_KEY`, and `gpt-5.6` as the
-default model. Preserve `MODEL` as an optional override. Already-English text
-may receive consistency edits needed for this migration. The already-English
-`perception-tools` package is outside this change.
+default model. Preserve `MODEL` as an optional override. Audit the currently
+English `perception-tools` package as part of the acceptance scan and correct
+any non-English maintained content found there.
 
 ## Compatibility
 
@@ -77,15 +79,17 @@ OpenAI-only configuration.
 
 ## Validation
 
-Add an automated English-only test for maintained `execution-tools` text files.
-The test will scan relevant source, test, documentation, and configuration
-files for Han characters while excluding generated artifacts, caches, virtual
-environments, and Git metadata.
+Add automated English-only coverage for maintained `AI-Agent-Tools` text files.
+The scan will inspect relevant source, tests, documentation, examples, and
+configuration for non-English scripts while excluding generated artifacts,
+caches, virtual environments, Git metadata, and technically required Unicode
+test fixtures. English prose may retain standard punctuation, symbols, code,
+and third-party proper names.
 
 Validation will include:
 
-1. Running the English-only scan.
-2. Running the full `execution-tools` test suite.
+1. Running the repository-wide English-only scan.
+2. Running the full `execution-tools` and `perception-tools` test suites.
 3. Exercising CLI help, tool listing, and the offline demo to confirm that
    visible output is English and behavior remains intact.
 4. Testing OpenAI configuration with and without `OPENAI_API_KEY`, including
@@ -94,7 +98,8 @@ Validation will include:
 
 ## Success Criteria
 
-- No Han characters remain in maintained `execution-tools` files.
+- No non-English human-language content remains in maintained
+  `AI-Agent-Tools` files.
 - All user-visible CLI and runtime text is English.
 - All comments and docstrings are English.
 - Commands, APIs, structured result fields, and behavior remain compatible.
