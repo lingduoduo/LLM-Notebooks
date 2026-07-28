@@ -17,6 +17,28 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _parse_json_response(content) -> Dict[str, Any]:
+    """Parse a JSON object out of an LLM reply, tolerating markdown fences.
+
+    A model asked for JSON may still wrap it in a ```json ... ``` fence, which
+    makes a bare json.loads() fail. Strip an optional fence and, as a last
+    resort, slice from the first '{' to the last '}' before parsing.
+    """
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+        if text.rstrip().endswith("```"):
+            text = text.rstrip()[:-3]
+        text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(text[start:end + 1])
+        raise
+
+
 def _client_and_model():
     """Build an OpenAI-compatible client + model + route, with OpenRouter fallback.
 
@@ -178,11 +200,13 @@ Analyze whether this action is:
 2. Aligned with the context and goals
 3. Free from potential harmful consequences
 
-Provide:
-- approved: true/false
-- reasoning: Your evaluation reasoning
-- concerns: Any safety concerns (empty if none)
-- suggestions: Alternative approaches if not approved"""
+Respond with a single JSON object and nothing else:
+{{
+    "approved": true or false,
+    "reasoning": "Your evaluation reasoning",
+    "concerns": ["Any safety concerns, empty list if none"],
+    "suggestions": ["Alternative approaches if not approved"]
+}}"""
         
         response = client.chat.completions.create(
             model=model,
@@ -196,26 +220,42 @@ Provide:
         
         evaluation = response.choices[0].message.content
 
-        # Try to extract structured response. Approval must be explicit and
-        # not contradicted: "safe to execute" alone is unusable as a signal
-        # because it is a substring of "not safe to execute" (and the prompt
-        # itself contains the phrase), which inverted rejections into
-        # approvals. Default to not approved when the verdict is unclear.
-        low = evaluation.lower()
-        approved = (
-            "approved: true" in low
-            and "approved: false" not in low
-            and "not safe" not in low
-            and "unsafe" not in low
-        )
-        
+        # Read the verdict from a parsed JSON field rather than by substring
+        # matching. Substring matching fails open here: the prompt used to ask
+        # for "approved: true/false", and that literal template text contains
+        # "approved: true" but not "approved: false", so a model that merely
+        # restated the requested format was scored as an approval. It also
+        # failed closed on ordinary formatting variation ("**Approved:** true",
+        # or a JSON body), denying verdicts that were in fact approvals.
+        #
+        # A guard that cannot read its own verdict must not approve, so any
+        # parse failure or non-boolean value is treated as a rejection.
+        try:
+            parsed = _parse_json_response(evaluation)
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning("Guard verdict was unparseable, denying: %s", exc)
+            return {
+                "success": True,
+                "proposed_action": proposed_action,
+                "approved": False,
+                "evaluation": evaluation,
+                "error": "Could not parse a verdict from the safety review",
+                "model": model
+            }
+
+        verdict = parsed.get("approved")
+        approved = verdict is True
+
         return {
             "success": True,
             "proposed_action": proposed_action,
             "approved": approved,
+            "reasoning": parsed.get("reasoning"),
+            "concerns": parsed.get("concerns", []),
+            "suggestions": parsed.get("suggestions", []),
             "evaluation": evaluation,
             "model": model
         }
-        
+
     except Exception as e:
         return {"success": False, "error": f"Guarding failed: {str(e)}"}

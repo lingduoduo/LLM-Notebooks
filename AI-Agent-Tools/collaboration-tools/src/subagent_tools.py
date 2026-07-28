@@ -49,6 +49,32 @@ _subagents: Dict[str, Dict[str, Any]] = {}
 # Background tasks for async sub-agents, keyed by subagent_id.
 _async_tasks: Dict[str, "asyncio.Task"] = {}
 
+# Cap on retained finished sub-agents. Each record holds its full message list,
+# so without a cap a long-running MCP server accumulates every transcript it has
+# ever produced.
+_MAX_FINISHED_SUBAGENTS = 100
+_TERMINAL_STATUSES = ("completed", "failed", "cancelled")
+
+
+def _prune_finished_subagents() -> None:
+    """Drop the oldest finished sub-agents once they exceed the retention cap.
+
+    Running sub-agents are never pruned -- a caller still holds their id.
+    """
+    finished = [
+        (sid, rec) for sid, rec in _subagents.items()
+        if rec.get("status") in _TERMINAL_STATUSES
+    ]
+    excess = len(finished) - _MAX_FINISHED_SUBAGENTS
+    if excess <= 0:
+        return
+    finished.sort(key=lambda item: item[1].get("created_at", ""))
+    for sid, _ in finished[:excess]:
+        _subagents.pop(sid, None)
+        task = _async_tasks.pop(sid, None)
+        if task is not None and not task.done():
+            task.cancel()
+
 
 def _env_or_default(name: str, default, cast):
     """Parse env var ``name`` with ``cast``; warn and fall back to ``default`` if malformed."""
@@ -393,6 +419,7 @@ async def spawn_subagent(
             turn = await asyncio.to_thread(_run_turn, record)
             record["status"] = "completed"
             record["result"] = turn["reply"]
+            _prune_finished_subagents()
             return {
                 "success": True,
                 "subagent_id": subagent_id,
@@ -424,6 +451,8 @@ async def spawn_subagent(
                 record["status"] = "failed"
                 record["result"] = f"error: {exc}"
                 logger.error("Async sub-agent %s failed: %s", subagent_id, exc)
+            finally:
+                _prune_finished_subagents()
 
         _async_tasks[subagent_id] = asyncio.create_task(_runner())
         return {
@@ -478,7 +507,14 @@ async def send_message_to_subagent(subagent_id: str, message: str) -> Dict[str, 
 
 
 async def cancel_subagent(subagent_id: str) -> Dict[str, Any]:
-    """Cancel a sub-agent. For async sub-agents this cancels the background task."""
+    """Cancel a sub-agent and stop its result from being used.
+
+    For async sub-agents this cancels the background coroutine. Note that the
+    LLM turn itself runs in a worker thread via ``asyncio.to_thread``, and a
+    request already in flight cannot be aborted -- it will run to completion at
+    the provider and still be billed. What cancellation guarantees is that the
+    result is discarded and the sub-agent is marked cancelled.
+    """
     try:
         record = _subagents.get(subagent_id)
         if record is None:

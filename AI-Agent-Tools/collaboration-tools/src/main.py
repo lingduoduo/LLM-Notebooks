@@ -166,7 +166,7 @@ async def mcp_send_email(
 async def mcp_send_telegram_message(
     message: str = Field(description="Message text to send"),
     chat_id: Optional[str] = Field(default=None, description="Optional Telegram chat ID"),
-    parse_mode: str = Field(default="HTML", description="Message parse mode (HTML, Markdown, or None)")
+    parse_mode: Optional[str] = Field(default=None, description="Message parse mode: 'HTML' or 'Markdown'. Defaults to None (plain text) -- only set this if the message body is genuinely escaped markup, otherwise Telegram rejects any text containing '<' or '&'.")
 ) -> str:
     """Send a Telegram message."""
     result = await send_telegram_message(message, chat_id, parse_mode)
@@ -513,7 +513,7 @@ async def mcp_send_message_to_subagent(
     return str(result)
 
 
-@mcp.tool(description="Cancel a sub-agent (cancels the background task for async sub-agents)")
+@mcp.tool(description="Cancel a sub-agent and discard its result (cancels the background task for async sub-agents). An LLM request already in flight still completes at the provider and is billed.")
 async def mcp_cancel_subagent(
     subagent_id: str = Field(description="ID of the sub-agent to cancel")
 ) -> str:

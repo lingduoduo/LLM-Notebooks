@@ -13,6 +13,33 @@ logger = logging.getLogger(__name__)
 # Store pending requests
 _pending_requests: Dict[str, Dict[str, Any]] = {}
 
+# One event per in-flight request, signalled by respond_to_request so the waiter
+# wakes immediately instead of discovering the answer on a later poll.
+_response_events: Dict[str, asyncio.Event] = {}
+
+# Cap on retained resolved (approved/rejected/timeout) records. Without it the
+# registry grows for the lifetime of the server, which for a long-running MCP
+# process is an unbounded leak.
+_MAX_RESOLVED_REQUESTS = 200
+
+
+def _prune_resolved_requests() -> None:
+    """Drop the oldest resolved records once they exceed _MAX_RESOLVED_REQUESTS.
+
+    Pending requests are never pruned -- something is waiting on them.
+    """
+    resolved = [
+        (rid, req) for rid, req in _pending_requests.items()
+        if req.get("status") != "pending"
+    ]
+    excess = len(resolved) - _MAX_RESOLVED_REQUESTS
+    if excess <= 0:
+        return
+    resolved.sort(key=lambda item: item[1].get("timestamp", ""))
+    for rid, _ in resolved[:excess]:
+        _pending_requests.pop(rid, None)
+        _response_events.pop(rid, None)
+
 
 async def request_admin_approval(
     request_message: str,
@@ -25,15 +52,18 @@ async def request_admin_approval(
     Args:
         request_message: Message describing what needs approval
         context: Optional context information about the request
-        timeout_seconds: How long to wait for response (None = wait indefinitely)
+        timeout_seconds: How long to wait for a response. ``None`` uses the
+            configured default (``HITL_TIMEOUT_SECONDS``, 3600s). ``0`` checks
+            once and returns immediately without waiting. A negative value is
+            treated as 0.
         urgent: Whether this is an urgent request
-        
+
     Returns:
         Dictionary with approval status and admin response
     """
     try:
         from config import config
-        
+
         # Generate unique request ID
         request_id = str(uuid.uuid4())
         
@@ -50,18 +80,25 @@ async def request_admin_approval(
         }
         
         _pending_requests[request_id] = request_data
-        
+        # Register the waiter's event BEFORE notifying, so an admin who responds
+        # the instant the notification lands cannot slip in before we can hear it.
+        _response_events[request_id] = asyncio.Event()
+
         # Notify admin via configured channels
         notification_sent = await _notify_admin_of_request(request_data)
-        
+
         if not notification_sent:
             logger.warning("Failed to send admin notification")
-        
-        # Wait for response
-        timeout = timeout_seconds or config.hitl.timeout_seconds
-        response = await _wait_for_admin_response(request_id, timeout)
-        
-        return response
+
+        # Wait for response. Only `None` falls back to the configured default:
+        # `or` would also swallow an explicit 0 ("do not wait") and turn it into
+        # a one-hour block.
+        timeout = config.hitl.timeout_seconds if timeout_seconds is None else timeout_seconds
+        try:
+            return await _wait_for_admin_response(request_id, timeout)
+        finally:
+            _response_events.pop(request_id, None)
+            _prune_resolved_requests()
         
     except Exception as e:
         logger.error(f"Admin approval request failed: {e}")
@@ -148,48 +185,81 @@ To respond, call the approval endpoint or use the admin interface:
         return False
 
 
+def _verdict(request_id: str) -> Optional[Dict[str, Any]]:
+    """Read a settled verdict for a request, or None while it is still pending.
+
+    Split out from the waiter so the post-deadline re-check uses exactly the
+    same logic as the pre-deadline one.
+    """
+    request = _pending_requests.get(request_id)
+
+    if not request:
+        return {
+            "success": False,
+            "approved": False,
+            "error": "Request not found",
+            "message": "Request was cancelled or not found"
+        }
+
+    if request["status"] == "approved":
+        return {
+            "success": True,
+            "approved": True,
+            "request_id": request_id,
+            "admin_notes": request.get("admin_notes"),
+            "message": "Request approved by administrator"
+        }
+
+    if request["status"] == "rejected":
+        return {
+            "success": True,
+            "approved": False,
+            "request_id": request_id,
+            "admin_notes": request.get("admin_notes"),
+            "reason": request.get("rejection_reason", "No reason provided"),
+            "message": "Request rejected by administrator"
+        }
+
+    return None
+
+
 async def _wait_for_admin_response(request_id: str, timeout_seconds: int) -> Dict[str, Any]:
-    """Wait for admin to respond to approval request."""
+    """Wait for the admin to respond, up to ``timeout_seconds``.
+
+    This used to poll on a hardcoded ``asyncio.sleep(2)``: the first check ran
+    before any answer could exist and the sleep then overshot any deadline of
+    2s or less, so a response that genuinely arrived in time was reported as a
+    timeout. Because HITL fails closed, that silently converted real approvals
+    into denials.
+
+    Now ``respond_to_request`` signals an event, so the waiter wakes the moment
+    an answer lands, and the state is re-read once more after the deadline
+    before any timeout is declared -- a verdict recorded microseconds before
+    expiry is still honored.
+    """
     try:
-        start_time = datetime.now()
-        timeout = timedelta(seconds=timeout_seconds)
-        
-        while datetime.now() - start_time < timeout:
-            request = _pending_requests.get(request_id)
-            
-            if not request:
-                return {
-                    "success": False,
-                    "approved": False,
-                    "error": "Request not found",
-                    "message": "Request was cancelled or not found"
-                }
-            
-            if request["status"] == "approved":
-                return {
-                    "success": True,
-                    "approved": True,
-                    "request_id": request_id,
-                    "admin_notes": request.get("admin_notes"),
-                    "message": "Request approved by administrator"
-                }
-            
-            elif request["status"] == "rejected":
-                return {
-                    "success": True,
-                    "approved": False,
-                    "request_id": request_id,
-                    "admin_notes": request.get("admin_notes"),
-                    "reason": request.get("rejection_reason", "No reason provided"),
-                    "message": "Request rejected by administrator"
-                }
-            
-            # Wait a bit before checking again
-            await asyncio.sleep(2)
-        
-        # Timeout reached
-        _pending_requests[request_id]["status"] = "timeout"
-        
+        settled = _verdict(request_id)
+        if settled is not None:
+            return settled
+
+        remaining = max(0, timeout_seconds)
+        event = _response_events.get(request_id)
+        if event is not None and remaining > 0:
+            try:
+                await asyncio.wait_for(event.wait(), timeout=remaining)
+            except asyncio.TimeoutError:
+                pass
+
+        # Deliberately re-check after waiting: the answer may have been recorded
+        # in the instant between the deadline expiring and this line running.
+        settled = _verdict(request_id)
+        if settled is not None:
+            return settled
+
+        # Genuinely no answer.
+        if request_id in _pending_requests:
+            _pending_requests[request_id]["status"] = "timeout"
+
         return {
             "success": True,
             "approved": False,
@@ -197,7 +267,7 @@ async def _wait_for_admin_response(request_id: str, timeout_seconds: int) -> Dic
             "timeout": True,
             "message": f"Admin response timeout after {timeout_seconds} seconds"
         }
-        
+
     except Exception as e:
         logger.error(f"Error waiting for admin response: {e}")
         return {
@@ -232,13 +302,31 @@ async def respond_to_request(
             }
         
         request = _pending_requests[request_id]
+
+        # Don't overwrite a settled verdict: the waiter has already returned, so
+        # a late answer would change the record without changing the outcome.
+        if request["status"] != "pending":
+            return {
+                "success": False,
+                "error": f"Request already {request['status']}",
+                "request_id": request_id,
+                "status": request["status"],
+                "message": f"Request {request_id} was already {request['status']}"
+            }
+
         request["status"] = "approved" if approved else "rejected"
         request["admin_notes"] = admin_notes
         request["response_time"] = datetime.now().isoformat()
         
         if not approved:
             request["rejection_reason"] = admin_notes or "No reason provided"
-        
+
+        # Wake the waiter immediately rather than leaving it to notice on a
+        # later poll (which is how in-time approvals used to get lost).
+        event = _response_events.get(request_id)
+        if event is not None:
+            event.set()
+
         logger.info(f"Request {request_id} {'approved' if approved else 'rejected'} by admin")
         
         return {

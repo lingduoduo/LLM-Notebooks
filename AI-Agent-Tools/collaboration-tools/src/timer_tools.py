@@ -250,14 +250,17 @@ async def get_timer_status(timer_id: str) -> Dict[str, Any]:
                 "message": f"No timer found with ID {timer_id}"
             }
         
-        timer = _active_timers[timer_id]
-        
+        # Report on a copy: remaining_seconds is derived state that is only
+        # meaningful at read time, and writing it into the stored record leaked
+        # a stale value into list_timers() and into the persisted JSON.
+        timer = dict(_active_timers[timer_id])
+
         # Recurring timers have an interval rather than a fixed expiry time.
         if timer["status"] == "active" and timer.get("type") != "recurring":
             expiry = datetime.fromisoformat(timer["expiry_time"])
             remaining = (expiry - datetime.now()).total_seconds()
             timer["remaining_seconds"] = max(0, int(remaining))
-        
+
         return {
             "success": True,
             "timer": timer,

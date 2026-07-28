@@ -11,6 +11,35 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# Placeholder markers used throughout env.example. Copying that file to .env is
+# the documented setup step, so unfilled entries routinely reach the tools --
+# and a placeholder is worse than an empty value: it looks configured, so the
+# code skips its "not configured" branch and fires a real request at a fake
+# endpoint (404s from the sample Slack/Discord webhooks, SendGrid auth errors).
+# Treating them as unset restores the honest "not configured" result.
+_PLACEHOLDER_MARKERS = ("your-", "your_", "your/", "@example.com")
+
+
+def _is_placeholder(value: str) -> bool:
+    """Whether a value is still an unfilled env.example placeholder."""
+    low = value.strip().lower()
+    if not low:
+        return True
+    return any(marker in low for marker in _PLACEHOLDER_MARKERS)
+
+
+def _env_secret(name: str) -> Optional[str]:
+    """Read a credential env var, treating unfilled placeholders as unset."""
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    if _is_placeholder(raw):
+        print(f"Note: {name} is still the env.example placeholder; treating it as unset",
+              file=sys.stderr)
+        return None
+    return raw
+
+
 def _env_int(name: str, default: int) -> int:
     """Read an integer env var; fall back to default (with a warning) if malformed."""
     raw = os.getenv(name)
@@ -83,21 +112,21 @@ def load_config() -> Config:
         email=EmailConfig(
             smtp_host=os.getenv("SMTP_HOST", "smtp.gmail.com"),
             smtp_port=_env_int("SMTP_PORT", 587),
-            smtp_username=os.getenv("SMTP_USERNAME"),
-            smtp_password=os.getenv("SMTP_PASSWORD"),
-            smtp_from_email=os.getenv("SMTP_FROM_EMAIL"),
+            smtp_username=_env_secret("SMTP_USERNAME"),
+            smtp_password=_env_secret("SMTP_PASSWORD"),
+            smtp_from_email=_env_secret("SMTP_FROM_EMAIL"),
             smtp_use_tls=os.getenv("SMTP_USE_TLS", "true").lower() == "true",
-            sendgrid_api_key=os.getenv("SENDGRID_API_KEY")
+            sendgrid_api_key=_env_secret("SENDGRID_API_KEY")
         ),
         im=IMConfig(
-            telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
-            telegram_default_chat_id=os.getenv("TELEGRAM_DEFAULT_CHAT_ID"),
-            slack_webhook_url=os.getenv("SLACK_WEBHOOK_URL"),
-            discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL")
+            telegram_bot_token=_env_secret("TELEGRAM_BOT_TOKEN"),
+            telegram_default_chat_id=_env_secret("TELEGRAM_DEFAULT_CHAT_ID"),
+            slack_webhook_url=_env_secret("SLACK_WEBHOOK_URL"),
+            discord_webhook_url=_env_secret("DISCORD_WEBHOOK_URL")
         ),
         hitl=HITLConfig(
-            admin_email=os.getenv("HITL_ADMIN_EMAIL"),
-            webhook_url=os.getenv("HITL_WEBHOOK_URL"),
+            admin_email=_env_secret("HITL_ADMIN_EMAIL"),
+            webhook_url=_env_secret("HITL_WEBHOOK_URL"),
             timeout_seconds=_env_int("HITL_TIMEOUT_SECONDS", 3600)
         ),
         timer=TimerConfig(

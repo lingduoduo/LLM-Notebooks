@@ -47,3 +47,51 @@ def test_subagent_env_or_default_falls_back(monkeypatch):
 def test_subagent_env_or_default_parses_valid(monkeypatch):
     monkeypatch.setenv("OPENAI_MAX_RETRIES", "5")
     assert sa._env_or_default("OPENAI_MAX_RETRIES", 2, int) == 5
+
+
+class TestPlaceholderCredentials:
+    """Copying env.example to .env leaves placeholders that look configured.
+
+    A placeholder is worse than an empty value: the tools skip their "not
+    configured" branch and fire real requests at fake endpoints (404s from the
+    sample Slack/Discord webhooks, SendGrid auth failures).
+    """
+
+    def test_unfilled_placeholders_are_treated_as_unset(self):
+        import config as c
+
+        for value in (
+            "your-sendgrid-api-key",
+            "your-telegram-bot-token",
+            "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+            "https://discord.com/api/webhooks/YOUR/WEBHOOK/URL",
+            "your-email@gmail.com",
+            "admin@example.com",
+            "",
+            "   ",
+        ):
+            assert c._is_placeholder(value) is True, value
+
+    def test_real_credentials_are_kept(self):
+        import config as c
+
+        for value in (
+            "SG.aBc123RealLookingKey",
+            "https://hooks.slack.com/services/T0/B0/abcdef123456",
+            "1234567890:AAExampleRealBotToken",
+            "ops@mycompany.io",
+            "http://localhost:8080/hitl",
+        ):
+            assert c._is_placeholder(value) is False, value
+
+    def test_env_secret_returns_none_for_placeholder(self, monkeypatch):
+        import config as c
+
+        monkeypatch.setenv("SOME_TOKEN", "your-telegram-bot-token")
+        assert c._env_secret("SOME_TOKEN") is None
+
+        monkeypatch.setenv("SOME_TOKEN", "1234:realtoken")
+        assert c._env_secret("SOME_TOKEN") == "1234:realtoken"
+
+        monkeypatch.delenv("SOME_TOKEN")
+        assert c._env_secret("SOME_TOKEN") is None

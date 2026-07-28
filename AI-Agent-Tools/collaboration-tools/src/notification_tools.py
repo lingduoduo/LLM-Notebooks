@@ -199,15 +199,19 @@ async def _send_email_sendgrid(
 async def send_telegram_message(
     message: str,
     chat_id: Optional[str] = None,
-    parse_mode: str = "HTML"
+    parse_mode: Optional[str] = None
 ) -> Dict[str, Any]:
     """Send a Telegram message.
-    
+
     Args:
         message: Message text to send
         chat_id: Optional Telegram chat ID (uses default if not provided)
-        parse_mode: Message parse mode (HTML, Markdown, or None)
-        
+        parse_mode: Message parse mode ("HTML", "Markdown", or None for plain
+            text). Defaults to None: with a markup mode set, Telegram rejects
+            the whole message if the body contains an unescaped '<' or '&',
+            which is easy to hit with arbitrary notification text. Pass "HTML"
+            only when the caller has escaped the body itself.
+
     Returns:
         Dictionary with send status
     """
