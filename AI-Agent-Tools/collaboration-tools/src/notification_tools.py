@@ -105,14 +105,33 @@ async def _send_email_smtp(
                         )
                         msg.attach(part)
         
-        # Send email
+        # SMTP has two different, mutually exclusive encryption mechanisms, and
+        # SMTP_USE_TLS only says "encrypt", not which one:
+        #
+        #   implicit TLS (SMTPS, port 465) -- wrap the socket before any SMTP
+        #       dialogue. This is aiosmtplib's `use_tls`.
+        #   STARTTLS (port 587, and 25)    -- connect in plaintext, then upgrade
+        #       via the STARTTLS command. This is aiosmtplib's `start_tls`.
+        #
+        # Passing use_tls=True on 587 makes the client offer a TLS handshake to
+        # a server still speaking plaintext SMTP, which fails as:
+        #   [SSL: WRONG_VERSION_NUMBER] wrong version number
+        # That looked like a credentials or firewall problem but is purely the
+        # wrong mechanism. Pick it from the port, which is what actually
+        # determines it. SMTP_USE_TLS=false disables encryption entirely.
+        port = config.email.smtp_port
+        encrypt = config.email.smtp_use_tls
+        implicit_tls = encrypt and port == 465
+        starttls = encrypt and port != 465
+
         await aiosmtplib.send(
             msg,
             hostname=config.email.smtp_host,
-            port=config.email.smtp_port,
+            port=port,
             username=config.email.smtp_username,
             password=config.email.smtp_password,
-            use_tls=config.email.smtp_use_tls
+            use_tls=implicit_tls,
+            start_tls=starttls
         )
         
         return {
