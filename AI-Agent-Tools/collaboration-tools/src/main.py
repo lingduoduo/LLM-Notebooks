@@ -151,10 +151,11 @@ async def mcp_send_email(
     subject: str = Field(description="Email subject"),
     body: str = Field(description="Email body content"),
     html: bool = Field(default=False, description="Whether body is HTML formatted"),
-    cc: Optional[List[str]] = Field(default=None, description="Optional list of CC recipients")
+    cc: Optional[List[str]] = Field(default=None, description="Optional list of CC recipients"),
+    attachments: Optional[List[str]] = Field(default=None, description="Optional list of file paths to attach. A path that does not exist fails the send rather than being skipped.")
 ) -> str:
     """Send an email notification."""
-    result = await send_email(to_email, subject, body, html, cc)
+    result = await send_email(to_email, subject, body, html, cc, attachments)
     return str(result)
 
 
