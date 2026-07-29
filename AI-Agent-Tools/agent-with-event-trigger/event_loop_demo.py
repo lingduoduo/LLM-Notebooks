@@ -414,16 +414,29 @@ def main():
             content="Recurring timer fired: check the health of the server.",
         ))
     writer = None
-    if args.trigger in ("file", "all"):
+    watching_files = args.trigger in ("file", "all")
+    if watching_files:
         loop.add_trigger(FileWatchTrigger(loop.event_queue, watch_dir=args.watch_dir))
-        print(f"💡 Tip: write or modify a file under {args.watch_dir}/ to fire a file_change event.")
-        print(f"   For example, in another terminal: echo hello > {args.watch_dir}/note.txt")
         if args.auto_write:
             # Give the watcher a moment to take its initial snapshot first,
             # otherwise the file is already there and counts as pre-existing.
             writer = SimulatedExternalWriter(args.watch_dir, delay=min(3.0, args.duration / 3))
-            print(f"   (a simulated external writer will also drop a file in "
-                  f"automatically; pass --no-auto-write to disable)")
+            print(f"💡 A simulated external writer will drop a file into "
+                  f"{args.watch_dir}/ shortly, which fires a file_change event.")
+            print(f"   You can also write one yourself: echo hello > {args.watch_dir}/note.txt")
+        else:
+            # --no-auto-write means the reader is the external world. Say so
+            # plainly: this run does nothing unless they act within the window.
+            print("⚠️  --no-auto-write: nothing will write a file for you.")
+            print(f"   This run fires an event ONLY if you create or modify a file")
+            print(f"   inside {args.watch_dir}/ during the next {args.duration:.0f} seconds.")
+            print()
+            print("   Run this in a second terminal now:")
+            print(f"       echo hello > {args.watch_dir}/note.txt")
+            print()
+            print("   Or drop the flag and let the demo drive itself:")
+            print(f"       python event_loop_demo.py --mock --trigger {args.trigger} "
+                  f"--watch-dir {args.watch_dir}")
         print()
     sys.stdout.flush()
 
@@ -446,14 +459,24 @@ def main():
     print("\n" + "=" * 80)
     print(f"📊 Demo finished: handled {loop.processed} event(s).")
     if loop.processed == 0:
-        # A silent zero looks like a broken demo; say why nothing happened.
+        # A silent zero looks like a broken demo; name the actual reason.
         print()
-        print("   No events fired during this run. That is expected if nothing")
-        print("   triggered them — for the file watcher, a file has to be created or")
-        print("   modified inside the watched directory while the loop is running.")
-        print(f"   Try:  python event_loop_demo.py --mock --trigger file "
-              f"--watch-dir {args.watch_dir}")
-        print(f"   or a longer window:  --duration 30")
+        if watching_files and not args.auto_write:
+            print("   Nothing fired because --no-auto-write was set and no file was")
+            print(f"   created or modified in {args.watch_dir}/ while the loop ran.")
+            print("   The watcher is working; it simply had nothing to react to.")
+            print()
+            print("   To see it fire, run without the flag:")
+            print(f"       python event_loop_demo.py --mock --trigger {args.trigger} "
+                  f"--watch-dir {args.watch_dir}")
+            print()
+            print("   Or keep the flag and, while it runs, in a second terminal:")
+            print(f"       echo hello > {args.watch_dir}/note.txt")
+        else:
+            print("   No events fired during this run. For the file watcher, a file has")
+            print("   to be created or modified inside the watched directory while the")
+            print("   loop is running; for the timers, --duration has to outlast --delay")
+            print("   or --interval.")
     print("=" * 80 + "\n")
 
 
