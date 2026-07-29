@@ -9,6 +9,37 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+class AttachmentError(Exception):
+    """A requested attachment could not be read."""
+
+
+def _resolve_attachments(attachments: Optional[List[str]]):
+    """Resolve attachment paths, raising rather than skipping unreadable ones.
+
+    Both send paths used to wrap the attach step in `if path.exists():` and do
+    nothing otherwise, so a typo'd or moved path produced a "successfully sent"
+    result with the attachment silently missing -- the one failure mode the
+    caller cannot detect from the outside and will not discover until the
+    recipient asks where the file is.
+    """
+    from pathlib import Path
+
+    resolved = []
+    missing = []
+    for filepath in attachments or []:
+        path = Path(filepath).expanduser()
+        if path.is_file():
+            resolved.append(path)
+        else:
+            missing.append(str(filepath))
+
+    if missing:
+        raise AttachmentError(
+            f"Attachment(s) not found: {', '.join(missing)}"
+        )
+    return resolved
+
+
 async def send_email(
     to_email: str,
     subject: str,
@@ -32,7 +63,19 @@ async def send_email(
     """
     try:
         from config import config
-        
+
+        # Validate attachments before opening any connection, so a typo'd path
+        # is reported as itself rather than surfacing later as an SMTP error.
+        try:
+            _resolve_attachments(attachments)
+        except AttachmentError as exc:
+            logger.error("Refusing to send: %s", exc)
+            return {
+                "success": False,
+                "error": str(exc),
+                "message": f"Email to {to_email} was not sent because an attachment is missing"
+            }
+
         # Check if SendGrid is configured (preferred)
         if config.email.sendgrid_api_key:
             return await _send_email_sendgrid(
@@ -90,29 +133,47 @@ async def _send_email_smtp(
         mime_type = 'html' if html else 'plain'
         msg.attach(MIMEText(body, mime_type))
         
-        # Add attachments
-        if attachments:
-            for filepath in attachments:
-                path = Path(filepath)
-                if path.exists():
-                    with open(path, 'rb') as f:
-                        part = MIMEBase('application', 'octet-stream')
-                        part.set_payload(f.read())
-                        encoders.encode_base64(part)
-                        part.add_header(
-                            'Content-Disposition',
-                            f'attachment; filename={path.name}'
-                        )
-                        msg.attach(part)
+        # Add attachments. Missing paths raise instead of being skipped.
+        for path in _resolve_attachments(attachments):
+            with open(path, 'rb') as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                # Pass the filename as a parameter rather than interpolating it
+                # into the header value: an f-string produced the unquoted
+                # `filename=Q3 refund report.pdf`, which is malformed per
+                # RFC 2183. Lenient parsers recover it, strict ones truncate at
+                # the first space and the file arrives named "Q3".
+                part.add_header('Content-Disposition', 'attachment', filename=path.name)
+                msg.attach(part)
         
-        # Send email
+        # SMTP has two different, mutually exclusive encryption mechanisms, and
+        # SMTP_USE_TLS only says "encrypt", not which one:
+        #
+        #   implicit TLS (SMTPS, port 465) -- wrap the socket before any SMTP
+        #       dialogue. This is aiosmtplib's `use_tls`.
+        #   STARTTLS (port 587, and 25)    -- connect in plaintext, then upgrade
+        #       via the STARTTLS command. This is aiosmtplib's `start_tls`.
+        #
+        # Passing use_tls=True on 587 makes the client offer a TLS handshake to
+        # a server still speaking plaintext SMTP, which fails as:
+        #   [SSL: WRONG_VERSION_NUMBER] wrong version number
+        # That looked like a credentials or firewall problem but is purely the
+        # wrong mechanism. Pick it from the port, which is what actually
+        # determines it. SMTP_USE_TLS=false disables encryption entirely.
+        port = config.email.smtp_port
+        encrypt = config.email.smtp_use_tls
+        implicit_tls = encrypt and port == 465
+        starttls = encrypt and port != 465
+
         await aiosmtplib.send(
             msg,
             hostname=config.email.smtp_host,
-            port=config.email.smtp_port,
+            port=port,
             username=config.email.smtp_username,
             password=config.email.smtp_password,
-            use_tls=config.email.smtp_use_tls
+            use_tls=implicit_tls,
+            start_tls=starttls
         )
         
         return {
@@ -139,44 +200,59 @@ async def _send_email_sendgrid(
     """Send email using SendGrid API."""
     try:
         from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
+        from sendgrid.helpers.mail import (
+            Mail, Attachment, FileContent, FileName, FileType, Disposition, Content
+        )
         import base64
         from pathlib import Path
         from config import config
-        
+
+        # SendGrid is usable on its own, but the from address was read only from
+        # SMTP_FROM_EMAIL -- so a SendGrid-only setup (the documented
+        # "alternative to SMTP") passed from_email=None and failed inside the
+        # SendGrid client with an error that named neither variable.
+        from_email = config.email.smtp_from_email or config.email.smtp_username
+        if not from_email:
+            return {
+                "success": False,
+                "error": "No sender address configured",
+                "message": "Set SMTP_FROM_EMAIL (used as the SendGrid sender address)"
+            }
+
         # Create message
         message = Mail(
-            from_email=config.email.smtp_from_email,
+            from_email=from_email,
             to_emails=to_email,
             subject=subject
         )
         
-        # Add body
-        if html:
-            message.add_html_content(body)
-        else:
-            message.add_plain_text_content(body)
+        # Add body.
+        #
+        # `add_html_content` / `add_plain_text_content` do not exist on Mail in
+        # sendgrid 6.x -- the version this project pins (sendgrid>=6.11.0). Every
+        # SendGrid send raised:
+        #     'Mail' object has no attribute 'add_plain_text_content'
+        # so this path could never have delivered a message. The supported API is
+        # add_content() with an explicit MIME type.
+        message.add_content(Content("text/html" if html else "text/plain", body))
         
         # Add CC
         if cc:
             for cc_email in cc:
                 message.add_cc(cc_email)
         
-        # Add attachments
-        if attachments:
-            for filepath in attachments:
-                path = Path(filepath)
-                if path.exists():
-                    with open(path, 'rb') as f:
-                        data = f.read()
-                        encoded = base64.b64encode(data).decode()
-                        attachment = Attachment(
-                            FileContent(encoded),
-                            FileName(path.name),
-                            FileType('application/octet-stream'),
-                            Disposition('attachment')
-                        )
-                        message.add_attachment(attachment)
+        # Add attachments. Missing paths raise instead of being skipped.
+        for path in _resolve_attachments(attachments):
+            with open(path, 'rb') as f:
+                data = f.read()
+                encoded = base64.b64encode(data).decode()
+                attachment = Attachment(
+                    FileContent(encoded),
+                    FileName(path.name),
+                    FileType('application/octet-stream'),
+                    Disposition('attachment')
+                )
+                message.add_attachment(attachment)
         
         # Send
         sg = SendGridAPIClient(config.email.sendgrid_api_key)
