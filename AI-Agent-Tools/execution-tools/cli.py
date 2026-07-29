@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unified command line entry point for the execution tools (experiment 4-2).
+"""Unified command line entry point for the execution tools.
 
 This module provides an argparse interface to list the tools, invoke each one
 individually, and run an end-to-end offline demo. It builds its tools from the
