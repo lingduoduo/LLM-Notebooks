@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Collaboration Tools -- unified command line entry point (Experiment 4-3).
-
-Command line interface for the "Collaboration Tools MCP Server" experiment (4-3)
-in Chapter 4 of *Understanding AI Agents in Depth*. It lets you list the tools,
-invoke each of them individually, and run an end-to-end demo without having to
-start the MCP server.
+"""Collaboration Tools -- unified command line entry point.
 
 The collaboration tools fall into three categories (matching the book's
 "collaboration tools" section):
@@ -230,8 +225,30 @@ def _neutralize_network_creds() -> list:
     return suppressed
 
 
-async def _demo() -> None:
-    suppressed = _neutralize_network_creds()
+def _demo_recipient() -> str:
+    """Who step 3 mails in --live mode.
+
+    Never the hardcoded admin@example.com the suppressed demo "sends" to: that
+    is a real reserved domain, so a live run would emit mail that just bounces.
+    Prefer the configured admin, else the sender's own address (a self-test).
+    """
+    from config import config
+
+    return (
+        config.hitl.admin_email
+        or config.email.smtp_from_email
+        or config.email.smtp_username
+        or "admin@example.com"
+    )
+
+
+async def _demo(live: bool = False) -> None:
+    if live:
+        suppressed = []
+        recipient = _demo_recipient()
+    else:
+        suppressed = _neutralize_network_creds()
+        recipient = "admin@example.com"
     online = bool(os.getenv("OPENAI_API_KEY"))
 
     print("=" * 74)
@@ -271,11 +288,13 @@ async def _demo() -> None:
     print("-" * 74)
     if suppressed:
         print(f"(Note: {', '.join(suppressed)} IS configured in your .env, but the demo")
-        print("  deliberately suppresses real sending. Use `python main.py notify <channel>`")
-        print("  to actually send.)")
+        print("  deliberately suppresses real sending so it stays repeatable. Re-run with")
+        print("  `python main.py demo --live` to actually send through every configured channel.)")
+    elif live:
+        print(f"(--live: sending for real through every configured channel. Email -> {recipient})")
     summary = "Refund ticket A12345: approved by the sub-agent, confirmed by the admin, payment released."
     for channel, coro in (
-        ("email", notify.send_email("admin@example.com", "Refund processed", summary)),
+        ("email", notify.send_email(recipient, "Refund processed", summary)),
         ("slack", notify.send_slack_message(summary)),
         ("telegram", notify.send_telegram_message(summary)),
     ):
@@ -296,7 +315,7 @@ async def _demo() -> None:
 
 
 def cmd_demo(args) -> None:
-    asyncio.run(_demo())
+    asyncio.run(_demo(live=args.live))
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +342,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("list", help="List every collaboration tool").set_defaults(func=cmd_list)
 
     p_demo = sub.add_parser("demo", help="Run the offline end-to-end collaboration demo (no API key needed)")
+    p_demo.add_argument("--live", action="store_true",
+                        help="Actually send through every configured channel instead of "
+                             "suppressing sends. Emails the configured HITL admin (or your "
+                             "own address), not the placeholder admin@example.com.")
     p_demo.set_defaults(func=cmd_demo)
 
     # subagent
