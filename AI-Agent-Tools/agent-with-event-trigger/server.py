@@ -3,8 +3,9 @@ Event Server - FastAPI version with native async support for MCP tools
 """
 
 import os
+import uuid
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -42,9 +43,19 @@ logger = logging.getLogger(__name__)
 agent: Optional[EventTriggeredAgent] = None
 agent_lock = threading.Lock()
 
-# Monitoring state
+# Monitoring state. The monitor is what turns "nothing happened" into an event:
+# it watches for a quiet user and for long-running background processes, and
+# wakes the agent with a system-reminder event when either crosses a threshold.
+# It stays off until POST /monitoring/start, because each reminder it raises
+# costs an LLM call.
 monitoring_enabled = False
 monitoring_thread: Optional[threading.Thread] = None
+monitoring_stop = threading.Event()
+
+# Thresholds (seconds), overridable from the environment
+USER_TIMEOUT_SECONDS = _env_int("USER_TIMEOUT_SECONDS", 60)
+PROCESS_TIMEOUT_SECONDS = _env_int("PROCESS_TIMEOUT_SECONDS", 30)
+MONITOR_INTERVAL_SECONDS = _env_int("MONITOR_INTERVAL_SECONDS", 10)
 
 # MCP loading status
 mcp_loading_status = {
@@ -75,8 +86,9 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Shutting down server...")
+    monitoring_stop.set()
     monitoring_enabled = False
-    
+
     if agent and agent.mcp_manager:
         await agent.mcp_manager.disconnect_all()
     
@@ -97,6 +109,9 @@ class EventRequest(BaseModel):
     event_type: str
     content: str
     metadata: Optional[Dict[str, Any]] = None
+    # Accepted so a caller-supplied id survives into the response and can be
+    # used to correlate the two; generated server-side when absent.
+    event_id: Optional[str] = None
 
 
 class ProcessRegister(BaseModel):
@@ -275,7 +290,8 @@ async def handle_event(event_req: EventRequest):
         event_data = {
             "event_type": event_req.event_type,
             "content": event_req.content,
-            "metadata": event_req.metadata or {}
+            "metadata": event_req.metadata or {},
+            "event_id": event_req.event_id or f"evt_{uuid.uuid4().hex[:12]}"
         }
         event = Event.from_dict(event_data)
         
@@ -375,6 +391,119 @@ async def unregister_process(process: ProcessUnregister):
 
 
 # ============================================================================
+# Monitoring: turning silence and long-running work into events
+# ============================================================================
+
+def _dispatch_system_event(event: Event):
+    """Hand a system-generated event to the agent, same as an external one."""
+    try:
+        with agent_lock:
+            result = agent.handle_event(event, max_iterations=10)
+        logger.info(f"🔔 System reminder handled: {event.event_type.value} "
+                    f"(success={result.get('success')})")
+    except Exception as e:
+        logger.error(f"Error handling system event {event.event_type.value}: {e}")
+
+
+def _monitor_loop():
+    """Poll for idle users and overdue background processes.
+
+    Each condition fires at most once per occurrence: the user reminder is
+    re-armed only after the user actually interacts again, and each process is
+    flagged with `reminded` so it is not reported on every pass.
+    """
+    logger.info(
+        f"👁️  Monitoring started (user timeout {USER_TIMEOUT_SECONDS}s, "
+        f"process timeout {PROCESS_TIMEOUT_SECONDS}s, "
+        f"interval {MONITOR_INTERVAL_SECONDS}s)"
+    )
+    notified_for: Optional[datetime] = None
+
+    while not monitoring_stop.wait(MONITOR_INTERVAL_SECONDS):
+        if agent is None:
+            continue
+        now = datetime.now()
+
+        # 1. Has the user gone quiet?
+        last_seen = agent.last_user_interaction
+        idle = (now - last_seen).total_seconds()
+        if idle >= USER_TIMEOUT_SECONDS and notified_for != last_seen:
+            notified_for = last_seen
+            logger.info(f"⏰ User idle for {int(idle)}s - raising a reminder")
+            _dispatch_system_event(Event(
+                event_type=EventType.USER_TIMEOUT,
+                content="No reply from the user. Summarise where things stand "
+                        "and decide whether anything needs doing in the meantime.",
+                metadata={"duration": f"{int(idle)} seconds",
+                          "last_interaction": last_seen.isoformat()},
+            ))
+
+        # 2. Has any registered background process overrun?
+        overdue = []
+        with agent_lock:
+            for pid, info in agent.background_processes.items():
+                if info.get("reminded"):
+                    continue
+                started = datetime.fromisoformat(info["start_time"])
+                ran_for = (now - started).total_seconds()
+                if ran_for >= PROCESS_TIMEOUT_SECONDS:
+                    info["reminded"] = True
+                    overdue.append((pid, info.get("name", pid), ran_for))
+
+        for pid, name, ran_for in overdue:
+            logger.info(f"⏰ Process '{name}' running for {int(ran_for)}s - raising an alert")
+            _dispatch_system_event(Event(
+                event_type=EventType.PROCESS_TIMEOUT,
+                content=f"Background process '{name}' is still running. "
+                        f"Check on it and report whether it needs attention.",
+                metadata={"process_id": pid, "process_name": name,
+                          "duration": f"{int(ran_for)} seconds"},
+            ))
+
+    logger.info("👁️  Monitoring stopped")
+
+
+@app.post("/monitoring/start")
+async def start_monitoring():
+    """Start the background monitor that raises system-reminder events"""
+    global monitoring_enabled, monitoring_thread
+
+    if agent is None:
+        raise HTTPException(status_code=500, detail="Agent not initialized")
+
+    if monitoring_enabled:
+        return {"success": True, "message": "Monitoring is already running"}
+
+    monitoring_stop.clear()
+    monitoring_thread = threading.Thread(target=_monitor_loop, daemon=True,
+                                         name="agent-monitor")
+    monitoring_thread.start()
+    monitoring_enabled = True
+
+    return {
+        "success": True,
+        "message": "Monitoring started",
+        "user_timeout_seconds": USER_TIMEOUT_SECONDS,
+        "process_timeout_seconds": PROCESS_TIMEOUT_SECONDS,
+        "interval_seconds": MONITOR_INTERVAL_SECONDS
+    }
+
+
+@app.post("/monitoring/stop")
+async def stop_monitoring():
+    """Stop the background monitor"""
+    global monitoring_enabled
+
+    if not monitoring_enabled:
+        return {"success": True, "message": "Monitoring was not running"}
+
+    monitoring_stop.set()
+    monitoring_enabled = False
+
+    return {"success": True, "message": "Monitoring stopped"}
+
+
+# ============================================================================
 # Main Entry Point
 # ============================================================================
 
@@ -394,8 +523,8 @@ def build_parser() -> argparse.ArgumentParser:
 """,
     )
     parser.add_argument(
-        "--host", default=os.getenv("AGENT_HOST", "0.0.0.0"),
-        help="Address to listen on (default: 0.0.0.0)",
+        "--host", default=os.getenv("AGENT_HOST", "127.0.0.1"),
+        help="Address to listen on (default: 127.0.0.1). /event has no authentication and reaches shell and Python execution tools, so binding to 0.0.0.0 exposes that to the whole network.",
     )
     parser.add_argument(
         "--port", type=int, default=_env_int("AGENT_PORT", 8000),

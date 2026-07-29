@@ -6,6 +6,7 @@ all the system hint features from the original implementation.
 
 import json
 import os
+import re
 import sys
 import subprocess
 import platform
@@ -77,6 +78,35 @@ def completion_limits(model, temperature: float, max_tokens: int) -> Dict[str, A
     return {"temperature": temperature, "max_tokens": max_tokens}
 
 
+# Commands that move a developer's working tree or delete files, i.e. the ones
+# whose damage is not obvious from the transcript and is awkward to undo.
+#
+# This is not a security boundary -- `execute_command` runs an arbitrary shell
+# and cannot be made safe by pattern matching. It is a guard rail against the
+# realistic failure mode seen in practice: handling a "GitHub PR #42 review"
+# event, the agent decided the helpful thing to do was `git fetch origin
+# pull/42/head:pr-42 && git stash push -u && git checkout pr-42`, which moved a
+# real repository off the branch its user was working on.
+_DESTRUCTIVE_COMMAND_PATTERNS = [
+    (r"\bgit\s+(checkout|switch|reset|stash|clean|rebase|merge|cherry-pick|revert)\b",
+     "changes which commit or branch the working tree points at"),
+    (r"\bgit\s+(restore|rm)\b", "discards or deletes uncommitted work"),
+    (r"\bgit\s+push\b", "publishes to a remote"),
+    (r"\bgit\s+branch\s+-[dD]\b", "deletes a branch"),
+    (r"\bgit\s+worktree\b", "adds or removes worktrees"),
+    (r"\brm\s+-[a-zA-Z]*[rf]", "recursively or forcibly deletes files"),
+]
+
+
+def check_destructive_command(command: str) -> Optional[str]:
+    """Return a reason string if `command` looks state-changing, else None."""
+    for pattern, reason in _DESTRUCTIVE_COMMAND_PATTERNS:
+        match = re.search(pattern, command)
+        if match:
+            return f"`{match.group(0).strip()}` {reason}"
+    return None
+
+
 def resolve_api_key() -> Optional[str]:
     """Read the OpenAI API key from the environment (loaded from .env if present).
 
@@ -136,6 +166,11 @@ class SystemHintConfig:
     # hidden reasoning tokens, so keep some headroom above the visible answer.
     temperature: float = 0.7
     max_tokens: int = 8192
+    # Safety. execute_command runs a real shell against a real working tree, so
+    # commands that move git branches or delete files are refused by default.
+    # See check_destructive_command() for what this covers and what it does not.
+    allow_destructive_commands: bool = False
+
     # MCP server configuration
     use_mcp_servers: bool = False  # Disabled by default - requires async setup
     mcp_collaboration_tools_path: str = "../collaboration-tools/src/main.py"
@@ -645,7 +680,7 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
                     "type": "function",
                     "function": {
                         "name": "code_interpreter",
-                        "description": "Execute Python code in a restricted environment",
+                        "description": "Execute Python code in the server's Python process. This is NOT a sandbox: the code runs with full access to the filesystem, network and environment, so avoid destructive operations.",
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -740,17 +775,21 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
         
         return tools
     
-    def _execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
-        """Execute a tool and return the result with detailed error information"""
+    def _execute_tool(self, tool_name: str,
+                      arguments: Dict[str, Any]) -> Tuple[Any, Optional[str], int]:
+        """Execute a tool and return (result, error, elapsed_ms)"""
         start_time = datetime.now()
-        
+
+        def elapsed_ms() -> int:
+            return int((datetime.now() - start_time).total_seconds() * 1000)
+
         try:
             # Check if it's an MCP tool (prefixed with server name using underscore)
             if "_" in tool_name and tool_name in self.mcp_manager.tools:
                 # Execute MCP tool asynchronously
                 # Check if there's already a running event loop
                 try:
-                    loop = asyncio.get_running_loop()
+                    asyncio.get_running_loop()
                     # If we're already in an async context, we can't use asyncio.run()
                     # Create a new event loop in a separate thread
                     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -762,10 +801,10 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
                 except RuntimeError:
                     # No event loop running, safe to use asyncio.run()
                     result = asyncio.run(self.mcp_manager.call_tool(tool_name, arguments))
-                
-                duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-                return result, None if result.get("success") else result.get("error")
-            
+
+                error = None if result.get("success") else result.get("error")
+                return result, error, elapsed_ms()
+
             # Built-in tools
             if tool_name == "read_file":
                 result = self._tool_read_file(**arguments)
@@ -781,19 +820,17 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
                 result = self._tool_update_todo_status(**arguments)
             else:
                 error = f"Unknown tool: {tool_name}"
-                return {"error": error}, error
-            
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            return result, None
-            
+                return {"error": error}, error, elapsed_ms()
+
+            return result, None, elapsed_ms()
+
         except Exception as e:
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
             error_detail = self._get_detailed_error(e, tool_name, arguments)
-            
+
             if self.config.enable_detailed_errors:
-                return {"error": error_detail}, error_detail
+                return {"error": error_detail}, error_detail, elapsed_ms()
             else:
-                return {"error": str(e)}, str(e)
+                return {"error": str(e)}, str(e), elapsed_ms()
     
     def _get_detailed_error(self, exception: Exception, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Get detailed error information for debugging"""
@@ -833,7 +870,7 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
             suggestions.append("The operation took too long")
             suggestions.append("Try with simpler input or break into smaller steps")
         elif "import" in error_str or exception_type == "ImportError":
-            suggestions.append("Required module not available in restricted environment")
+            suggestions.append("Module not importable in this environment")
             suggestions.append("Use only built-in Python modules")
         
         return " | ".join(suggestions) if suggestions else ""
@@ -945,7 +982,11 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
             raise
     
     def _tool_code_interpreter(self, code: str) -> Dict[str, Any]:
-        """Execute Python code in restricted environment"""
+        """Execute Python code in-process.
+
+        Note: this is a plain exec() with no sandboxing -- the snippet has the
+        same privileges as the server itself.
+        """
         try:
             import io
             import contextlib
@@ -973,6 +1014,24 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
     def _tool_execute_command(self, command: str, working_dir: Optional[str] = None) -> Dict[str, Any]:
         """Execute shell command"""
         try:
+            if not self.config.allow_destructive_commands:
+                reason = check_destructive_command(command)
+                if reason:
+                    logger.warning(f"🚫 Refused destructive command: {command[:120]}")
+                    return {
+                        "success": False,
+                        "command": command,
+                        "error": (
+                            f"Refused: {reason}. This agent runs against a real "
+                            f"working tree, so commands that move branches, "
+                            f"rewrite history or delete files are blocked. Inspect "
+                            f"state instead (git status, git log, git diff, ls), "
+                            f"and report what you would change rather than doing "
+                            f"it. Set allow_destructive_commands=True to override."
+                        ),
+                        "return_code": None
+                    }
+
             if working_dir is None:
                 working_dir = self.current_directory
             elif not os.path.isabs(working_dir):
@@ -1183,7 +1242,7 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
                         else:
                             logger.info(f"  📥 Args: {args_str}")
                         
-                        result, error = self._execute_tool(function_name, function_args)
+                        result, error, duration_ms = self._execute_tool(function_name, function_args)
                         
                         if error:
                             error_preview = str(error).replace('\n', ' ')[:150]
@@ -1220,7 +1279,8 @@ Important: When you have completed all tasks, clearly state "FINAL ANSWER:" foll
                             arguments=function_args,
                             result=result if not error else None,
                             error=error,
-                            call_number=call_number
+                            call_number=call_number,
+                            duration_ms=duration_ms
                         )
                         self.tool_calls.append(tool_call_record)
                         

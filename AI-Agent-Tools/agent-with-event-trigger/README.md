@@ -51,6 +51,10 @@ entry point loads automatically (real environment variables win over `.env`):
 | `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` | Point at any OpenAI-compatible endpoint |
 | `AGENT_PORT` | no | `8000` | Server port |
 | `ENABLE_MCP_TOOLS` | no | `true` | Set to `false` for built-in tools only |
+| `AGENT_HOST` | no | `127.0.0.1` | Bind address. See Security below before changing it |
+| `USER_TIMEOUT_SECONDS` | no | `60` | Idle time before a `user_timeout` reminder |
+| `PROCESS_TIMEOUT_SECONDS` | no | `30` | Runtime before a `process_timeout` alert |
+| `MONITOR_INTERVAL_SECONDS` | no | `10` | How often the monitor checks |
 
 > **Reasoning models**: the GPT-5 family and the o-series take
 > `max_completion_tokens` rather than `max_tokens`, and several of them reject
@@ -93,9 +97,17 @@ python event_loop_demo.py --mock --trigger timer --delay 2 --duration 6
 # Recurring every 3s
 python event_loop_demo.py --mock --trigger recurring --interval 3 --duration 12
 
-# Watch a directory; write a file to trigger (other terminal: echo hello > watched_dir/a.txt)
+# Watch a directory. A simulated external writer drops a file in after a few
+# seconds so the demo shows something on its own.
 python event_loop_demo.py --mock --trigger file --watch-dir watched_dir
+
+# Drive the directory by hand instead (other terminal: echo hello > watched_dir/a.txt)
+python event_loop_demo.py --mock --trigger file --no-auto-write --duration 30
 ```
+
+If a run ends with `handled 0 event(s)`, nothing triggered it — with
+`--no-auto-write` you have to create or modify a file inside the watched
+directory while the loop is still running.
 
 Sample offline output (excerpt):
 
@@ -206,7 +218,25 @@ curl -X POST http://localhost:8000/agent/reset
 
 # Reload MCP tools
 curl -X POST http://localhost:8000/mcp/reload
+
+# Start / stop the background monitor that raises system-reminder events
+curl -X POST http://localhost:8000/monitoring/start
+curl -X POST http://localhost:8000/monitoring/stop
 ```
+
+### System reminders
+
+`POST /monitoring/start` runs a background monitor that turns *absence* of
+activity into events — the thing a request/response API cannot express:
+
+- no user interaction for `USER_TIMEOUT_SECONDS` raises a `user_timeout` event
+- a process registered via `/process/register` that has run longer than
+  `PROCESS_TIMEOUT_SECONDS` raises a `process_timeout` event
+
+Each fires once per occurrence: the user reminder re-arms only after the user
+interacts again, and each process is flagged so it is reported once. The
+monitor is **off until you start it**, because every reminder it raises costs
+an LLM call.
 
 ### Using the Interactive Docs
 
@@ -454,14 +484,44 @@ python client.py --event-type timer_trigger --message "Check the daily backup"
 
 ## Security Considerations
 
-For production deployment:
+### What this agent can do to your machine
+
+`/event` has no authentication and drives tools that run arbitrary shell
+commands (`execute_command`) and arbitrary Python (`code_interpreter`, a plain
+`exec()` with no sandbox). Anything that can POST to the port can run code as
+you. Two consequences:
+
+- **The server binds `127.0.0.1` by default.** Set `AGENT_HOST=0.0.0.0` only on
+  a network you trust, and put authentication in front of it first.
+- **Destructive shell commands are refused by default.** `execute_command`
+  blocks commands that move git branches, discard uncommitted work, or delete
+  files recursively, and tells the model to inspect and report instead.
+
+The guard exists because of a real incident, not a hypothetical one. Handling
+the synthetic "GitHub PR #42 review" event from `client.py --mode test`, the
+agent decided the helpful thing to do was:
+
+```
+git fetch origin pull/42/head:pr-42 && git stash push -u && git checkout pr-42
+```
+
+on a live repository, moving the working tree off the branch its user was on.
+Nothing was lost — the changes were in the stash — but nothing warned about it
+either. Set `SystemHintConfig(allow_destructive_commands=True)` to opt out.
+
+This is a guard rail, not a security boundary: a shell tool cannot be made safe
+by pattern matching. For anything beyond local experimentation, run the agent in
+a container or VM whose destruction you do not mind.
+
+### For production deployment
 
 1. **HTTPS**: Use a reverse proxy (nginx, Caddy)
-2. **Authentication**: Add API key validation
+2. **Authentication**: Add API key validation — `/event` has none
 3. **Rate Limiting**: Prevent abuse
 4. **Input Validation**: Sanitize all inputs
 5. **CORS**: Configure allowed origins
 6. **Secrets**: Keep `.env` out of version control (it is gitignored here) and use a secrets manager in production
+7. **Isolation**: Run in a sandbox — the tools have your privileges
 
 ## Comparison: Flask vs FastAPI
 
@@ -539,6 +599,7 @@ curl http://localhost:8000/health
 ## Tests
 
 ```bash
+python -m pytest test_command_guard.py -q # destructive-command guard
 python -m pytest test_env_int.py -q       # AGENT_PORT parsing
 python -m unittest test_code_interpreter -v   # code interpreter namespace
 python -m pytest test_openai_config.py -q # OpenAI model/parameter handling
