@@ -115,7 +115,7 @@ class EventClient:
         try:
             response = requests.post(
                 f"{self.server_url}/process/register",
-                json={'process_id': process_id, 'name': name}, timeout=30
+                json={'process_id': process_id, 'process_name': name}, timeout=30
             )
             response.raise_for_status()
             return response.json()

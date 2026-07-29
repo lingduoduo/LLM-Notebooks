@@ -180,6 +180,40 @@ class FileWatchTrigger(TriggerSource):
 # Event loop
 # ============================================================================
 
+class SimulatedExternalWriter(threading.Thread):
+    """Writes a file into the watched directory a few seconds in.
+
+    The file-watch demo is only interesting if something actually changes a
+    file while it runs, and expecting the reader to race to a second terminal
+    inside the run window makes the demo look broken when nothing happens.
+    This thread plays the part of that external writer. Pass --no-auto-write
+    to turn it off and drive the directory by hand instead.
+    """
+
+    def __init__(self, watch_dir: str, delay: float = 3.0,
+                 filename: str = "demo_note.txt"):
+        super().__init__(name="SimulatedExternalWriter", daemon=True)
+        self.watch_dir = watch_dir
+        self.delay = delay
+        self.filename = filename
+        self._stop = threading.Event()
+
+    def stop(self):
+        self._stop.set()
+
+    def run(self):
+        if self._stop.wait(self.delay):
+            return
+        os.makedirs(self.watch_dir, exist_ok=True)
+        path = os.path.join(self.watch_dir, self.filename)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("Deployment finished at 03:14. 2 warnings, 0 errors.\n")
+            logger.info(f"✍️  [simulated external writer] wrote {path}")
+        except OSError as e:
+            logger.warning(f"could not write {path}: {e}")
+
+
 class EventLoop:
     """A single event queue plus single-threaded dispatch.
 
@@ -336,6 +370,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory the file-watch trigger monitors; created if missing (default: watched_dir)",
     )
     parser.add_argument(
+        "--no-auto-write", dest="auto_write", action="store_false",
+        help="Do not write a file into the watched directory automatically; "
+             "drive the file-watch trigger by hand from another terminal instead",
+    )
+    parser.add_argument(
         "--model", default=os.getenv("OPENAI_MODEL"),
         help="OpenAI model to use in live mode (default: OPENAI_MODEL env var, else gpt-5.2)",
     )
@@ -374,10 +413,18 @@ def main():
             loop.event_queue, interval=args.interval, timer_id="health_check",
             content="Recurring timer fired: check the health of the server.",
         ))
+    writer = None
     if args.trigger in ("file", "all"):
         loop.add_trigger(FileWatchTrigger(loop.event_queue, watch_dir=args.watch_dir))
         print(f"💡 Tip: write or modify a file under {args.watch_dir}/ to fire a file_change event.")
-        print(f"   For example, in another terminal: echo hello > {args.watch_dir}/note.txt\n")
+        print(f"   For example, in another terminal: echo hello > {args.watch_dir}/note.txt")
+        if args.auto_write:
+            # Give the watcher a moment to take its initial snapshot first,
+            # otherwise the file is already there and counts as pre-existing.
+            writer = SimulatedExternalWriter(args.watch_dir, delay=min(3.0, args.duration / 3))
+            print(f"   (a simulated external writer will also drop a file in "
+                  f"automatically; pass --no-auto-write to disable)")
+        print()
     sys.stdout.flush()
 
     if not loop.triggers:
@@ -385,14 +432,28 @@ def main():
         sys.exit(1)
 
     try:
+        if writer:
+            writer.start()
         loop.run(duration=args.duration)
     except KeyboardInterrupt:
         print("\n⚠️  Interrupted, shutting down...")
         for t in loop.triggers:
             t.stop()
+    finally:
+        if writer:
+            writer.stop()
 
     print("\n" + "=" * 80)
     print(f"📊 Demo finished: handled {loop.processed} event(s).")
+    if loop.processed == 0:
+        # A silent zero looks like a broken demo; say why nothing happened.
+        print()
+        print("   No events fired during this run. That is expected if nothing")
+        print("   triggered them — for the file watcher, a file has to be created or")
+        print("   modified inside the watched directory while the loop is running.")
+        print(f"   Try:  python event_loop_demo.py --mock --trigger file "
+              f"--watch-dir {args.watch_dir}")
+        print(f"   or a longer window:  --duration 30")
     print("=" * 80 + "\n")
 
 
