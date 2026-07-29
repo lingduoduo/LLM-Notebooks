@@ -98,16 +98,24 @@ python event_loop_demo.py --mock --trigger timer --delay 2 --duration 6
 python event_loop_demo.py --mock --trigger recurring --interval 3 --duration 12
 
 # Watch a directory. A simulated external writer drops a file in after a few
-# seconds so the demo shows something on its own.
+# seconds, so this fires an event on its own with nothing else to do.
 python event_loop_demo.py --mock --trigger file --watch-dir watched_dir
+```
 
-# Drive the directory by hand instead (other terminal: echo hello > watched_dir/a.txt)
+**`--no-auto-write` needs two terminals.** It turns the automatic writer off so
+*you* play the external world. On its own it does nothing and the run ends with
+`handled 0 event(s)`, which is the flag working, not a failure. To use it, start
+the demo in one terminal:
+
+```bash
 python event_loop_demo.py --mock --trigger file --no-auto-write --duration 30
 ```
 
-If a run ends with `handled 0 event(s)`, nothing triggered it — with
-`--no-auto-write` you have to create or modify a file inside the watched
-directory while the loop is still running.
+and while it is still running, write a file from a second terminal:
+
+```bash
+echo hello > watched_dir/note.txt
+```
 
 Sample offline output (excerpt):
 
