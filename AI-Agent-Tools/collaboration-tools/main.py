@@ -195,9 +195,28 @@ def cmd_notify(args) -> None:
 # End-to-end demo: a support coordinator agent handling one refund
 # ---------------------------------------------------------------------------
 
-def _neutralize_network_creds() -> None:
-    """Clear placeholder credentials from .env before the demo so it never blocks on real network calls."""
+def _neutralize_network_creds() -> list:
+    """Blank every notification credential for the duration of the demo.
+
+    The demo is meant to be runnable offline and repeatedly, so it must never
+    send real mail or POST to a real webhook even when .env is fully configured.
+
+    Returns the names of the channels that were actually suppressed, so the demo
+    can distinguish "you have not configured this" from "you configured this and
+    the demo is deliberately not using it" -- reporting the latter as the former
+    reads as a broken setup.
+    """
     from config import config
+
+    suppressed = []
+    if config.email.smtp_username or config.email.sendgrid_api_key:
+        suppressed.append("email")
+    if config.im.slack_webhook_url:
+        suppressed.append("slack")
+    if config.im.telegram_bot_token:
+        suppressed.append("telegram")
+    if config.im.discord_webhook_url:
+        suppressed.append("discord")
 
     config.email.smtp_username = None
     config.email.smtp_password = None
@@ -208,9 +227,11 @@ def _neutralize_network_creds() -> None:
     config.hitl.webhook_url = None
     config.hitl.admin_email = None
 
+    return suppressed
+
 
 async def _demo() -> None:
-    _neutralize_network_creds()
+    suppressed = _neutralize_network_creds()
     online = bool(os.getenv("OPENAI_API_KEY"))
 
     print("=" * 74)
@@ -248,6 +269,10 @@ async def _demo() -> None:
 
     print("\n[Step 3/3] Notify collaborators of the outcome across multiple channels")
     print("-" * 74)
+    if suppressed:
+        print(f"(Note: {', '.join(suppressed)} IS configured in your .env, but the demo")
+        print("  deliberately suppresses real sending. Use `python main.py notify <channel>`")
+        print("  to actually send.)")
     summary = "Refund ticket A12345: approved by the sub-agent, confirmed by the admin, payment released."
     for channel, coro in (
         ("email", notify.send_email("admin@example.com", "Refund processed", summary)),
@@ -255,7 +280,12 @@ async def _demo() -> None:
         ("telegram", notify.send_telegram_message(summary)),
     ):
         res = await coro
-        status = "sent" if res.get("success") else f"not sent ({res.get('error')})"
+        if res.get("success"):
+            status = "sent"
+        elif channel in suppressed:
+            status = "suppressed for the demo (configured, not sent)"
+        else:
+            status = f"not sent ({res.get('error')})"
         print(f"  [{channel:<8}] {status}: {summary}")
 
     print("\n" + "=" * 74)
