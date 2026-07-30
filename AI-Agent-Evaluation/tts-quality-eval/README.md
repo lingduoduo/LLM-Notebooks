@@ -22,13 +22,15 @@ The pipeline answers these through a single command and produces a structured co
 Per synthesized audio, both objective and judged dimensions are recorded:
 - Clarity: transcription consistency with source text
 - Naturalness: speaking rate vs target range
-- Pacing: pause and rhythm appropriateness based on speech length
+- Pacing: the default judge estimates pacing from the transcript, duration,
+  speaking rate, and WER; `--gemini` directly hears pauses and rhythm
 - Overall score: holistic quality
 
 WER-based objective metrics are computed from normalized English word tokens:
 text is lowercased and split into word tokens before comparison. Because the
 transcript comes from Whisper, the measured WER also depends on Whisper's
-transcription accuracy.
+transcription accuracy. Word accuracy is `max(0, 1 - WER)` and is reported in
+the CLI output and `results.json`.
 
 ### Provider support
 
