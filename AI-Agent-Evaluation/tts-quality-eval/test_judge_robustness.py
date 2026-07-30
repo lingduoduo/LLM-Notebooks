@@ -72,6 +72,26 @@ def test_word_error_rate_empty_reference_is_perfect():
     assert pipeline.word_error_rate("", "").accuracy == 1.0
 
 
+def test_word_error_rate_empty_reference_counts_nonempty_hypothesis_as_errors():
+    """Unrequested transcript words are errors even when reference normalization is empty."""
+    result = pipeline.word_error_rate("...", "one two three")
+    assert result.edits == 3
+    assert result.ref_len == 0
+    assert result.wer == 1.0
+    assert result.accuracy == 0.0
+
+
+def test_audio_path_includes_a_stable_reference_text_hash(monkeypatch, tmp_path):
+    """Cache paths must not reuse audio when a custom or corpus text changes."""
+    monkeypatch.setattr(demo, "OUT_DIR", str(tmp_path))
+    original = demo.audio_path("test-config", "custom", "alpha")
+    changed = demo.audio_path("test-config", "custom", "beta")
+
+    assert original.endswith("test-config__custom__8ed3f6ad685b.mp3")
+    assert demo.audio_path("test-config", "custom", "alpha") == original
+    assert changed != original
+
+
 def test_evaluate_one_reports_word_metrics_without_legacy_character_fields(monkeypatch, tmp_path):
     """The CLI record exposes WER-derived word metrics to downstream JSON consumers."""
     cfg = SimpleNamespace(name="test-config", provider="openai")
@@ -150,11 +170,26 @@ def test_judge_rubric_tolerates_null_score(monkeypatch):
 
 
 def test_judge_rubric_tolerates_null_dimension(monkeypatch):
-    """A bare null dimension (non-dict) is scored 0, not int(None) TypeError."""
-    _stub_judge(monkeypatch, {"clarity": None, "naturalness": 4, "pacing": 3, "overall": 5})
+    """Null or omitted dimensions become the zero sentinel without raising."""
+    _stub_judge(monkeypatch, {"clarity": None, "naturalness": 4, "overall": 5})
     rub = pipeline.judge_rubric("Reference text", "neutral", "Transcript text", 3.0, 0.05)
     assert rub.scores["clarity"] == 0
     assert rub.scores["naturalness"] == 4
+    assert rub.scores["pacing"] == 0
+
+
+def test_judge_rubric_rejects_malformed_and_out_of_range_scores(monkeypatch):
+    """Invalid rubric scores must be sentinels instead of affecting configuration means."""
+    _stub_judge(monkeypatch, {
+        "clarity": {"score": 6, "reason": "too high"},
+        "naturalness": {"score": "5", "reason": "wrong type"},
+        "pacing": {"score": 1, "reason": "valid lower bound"},
+        "overall": {"score": 5, "reason": "valid upper bound"},
+    })
+
+    rub = pipeline.judge_rubric("Reference text", "neutral", "Transcript text", 3.0, 0.05)
+
+    assert rub.scores == {"clarity": 0, "naturalness": 0, "pacing": 1, "overall": 5}
 
 
 class _FakeHTTPResp(io.BytesIO):
@@ -199,6 +234,21 @@ def test_judge_gemini_audio_parses_valid_response(monkeypatch, tmp_path):
     assert rub.scores["clarity"] == 4
     assert rub.scores["pacing"] == 0   # Null score becomes 0.
     assert rub.scores["overall"] == 5
+
+
+def test_judge_gemini_audio_rejects_malformed_and_out_of_range_scores(monkeypatch, tmp_path):
+    """Gemini must apply the same 1-to-5 validation as the LLM rubric path."""
+    inner = json.dumps({"clarity": {"score": -1}, "naturalness": "4",
+                        "pacing": {"score": 1}, "overall": {"score": 5}})
+    _stub_gemini(monkeypatch, {
+        "candidates": [{"content": {"parts": [{"text": inner}]}}],
+    })
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"\xff\xfb" + b"\x00" * 256)
+
+    rub = pipeline.judge_gemini_audio("Reference text", "neutral", str(audio))
+
+    assert rub.scores == {"clarity": 0, "naturalness": 0, "pacing": 1, "overall": 5}
 
 
 if __name__ == "__main__":

@@ -15,12 +15,13 @@ Audio is written to output/ and reused unless --fresh is supplied. Run
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 import time
-import traceback
 from statistics import mean
+from typing import Optional
 
 import config
 import pipeline
@@ -28,7 +29,7 @@ import pipeline
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 
 
-def load_env():
+def load_env() -> None:
     """Load .env values without adding a dependency."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if os.path.exists(path):
@@ -39,16 +40,18 @@ def load_env():
                 os.environ.setdefault(k.strip(), v.strip())
 
 
-def audio_path(cfg_name: str, sample_id: str) -> str:
-    return os.path.join(OUT_DIR, f"{cfg_name}__{sample_id}.mp3")
+def audio_path(cfg_name: str, sample_id: str, reference_text: str) -> str:
+    """Return a cache path that changes whenever its reference text changes."""
+    text_hash = hashlib.sha256(reference_text.encode("utf-8")).hexdigest()[:12]
+    return os.path.join(OUT_DIR, f"{cfg_name}__{sample_id}__{text_hash}.mp3")
 
 
-def evaluate_one(cfg, sample, use_gemini: bool, fresh: bool,
-                 judge_model: str = None) -> dict:
+def evaluate_one(cfg: config.TTSConfig, sample: config.Sample, use_gemini: bool, fresh: bool,
+                 judge_model: Optional[str] = None) -> dict[str, object]:
     """Evaluate one configuration/sample pair and return errors as records."""
     rec = {"config": cfg.name, "sample": sample.id, "challenge": sample.challenge,
            "provider": getattr(cfg, "provider", "openai"), "ok": False, "error": None}
-    path = audio_path(cfg.name, sample.id)
+    path = audio_path(cfg.name, sample.id, sample.text)
     try:
         # 1) Synthesize, reusing a nonempty file unless --fresh was supplied.
         if fresh or not os.path.exists(path) or os.path.getsize(path) == 0:
@@ -134,7 +137,7 @@ def print_table(rows):
         print(line)
 
 
-def print_providers():
+def print_providers() -> None:
     """Print all TTS providers and their configuration state without network access."""
     print("Available TTS providers (OpenAI / ElevenLabs / Fish Audio / Minimax / Doubao):\n")
     for key, p in config.PROVIDERS.items():
@@ -146,7 +149,7 @@ def print_providers():
     print("Non-OpenAI providers require their own keys (see env.example); a missing key fails only that row.")
 
 
-def print_rubric():
+def print_rubric() -> None:
     """Print rubric dimension definitions without network access."""
     print("TTS quality evaluation rubric (1–5, where 5 is best):\n")
     for dim in pipeline.RUBRIC_DIMENSIONS:
@@ -156,7 +159,7 @@ def print_rubric():
     print("which can assess emotional delivery and vocal consistency.")
 
 
-def main():
+def main() -> None:
     global OUT_DIR
     ap = argparse.ArgumentParser(
         description="Fully automated TTS quality evaluation (Experiment 6-5): multi-provider synthesis and LLM rubric scoring",
