@@ -1,15 +1,18 @@
-"""TTS 质量评估流水线的核心步骤。
+"""Core steps of the TTS quality evaluation pipeline.
 
-一条评估链路：
-  合成(OpenAI TTS) -> 时长探测(ffprobe) -> 回译(Whisper) -> 计算 CER/字准确率
-      -> LLM Rubric 打分(gpt-5.6-luna) [可选: Gemini 音频评审 gemini-3.5-flash]
+An evaluation run follows this path:
+  synthesis (OpenAI TTS) -> duration probe (ffprobe) -> transcription
+  (Whisper) -> word error rate and word accuracy -> LLM rubric scoring
+  (gpt-5.6-luna) [optional: Gemini audio evaluation with gemini-3.5-flash].
 
-说明：TTS 合成与 Whisper 回译必须走 OpenAI 直连（OpenRouter 不提供音频/转写）；
-仅 LLM Rubric 的 chat 评审支持 OpenRouter 回退——gpt-5.x 直连需组织实名认证，
-故只要有 OPENROUTER_API_KEY 就优先经 OpenRouter 调评审模型（见 get_judge_client_and_model）。
+TTS synthesis and Whisper transcription require direct OpenAI access because
+OpenRouter does not provide audio synthesis or transcription. Only the LLM
+rubric chat evaluation can fall back to OpenRouter. Since direct gpt-5.x access
+requires organization verification, the evaluator prefers OpenRouter whenever
+OPENROUTER_API_KEY is available (see get_judge_client_and_model).
 
-所有对外函数都做了健壮性处理：单条失败抛出带上下文的异常，由 demo.py 捕获后
-在汇总表里记为失败，而不会中断整表。
+Public functions handle errors robustly: individual failures raise contextual
+exceptions for demo.py to record in the summary table without stopping the run.
 """
 
 import base64
@@ -18,7 +21,7 @@ import os
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from openai import OpenAI
@@ -26,29 +29,29 @@ from openai import OpenAI
 import config
 
 # ---------------------------------------------------------------------------
-# 客户端（带自动重试，缓解偶发的网络抖动）。
+# Client with automatic retries to smooth intermittent network failures.
 # ---------------------------------------------------------------------------
 _client: Optional[OpenAI] = None
 
 
 def get_client() -> OpenAI:
-    """OpenAI 直连 client：用于 TTS 合成与 Whisper 回译（这两项不能走 OpenRouter）。"""
+    """Return the direct OpenAI client for TTS synthesis and Whisper transcription."""
     global _client
     if _client is None:
         key = os.environ.get("OPENAI_API_KEY", "").strip()
         if not key:
             raise RuntimeError(
-                "缺少 OPENAI_API_KEY（TTS 合成 / Whisper 回译需 OpenAI 直连）。"
-                "请 `export OPENAI_API_KEY=sk-...` 或写入 .env。"
+                "OPENAI_API_KEY is required for direct OpenAI TTS synthesis and Whisper transcription. "
+                "Run `export OPENAI_API_KEY=sk-...` or add it to .env."
             )
         _client = OpenAI(api_key=key, max_retries=5, timeout=60.0)
     return _client
 
 
 # ---------------------------------------------------------------------------
-# LLM Rubric 评审客户端：支持 OpenRouter 回退。
-# gpt-5.x 直连 OpenAI 需组织实名认证，只要有 OPENROUTER_API_KEY 就优先走 OpenRouter。
-# 注意：仅 chat 评审可回退；TTS / Whisper 仍需 OpenAI 直连（见 get_client）。
+# LLM rubric client with OpenRouter fallback. Direct gpt-5.x access requires
+# organization verification, so prefer OpenRouter when its API key is present.
+# Only chat evaluation can fall back; TTS and Whisper still use get_client().
 # ---------------------------------------------------------------------------
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _judge_client: Optional[OpenAI] = None
@@ -56,8 +59,12 @@ _judge_client_kind: str = ""
 
 
 def _to_openrouter_model(model: str) -> str:
-    """把模型名映射成 OpenRouter id：含 '/' 视为原生 id；gpt-* -> openai/*；
-    claude-* -> anthropic/claude-opus-4.8；其余回退到 openai/gpt-5.6-luna。"""
+    """Map a model name to an OpenRouter ID.
+
+    IDs containing a slash are already native. gpt-* maps to openai/*,
+    claude-* maps to anthropic/claude-opus-4.8, and all other values fall back
+    to openai/gpt-5.6-luna.
+    """
     if "/" in model:
         return model
     if model.startswith("gpt-"):
@@ -68,10 +75,11 @@ def _to_openrouter_model(model: str) -> str:
 
 
 def get_judge_client_and_model(model: str):
-    """构造 LLM 评审用的 client 并返回 (client, 实际模型名)。
+    """Build the LLM evaluation client and return ``(client, resolved_model)``.
 
-    回退：gpt-5.x 且有 OPENROUTER_API_KEY -> 优先 OpenRouter；否则有 OPENAI_API_KEY ->
-    直连；否则有 OPENROUTER_API_KEY -> OpenRouter（模型名映射）；皆无 -> 清晰报错。
+    A gpt-5.x model with OPENROUTER_API_KEY uses OpenRouter first. Otherwise,
+    OpenAI is used when OPENAI_API_KEY is available, then OpenRouter with a
+    mapped model name. A clear error is raised if neither key is configured.
     """
     global _judge_client, _judge_client_kind
     primary = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -95,41 +103,42 @@ def get_judge_client_and_model(model: str):
             _judge_client_kind = "openai"
         return _judge_client, model
     raise RuntimeError(
-        "缺少 OPENAI_API_KEY / OPENROUTER_API_KEY，无法运行 LLM Rubric 评审。"
+        "OPENAI_API_KEY or OPENROUTER_API_KEY is required for LLM rubric evaluation."
     )
 
 
 # ---------------------------------------------------------------------------
-# 1) TTS 合成（多 provider 分发）
+# 1) TTS synthesis with multi-provider dispatch.
 # ---------------------------------------------------------------------------
 def synthesize(cfg: config.TTSConfig, text: str, out_path: str) -> None:
-    """按 cfg.provider 分发到对应服务商合成语音，写入 out_path（mp3）。失败抛异常。
+    """Synthesize speech through ``cfg.provider`` and write an MP3 to ``out_path``.
 
-    OpenAI 走官方 SDK；其余服务商按各家公开 REST 接口用内置 urllib 调用，
-    不引入额外依赖。缺少对应 key 时抛出带上下文的异常，由上层记为该行失败。
+    OpenAI uses its official SDK. Other providers use their public REST APIs
+    through built-in urllib without adding dependencies. Missing provider keys
+    produce contextual exceptions for the caller to record as a failed row.
     """
     fn = _SYNTH_DISPATCH.get(cfg.provider)
     if fn is None:
         raise RuntimeError(
-            f"未知 provider: {cfg.provider!r}（可选：{', '.join(_SYNTH_DISPATCH)}）"
+            f"Unknown provider: {cfg.provider!r} (available: {', '.join(_SYNTH_DISPATCH)})"
         )
     audio = fn(cfg, text)
     if not audio:
-        raise RuntimeError(f"{cfg.provider} TTS 返回空音频")
+        raise RuntimeError(f"{cfg.provider} TTS returned empty audio")
     with open(out_path, "wb") as f:
         f.write(audio)
 
 
 def _require_env(name: str) -> str:
-    # 走 config.env_get 以支持环境变量别名（如 Fish 的 FISH_API_KEY / FISHAUDIO_API_KEY）。
+    # config.env_get supports aliases such as FISH_API_KEY and FISHAUDIO_API_KEY.
     val = config.env_get(name)
     if not val:
-        raise RuntimeError(f"缺少环境变量 {name}，无法用该 provider 合成。")
+        raise RuntimeError(f"Environment variable {name} is required for this provider.")
     return val
 
 
 def _http_post(url: str, body: dict, headers: dict, timeout: float = 90.0) -> bytes:
-    """POST JSON，返回原始响应字节。非 2xx 抛出带响应体片段的异常。"""
+    """POST JSON and return raw response bytes; include response excerpts on non-2xx errors."""
     import urllib.error
     import urllib.request
     req = urllib.request.Request(
@@ -157,7 +166,7 @@ def _synth_elevenlabs(cfg: config.TTSConfig, text: str) -> bytes:
     url = (f"https://api.elevenlabs.io/v1/text-to-speech/{voice}"
            f"?output_format=mp3_44100_128")
     body = {"text": text, "model_id": cfg.model or "eleven_multilingual_v2"}
-    # ElevenLabs 返回原始 mp3 字节。
+    # ElevenLabs returns raw MP3 bytes.
     return _http_post(url, body, {"xi-api-key": key, "Accept": "audio/mpeg"})
 
 
@@ -166,7 +175,7 @@ def _synth_fishaudio(cfg: config.TTSConfig, text: str) -> bytes:
     body = {"text": text, "format": "mp3"}
     if cfg.voice:
         body["reference_id"] = cfg.voice
-    # Fish Audio /v1/tts 接受 JSON，直接返回音频字节。
+    # Fish Audio /v1/tts accepts JSON and returns audio bytes directly.
     return _http_post("https://api.fish.audio/v1/tts", body,
                       {"Authorization": f"Bearer {key}"})
 
@@ -184,11 +193,11 @@ def _synth_minimax(cfg: config.TTSConfig, text: str) -> bytes:
     }
     raw = _http_post(url, body, {"Authorization": f"Bearer {key}"})
     data = json.loads(raw)
-    # 返回 JSON，音频为 data.audio（hex 编码）。
+    # The response is JSON with hex-encoded audio at data.audio.
     hexstr = (data.get("data") or {}).get("audio")
     if not hexstr:
         err = data.get("base_resp", {})
-        raise RuntimeError(f"Minimax 无音频返回：{err or data}")
+        raise RuntimeError(f"Minimax returned no audio: {err or data}")
     return bytes.fromhex(hexstr)
 
 
@@ -204,13 +213,13 @@ def _synth_doubao(cfg: config.TTSConfig, text: str) -> bytes:
                   "speed_ratio": cfg.speed},
         "request": {"reqid": str(uuid.uuid4()), "text": text, "operation": "query"},
     }
-    # 火山引擎鉴权头是特殊的 'Bearer;{token}' 形式；音频为 base64 编码的 data 字段。
+    # Volcengine requires the special Bearer;{token} header and returns base64 audio in data.
     raw = _http_post("https://openspeech.bytedance.com/api/v1/tts", body,
                      {"Authorization": f"Bearer;{token}"})
     data = json.loads(raw)
     b64 = data.get("data")
     if not b64:
-        raise RuntimeError(f"豆包无音频返回：code={data.get('code')} "
+        raise RuntimeError(f"Doubao returned no audio: code={data.get('code')} "
                            f"message={data.get('message')}")
     return base64.b64decode(b64)
 
@@ -225,44 +234,43 @@ _SYNTH_DISPATCH = {
 
 
 # ---------------------------------------------------------------------------
-# 2) 时长探测（ffprobe）
+# 2) Duration probing with ffprobe.
 # ---------------------------------------------------------------------------
 def probe_duration(path: str) -> float:
-    """返回音频时长（秒）。ffprobe 缺失或出错时抛异常。"""
+    """Return audio duration in seconds, raising if ffprobe is missing or fails."""
     if shutil.which("ffprobe") is None:
-        raise RuntimeError("未找到 ffprobe，请安装 ffmpeg（macOS: brew install ffmpeg）。")
+        raise RuntimeError("ffprobe was not found; install ffmpeg (macOS: brew install ffmpeg).")
     proc = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", path],
         capture_output=True, text=True,
     )
     if proc.returncode != 0:
-        raise RuntimeError(f"ffprobe 失败: {proc.stderr.strip()}")
+        raise RuntimeError(f"ffprobe failed: {proc.stderr.strip()}")
     out = proc.stdout.strip()
     try:
         return float(out)
     except ValueError:
-        raise RuntimeError(f"ffprobe 输出无法解析为时长: {out!r}")
+        raise RuntimeError(f"Unable to parse ffprobe duration output: {out!r}")
 
 
 # ---------------------------------------------------------------------------
-# 3) 回译（Whisper 转写）
+# 3) Back-transcription with Whisper.
 # ---------------------------------------------------------------------------
-# 用简体中文提示语引导 Whisper 输出简体，避免它偶尔返回繁体导致 CER 被字形差异
-# 虚高（那是转写脚本选择问题，不是 TTS 发音错误）。
-_ZH_PROMPT = "以下是普通话简体中文的句子。"
+# An English prompt guides Whisper toward English output.
+_EN_PROMPT = "This is an English sentence."
 
 
 def transcribe(path: str) -> str:
     with open(path, "rb") as f:
         tr = get_client().audio.transcriptions.create(
-            model=config.WHISPER_MODEL, file=f, language="zh", prompt=_ZH_PROMPT,
+            model=config.WHISPER_MODEL, file=f, language="en", prompt=_EN_PROMPT,
         )
     return tr.text or ""
 
 
 # ---------------------------------------------------------------------------
-# 4) Text normalization + word error rate (English word-level WER)
+# 4) Text normalization and English word-level WER.
 # ---------------------------------------------------------------------------
 _WORD_RE = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
 
@@ -295,8 +303,8 @@ def _edit_distance(a: list[str], b: list[str]) -> int:
 
 @dataclass
 class ErrorRate:
-    wer: float          # word error rate = edits / reference word count
-    accuracy: float     # word accuracy = 1 - wer (minimum 0)
+    wer: float          # Word error rate: edits divided by reference word count.
+    accuracy: float     # Word accuracy: 1 - WER, floored at zero.
     edits: int
     ref_len: int
 
@@ -312,61 +320,67 @@ def word_error_rate(reference: str, hypothesis: str) -> ErrorRate:
 
 
 # ---------------------------------------------------------------------------
-# 5) LLM Rubric 评审（默认，OpenAI 闭环）
+# 5) LLM rubric evaluation (the default closed loop through OpenAI).
 # ---------------------------------------------------------------------------
-RUBRIC_DIMENSIONS = ["清晰度", "自然度", "停顿节奏", "整体"]
+RUBRIC_DIMENSIONS = ["clarity", "naturalness", "pacing", "overall"]
 
-# 维度说明（供 --dump-rubric 离线打印，也是评审 prompt 的依据）。括号内标注与书中
-# 四维度（准确性 / 自然度 / 情感表达 / 音色一致性）的对应关系。
+# Dimension descriptions support --dump-rubric and the evaluation prompt.
+# The default back-transcription judge cannot hear the audio, so it cannot
+# directly assess emotional expression or voice consistency. Gemini can listen
+# to audio with --gemini; voice consistency would additionally need a reference
+# voice, which this demo does not provide.
 RUBRIC_DESCRIPTIONS = {
-    "清晰度": "转写与原文是否高度一致，漏字/错字/多字越多分越低（对应书中「准确性」）。",
-    "自然度": "语速是否接近自然朗读（中文约 4-6 字/秒），过快>7 或过慢<3 都不自然。",
-    "停顿节奏": "结合语速与文本长度判断停顿/节奏是否合理，过快通常意味吞字、节奏差。",
-    "整体": "综合以上给出的总体印象分。",
+    "clarity": "How closely the transcription matches the reference text; omissions, substitutions, and insertions reduce the score.",
+    "naturalness": "Whether speaking rate is near natural English delivery (roughly 2–3 words per second); much faster or slower speech is less natural.",
+    "pacing": "Whether pauses and rhythm suit the text length and speaking rate; excessive speed often suggests swallowed words and weak pacing.",
+    "overall": "Overall quality impression based on the other dimensions.",
 }
-# 说明：默认（回译）评审看不到音频，无法覆盖书中「情感表达 / 音色一致性」；这两维需
-# 多模态直接听音频，用 --gemini 复现（音色一致性还需参考语音，本 demo 未提供）。
 
-_JUDGE_SYSTEM = """你是严格的 TTS（文本转语音）质量评审专家。
-你将拿到：原始参考文本、该文本的期望情感、由 Whisper 对合成语音回译得到的转写文本，
-以及从音频客观测得的时长、语速（字/秒）和字错误率（CER）。
-请据此对合成语音质量按 Rubric 逐维度打分（1-5 的整数，5 最好）：
+_JUDGE_SYSTEM = """You are a strict text-to-speech quality evaluation expert.
+You receive the original reference text, expected emotion, Whisper transcript of
+the synthesized speech, measured audio duration, speaking rate in words per
+second, and word error rate (WER). Score synthesized-speech quality from 1 to 5
+(5 is best) for each rubric dimension:
 
-- 清晰度：转写与原文是否高度一致（漏字/错字/多字越多分越低；CER 越高分越低）。
-- 自然度：语速是否接近自然朗读（中文自然朗读约 4-6 字/秒；过快>7 或过慢<3 都不自然）。
-- 停顿节奏：结合语速与文本长度，判断停顿/节奏是否合理（过快通常意味着吞字、节奏差）。
-- 整体：综合以上给出的总体印象分。
+- clarity: how closely the transcript matches the reference; more omissions,
+  substitutions, or insertions, and higher WER, reduce the score.
+- naturalness: whether the rate is close to natural English reading, roughly
+  2–3 words per second; rates much faster or slower are less natural.
+- pacing: whether pauses and rhythm are appropriate for the text length and
+  rate; excessive speed often indicates swallowed words and weak pacing.
+- overall: the overall quality impression based on the preceding dimensions.
 
-注意：你看不到音频本身，只能基于以上可测特征做保守、可解释的判断。
-只输出 JSON，格式：
-{"清晰度": {"score": int, "reason": str},
- "自然度": {"score": int, "reason": str},
- "停顿节奏": {"score": int, "reason": str},
- "整体": {"score": int, "reason": str}}
-reason 用一句简短中文说明。"""
+You cannot hear the audio itself. Make conservative, explainable judgments
+using only the supplied measurements. Output JSON only, in exactly this form:
+{"clarity": {"score": int, "reason": str},
+ "naturalness": {"score": int, "reason": str},
+ "pacing": {"score": int, "reason": str},
+ "overall": {"score": int, "reason": str}}
+Each reason must be a short English sentence."""
 
 
 @dataclass
 class RubricResult:
-    scores: dict            # 维度 -> int
-    reasons: dict           # 维度 -> str
+    scores: dict            # Dimension name -> integer score.
+    reasons: dict           # Dimension name -> reason string.
     raw: str = ""
 
 
 def judge_rubric(reference: str, emotion: str, hypothesis: str,
-                 duration: float, cer: float, model: Optional[str] = None) -> RubricResult:
-    """用评审模型（默认 gpt-5.6-luna）按 Rubric 打分。返回结构化分数 + 点评。
+                 duration: float, wer: float, model: Optional[str] = None) -> RubricResult:
+    """Score a transcript against the English rubric using the evaluation model.
 
-    评审 chat 调用支持 OpenRouter 回退（见 get_judge_client_and_model）。"""
-    chars = len(normalize(reference))
-    speed = chars / duration if duration > 0 else 0.0
+    The chat request can fall back to OpenRouter (see get_judge_client_and_model).
+    """
+    words = len(normalize_words(reference))
+    speed = words / duration if duration > 0 else 0.0
     user = (
-        f"原始参考文本：{reference}\n"
-        f"期望情感：{emotion}\n"
-        f"Whisper 回译文本：{hypothesis}\n"
-        f"音频时长：{duration:.2f} 秒\n"
-        f"语速：{speed:.2f} 字/秒（参考文本 {chars} 个有效字符）\n"
-        f"字错误率 CER：{cer:.3f}\n"
+        f"Reference text: {reference}\n"
+        f"Expected emotion: {emotion}\n"
+        f"Whisper transcript: {hypothesis}\n"
+        f"Audio duration: {duration:.2f} seconds\n"
+        f"Speaking rate: {speed:.2f} words/second ({words} reference words)\n"
+        f"Word error rate (WER): {wer:.3f}\n"
     )
     judge_client, judge_model = get_judge_client_and_model(model or config.JUDGE_MODEL)
     resp = judge_client.chat.completions.create(
@@ -382,19 +396,19 @@ def judge_rubric(reference: str, emotion: str, hypothesis: str,
     for dim in RUBRIC_DIMENSIONS:
         item = data.get(dim, {})
         if isinstance(item, dict):
-            scores[dim] = int(item.get("score") or 0)   # score 缺失或为 null 时按 0 分
+            scores[dim] = int(item.get("score") or 0)  # Missing or null scores become zero.
             reasons[dim] = str(item.get("reason", "")).strip()
-        else:  # 兼容模型直接返回数字（null 按 0 分）
+        else:  # Also accept a direct numeric score; null becomes zero.
             scores[dim] = int(item or 0)
             reasons[dim] = ""
     return RubricResult(scores=scores, reasons=reasons, raw=raw)
 
 
 # ---------------------------------------------------------------------------
-# 6) 可选：Gemini 多模态音频评审（书中方案）。用 REST，避免额外 SDK 依赖。
+# 6) Optional Gemini multimodal audio evaluation. REST avoids another SDK.
 # ---------------------------------------------------------------------------
 def _resolve_gemini_model(api_key: str) -> str:
-    """探测当前可用的 Gemini 模型，避免默认名过期。"""
+    """Discover a currently available Gemini model so an expired default can be avoided."""
     import urllib.request
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
@@ -402,12 +416,12 @@ def _resolve_gemini_model(api_key: str) -> str:
             data = json.loads(r.read())
         names = [m["name"].split("/")[-1] for m in data.get("models", [])
                  if "generateContent" in m.get("supportedGenerationMethods", [])]
-        # 优先默认的 gemini-3.5-flash（已验证支持音频输入），再退到 pro / 旧 flash 系列。
+        # Prefer the verified audio-capable default, then Pro or older Flash models.
         for want in (config.GEMINI_MODEL_DEFAULT, "gemini-3.5-flash",
                      "gemini-2.5-pro", "gemini-2.5-flash", "gemini-flash-latest"):
             if want in names:
                 return want
-        # 退而求其次：任意非 tts/image 的可用模型
+        # Last resort: any available model that is not TTS, image, or embedding-only.
         for n in names:
             if "tts" not in n and "image" not in n and "embedding" not in n:
                 return n
@@ -417,23 +431,25 @@ def _resolve_gemini_model(api_key: str) -> str:
 
 
 def judge_gemini_audio(reference: str, emotion: str, audio_path: str) -> RubricResult:
-    """把合成音频 + 原文 + Rubric 一起交给 Gemini 多模态直接「听」并打分。
+    """Have Gemini listen directly to synthesized audio and score the English rubric.
 
-    需要 GEMINI_API_KEY。默认关闭；--gemini 开启。失败抛异常由上层记为失败。
+    Requires GEMINI_API_KEY and is disabled unless --gemini is selected.
+    Failures raise contextual exceptions for the caller to record as failed rows.
     """
     import urllib.request
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("缺少 GEMINI_API_KEY，无法使用 Gemini 音频评审。")
+        raise RuntimeError("GEMINI_API_KEY is required for Gemini audio evaluation.")
     model = _resolve_gemini_model(key)
     with open(audio_path, "rb") as f:
         audio_b64 = base64.b64encode(f.read()).decode()
     prompt = (
-        "你是 TTS 质量评审专家。请直接聆听下面这段合成语音，对照原始文本与期望情感，"
-        "按 1-5 分为四个维度打分并给出简短理由，只输出 JSON："
-        '{"清晰度":{"score":int,"reason":str},"自然度":{"score":int,"reason":str},'
-        '"停顿节奏":{"score":int,"reason":str},"整体":{"score":int,"reason":str}}\n'
-        f"原始文本：{reference}\n期望情感：{emotion}"
+        "You are a TTS quality evaluation expert. Listen directly to the synthesized audio "
+        "below, compare it with the reference text and expected emotion, and score four "
+        "dimensions from 1 to 5 with short English reasons. Output JSON only: "
+        '{"clarity":{"score":int,"reason":str},"naturalness":{"score":int,"reason":str},'
+        '"pacing":{"score":int,"reason":str},"overall":{"score":int,"reason":str}}\n'
+        f"Reference text: {reference}\nExpected emotion: {emotion}"
     )
     body = {
         "contents": [{"parts": [
@@ -450,18 +466,20 @@ def judge_gemini_audio(reference: str, emotion: str, audio_path: str) -> RubricR
     )
     with urllib.request.urlopen(req, timeout=90) as r:
         data = json.loads(r.read())
-    # Gemini 在安全拦截时不返回 candidates（或 candidate 无 content/parts），
-    # 防御式取值并给出带 promptFeedback 的清晰错误，交由上层记为该条失败。
+    # Safety blocks may omit candidates, content, or parts; provide a contextual
+    # error instead of leaking a KeyError or IndexError to the caller.
     candidates = data.get("candidates") or []
     parts = []
     if candidates:
         parts = (candidates[0].get("content") or {}).get("parts") or []
     if not parts or not parts[0].get("text"):
-        raise RuntimeError(f"Gemini 未返回评审文本：{data.get('promptFeedback') or data}")
+        raise RuntimeError(
+            f"Gemini did not return evaluation text: {data.get('promptFeedback') or data}"
+        )
     text = parts[0]["text"]
     parsed = json.loads(text)
     scores, reasons = {}, {}
-    # 评审 JSON 的 score 字段缺失或为 null 时按 0 分处理，与 judge_rubric 一致
+    # Missing or null scores become zero, consistently with judge_rubric.
     for dim in RUBRIC_DIMENSIONS:
         item = parsed.get(dim, {})
         scores[dim] = int(item.get("score") or 0) if isinstance(item, dict) else int(item or 0)
