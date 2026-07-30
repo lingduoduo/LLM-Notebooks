@@ -313,7 +313,9 @@ def word_error_rate(reference: str, hypothesis: str) -> ErrorRate:
     ref = normalize_words(reference)
     hyp = normalize_words(hypothesis)
     if not ref:
-        return ErrorRate(0.0, 1.0, 0, 0)
+        if not hyp:
+            return ErrorRate(0.0, 1.0, 0, 0)
+        return ErrorRate(1.0, 0.0, len(hyp), 0)
     dist = _edit_distance(ref, hyp)
     wer = dist / len(ref)
     return ErrorRate(wer=wer, accuracy=max(0.0, 1.0 - wer), edits=dist, ref_len=len(ref))
@@ -361,9 +363,31 @@ Each reason must be a short English sentence."""
 
 @dataclass
 class RubricResult:
-    scores: dict            # Dimension name -> integer score.
-    reasons: dict           # Dimension name -> reason string.
+    scores: dict[str, int]  # Dimension name -> integer score.
+    reasons: dict[str, str]  # Dimension name -> reason string.
     raw: str = ""
+
+
+def _valid_rubric_score(value: object) -> int:
+    """Return a valid 1--5 integer rubric score, or zero as the missing-data sentinel."""
+    return value if type(value) is int and 1 <= value <= 5 else 0
+
+
+def parse_rubric_response(data: object, raw: str) -> RubricResult:
+    """Normalize LLM and Gemini rubric JSON into bounded scores and safe reasons."""
+    response = data if isinstance(data, dict) else {}
+    scores: dict[str, int] = {}
+    reasons: dict[str, str] = {}
+    for dim in RUBRIC_DIMENSIONS:
+        item = response.get(dim)
+        if isinstance(item, dict):
+            scores[dim] = _valid_rubric_score(item.get("score"))
+            reason = item.get("reason", "")
+            reasons[dim] = reason.strip() if isinstance(reason, str) else ""
+        else:
+            scores[dim] = _valid_rubric_score(item)
+            reasons[dim] = ""
+    return RubricResult(scores=scores, reasons=reasons, raw=raw)
 
 
 def judge_rubric(reference: str, emotion: str, hypothesis: str,
@@ -392,16 +416,7 @@ def judge_rubric(reference: str, emotion: str, hypothesis: str,
     )
     raw = resp.choices[0].message.content or "{}"
     data = json.loads(raw)
-    scores, reasons = {}, {}
-    for dim in RUBRIC_DIMENSIONS:
-        item = data.get(dim, {})
-        if isinstance(item, dict):
-            scores[dim] = int(item.get("score") or 0)  # Missing or null scores become zero.
-            reasons[dim] = str(item.get("reason", "")).strip()
-        else:  # Also accept a direct numeric score; null becomes zero.
-            scores[dim] = int(item or 0)
-            reasons[dim] = ""
-    return RubricResult(scores=scores, reasons=reasons, raw=raw)
+    return parse_rubric_response(data, raw)
 
 
 # ---------------------------------------------------------------------------
@@ -443,10 +458,16 @@ def judge_gemini_audio(reference: str, emotion: str, audio_path: str) -> RubricR
     model = _resolve_gemini_model(key)
     with open(audio_path, "rb") as f:
         audio_b64 = base64.b64encode(f.read()).decode()
+    rubric = "\n".join(
+        f"- {dim}: {RUBRIC_DESCRIPTIONS[dim]}" for dim in RUBRIC_DIMENSIONS
+    )
     prompt = (
         "You are a TTS quality evaluation expert. Listen directly to the synthesized audio "
         "below, compare it with the reference text and expected emotion, and score four "
-        "dimensions from 1 to 5 with short English reasons. Output JSON only: "
+        "dimensions from 1 to 5 with short English reasons. Use this rubric:\n"
+        f"{rubric}\n"
+        "Use roughly 2–3 words per second as the natural-English reading-rate guide. "
+        "Output JSON only: "
         '{"clarity":{"score":int,"reason":str},"naturalness":{"score":int,"reason":str},'
         '"pacing":{"score":int,"reason":str},"overall":{"score":int,"reason":str}}\n'
         f"Reference text: {reference}\nExpected emotion: {emotion}"
@@ -478,10 +499,4 @@ def judge_gemini_audio(reference: str, emotion: str, audio_path: str) -> RubricR
         )
     text = parts[0]["text"]
     parsed = json.loads(text)
-    scores, reasons = {}, {}
-    # Missing or null scores become zero, consistently with judge_rubric.
-    for dim in RUBRIC_DIMENSIONS:
-        item = parsed.get(dim, {})
-        scores[dim] = int(item.get("score") or 0) if isinstance(item, dict) else int(item or 0)
-        reasons[dim] = str(item.get("reason", "")).strip() if isinstance(item, dict) else ""
-    return RubricResult(scores=scores, reasons=reasons, raw=text)
+    return parse_rubric_response(parsed, text)

@@ -37,7 +37,7 @@ the CLI output and `results.json`.
 - TTS synthesis is implemented for multiple providers (OpenAI via SDK, others via REST).
 - Default run covers 4 OpenAI configurations with only `OPENAI_API_KEY`.
 - `--providers` enables cross-provider comparisons.
-- Missing key -> that provider is skipped; the benchmark continues.
+- A missing provider-specific key records each affected configuration/sample cell as failed; the benchmark continues.
 
 ### Judge/backend details
 
@@ -75,10 +75,12 @@ python demo.py --dump-rubric
 ```
 
 Outputs are under `output/` (audio) and `output/results.json` (structured results).
+Audio cache filenames include a stable hash of the reference text, so changed corpus
+or `--text` input is synthesized again without requiring `--fresh`.
 
 ### Robustness notes
 
-- Required-key (`OPENAI_API_KEY`) and ffprobe checks fail fast with clear instructions; a provider-specific missing key only marks that provider's cells as failed without stopping the run.
+- A missing `OPENAI_API_KEY` stops before the run because transcription always uses OpenAI. Missing `ffprobe` or a provider-specific key is recorded as a failed cell, while the remaining cells continue.
 - A single failed (provider, text) cell does not stop the full run.
 - OpenAI SDK is configured with retries.
 
