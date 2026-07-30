@@ -11,9 +11,11 @@ and urllib.request.urlopen is monkeypatched for the Gemini REST call.
 """
 import io
 import json
+from types import SimpleNamespace
 
 import pytest
 
+import demo
 import pipeline
 
 
@@ -68,6 +70,69 @@ def test_word_error_rate_counts_word_edits():
 def test_word_error_rate_empty_reference_is_perfect():
     assert pipeline.word_error_rate("", "").wer == 0.0
     assert pipeline.word_error_rate("", "").accuracy == 1.0
+
+
+def test_evaluate_one_reports_word_metrics_without_legacy_character_fields(monkeypatch, tmp_path):
+    """The CLI record exposes WER-derived word metrics to downstream JSON consumers."""
+    cfg = SimpleNamespace(name="test-config", provider="openai")
+    sample = SimpleNamespace(
+        id="test-sample",
+        text="One two three four",
+        challenge="word metric fixture",
+        emotion="neutral",
+    )
+    captured = {}
+
+    monkeypatch.setattr(demo, "audio_path", lambda *_: str(tmp_path / "clip.mp3"))
+    monkeypatch.setattr(pipeline, "synthesize", lambda *_: None)
+    monkeypatch.setattr(pipeline, "probe_duration", lambda _: 4.0)
+    monkeypatch.setattr(pipeline, "transcribe", lambda _: "One two three")
+    monkeypatch.setattr(
+        pipeline,
+        "word_error_rate",
+        lambda *_: pipeline.ErrorRate(wer=0.25, accuracy=0.75, edits=1, ref_len=4),
+    )
+
+    def judge(reference, emotion, hypothesis, duration, wer, model=None):
+        captured["wer"] = wer
+        return pipeline.RubricResult(
+            scores={"clarity": 4, "naturalness": 4, "pacing": 4, "overall": 4},
+            reasons={"clarity": "Clear.", "naturalness": "Natural.",
+                     "pacing": "Even.", "overall": "Strong."},
+        )
+
+    monkeypatch.setattr(pipeline, "judge_rubric", judge)
+
+    record = demo.evaluate_one(cfg, sample, use_gemini=False, fresh=True)
+
+    assert captured["wer"] == pytest.approx(0.25)
+    assert record["wer"] == pytest.approx(0.25)
+    assert record["word_accuracy"] == pytest.approx(0.75)
+    assert record["words_per_second"] == pytest.approx(1.0)
+    assert "cer" not in record
+    assert "accuracy" not in record
+    assert "speed" not in record
+
+
+def test_summarize_sorts_descending_overall_then_ascending_wer():
+    """Configuration summaries prefer higher overall scores, then lower WER."""
+    records = [
+        {"config": "tie-higher-wer", "ok": True, "wer": 0.30,
+         "word_accuracy": 0.70, "words_per_second": 2.0,
+         "scores": {"clarity": 4, "naturalness": 4, "pacing": 4, "overall": 5}},
+        {"config": "lower-overall", "ok": True, "wer": 0.00,
+         "word_accuracy": 1.00, "words_per_second": 2.0,
+         "scores": {"clarity": 5, "naturalness": 5, "pacing": 5, "overall": 4}},
+        {"config": "tie-lower-wer", "ok": True, "wer": 0.10,
+         "word_accuracy": 0.90, "words_per_second": 2.0,
+         "scores": {"clarity": 4, "naturalness": 4, "pacing": 4, "overall": 5}},
+    ]
+
+    rows = demo.summarize(records)
+
+    assert [row["config"] for row in rows] == [
+        "tie-lower-wer", "tie-higher-wer", "lower-overall"
+    ]
 
 
 def test_judge_rubric_tolerates_null_score(monkeypatch):
