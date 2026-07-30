@@ -1,0 +1,3 @@
+openai>=1.40.0
+# No other third-party packages are needed: ffprobe uses a system command, and
+# optional Gemini evaluation uses the standard-library urllib REST client.
