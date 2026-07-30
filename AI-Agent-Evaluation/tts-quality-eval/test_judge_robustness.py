@@ -1,5 +1,5 @@
 """
-Regression tests for judge-response robustness (实验 6-5 TTS 质量评估).
+Regression tests for judge-response robustness (Experiment 6-5 TTS quality evaluation).
 
 Covers two failure classes on LLM/Gemini judge responses:
   - judge_rubric: judge returns "score": null (or a bare null dimension) -> int(None) TypeError
@@ -73,23 +73,23 @@ def test_word_error_rate_empty_reference_is_perfect():
 def test_judge_rubric_tolerates_null_score(monkeypatch):
     """'score': null in a dimension dict is scored 0, not int(None) TypeError."""
     _stub_judge(monkeypatch, {
-        "清晰度": {"score": None, "reason": "无法判断"},
-        "自然度": {"score": 4, "reason": "语速正常"},
-        "停顿节奏": {"score": 3},
-        "整体": {"score": 5, "reason": "总体可用"},
+        "clarity": {"score": None, "reason": "Unable to determine"},
+        "naturalness": {"score": 4, "reason": "The speaking rate is natural"},
+        "pacing": {"score": 3},
+        "overall": {"score": 5, "reason": "Usable overall"},
     })
-    rub = pipeline.judge_rubric("原文文本", "中性", "回译文本", 3.0, 0.05)
-    assert rub.scores["清晰度"] == 0
-    assert rub.scores["自然度"] == 4
-    assert rub.scores["整体"] == 5
+    rub = pipeline.judge_rubric("Reference text", "neutral", "Transcript text", 3.0, 0.05)
+    assert rub.scores["clarity"] == 0
+    assert rub.scores["naturalness"] == 4
+    assert rub.scores["overall"] == 5
 
 
 def test_judge_rubric_tolerates_null_dimension(monkeypatch):
     """A bare null dimension (non-dict) is scored 0, not int(None) TypeError."""
-    _stub_judge(monkeypatch, {"清晰度": None, "自然度": 4, "停顿节奏": 3, "整体": 5})
-    rub = pipeline.judge_rubric("原文文本", "中性", "回译文本", 3.0, 0.05)
-    assert rub.scores["清晰度"] == 0
-    assert rub.scores["自然度"] == 4
+    _stub_judge(monkeypatch, {"clarity": None, "naturalness": 4, "pacing": 3, "overall": 5})
+    rub = pipeline.judge_rubric("Reference text", "neutral", "Transcript text", 3.0, 0.05)
+    assert rub.scores["clarity"] == 0
+    assert rub.scores["naturalness"] == 4
 
 
 class _FakeHTTPResp(io.BytesIO):
@@ -108,32 +108,32 @@ def _stub_gemini(monkeypatch, payload: dict):
 
 
 @pytest.mark.parametrize("payload", [
-    {"promptFeedback": {"blockReason": "SAFETY"}},      # prompt 被拦截：无 candidates
-    {"candidates": []},                                  # 生成被拦截：空 candidates
-    {"candidates": [{"finishReason": "SAFETY", "index": 0}]},  # candidate 无 content
+    {"promptFeedback": {"blockReason": "SAFETY"}},      # Prompt blocked: no candidates.
+    {"candidates": []},                                    # Generation blocked: empty candidates.
+    {"candidates": [{"finishReason": "SAFETY", "index": 0}]},  # Candidate has no content.
 ])
 def test_judge_gemini_audio_blocked_raises_clear_error(monkeypatch, tmp_path, payload):
     """Blocked/empty Gemini responses raise a clear RuntimeError, not KeyError/IndexError."""
     _stub_gemini(monkeypatch, payload)
     audio = tmp_path / "a.mp3"
     audio.write_bytes(b"\xff\xfb" + b"\x00" * 256)
-    with pytest.raises(RuntimeError, match="Gemini 未返回评审文本"):
-        pipeline.judge_gemini_audio("原文", "中性", str(audio))
+    with pytest.raises(RuntimeError, match="Gemini did not return evaluation text"):
+        pipeline.judge_gemini_audio("Reference text", "neutral", str(audio))
 
 
 def test_judge_gemini_audio_parses_valid_response(monkeypatch, tmp_path):
     """A normal Gemini response still parses (defensive navigation keeps working)."""
-    inner = json.dumps({"清晰度": {"score": 4, "reason": "ok"}, "自然度": 4,
-                        "停顿节奏": None, "整体": {"score": 5}}, ensure_ascii=False)
+    inner = json.dumps({"clarity": {"score": 4, "reason": "ok"}, "naturalness": 4,
+                        "pacing": None, "overall": {"score": 5}})
     _stub_gemini(monkeypatch, {
         "candidates": [{"content": {"parts": [{"text": inner}]}}],
     })
     audio = tmp_path / "a.mp3"
     audio.write_bytes(b"\xff\xfb" + b"\x00" * 256)
-    rub = pipeline.judge_gemini_audio("原文", "中性", str(audio))
-    assert rub.scores["清晰度"] == 4
-    assert rub.scores["停顿节奏"] == 0   # null score -> 0
-    assert rub.scores["整体"] == 5
+    rub = pipeline.judge_gemini_audio("Reference text", "neutral", str(audio))
+    assert rub.scores["clarity"] == 4
+    assert rub.scores["pacing"] == 0   # Null score becomes 0.
+    assert rub.scores["overall"] == 5
 
 
 if __name__ == "__main__":
