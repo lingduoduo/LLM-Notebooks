@@ -262,18 +262,18 @@ def transcribe(path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4) 文本归一化 + 词错误率（英语用词级 WER）
+# 4) Text normalization + word error rate (English word-level WER)
 # ---------------------------------------------------------------------------
 _WORD_RE = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
 
 
 def normalize_words(text: str) -> list[str]:
-    """将英语文本标准化为小写词元，保留词内的撇号。"""
+    """Normalize English text to lowercase tokens, preserving inner apostrophes."""
     return _WORD_RE.findall(text.lower())
 
 
 def _edit_distance(a: list[str], b: list[str]) -> int:
-    """Levenshtein 距离（词级）。"""
+    """Compute word-level Levenshtein distance."""
     if a == b:
         return 0
     if not a:
@@ -285,9 +285,9 @@ def _edit_distance(a: list[str], b: list[str]) -> int:
         cur = [i]
         for j, cb in enumerate(b, 1):
             cur.append(min(
-                prev[j] + 1,        # 删除
-                cur[j - 1] + 1,     # 插入
-                prev[j - 1] + (ca != cb),  # 替换
+                prev[j] + 1,        # deletion
+                cur[j - 1] + 1,     # insertion
+                prev[j - 1] + (ca != cb),  # substitution
             ))
         prev = cur
     return prev[-1]
@@ -295,8 +295,8 @@ def _edit_distance(a: list[str], b: list[str]) -> int:
 
 @dataclass
 class ErrorRate:
-    wer: float          # 词错误率 = 编辑距离 / 参考词数
-    accuracy: float     # 词准确率 = 1 - wer（下限 0）
+    wer: float          # word error rate = edits / reference word count
+    accuracy: float     # word accuracy = 1 - wer (minimum 0)
     edits: int
     ref_len: int
 
