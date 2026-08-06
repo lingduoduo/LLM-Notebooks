@@ -34,6 +34,13 @@ import config
 _client: Optional[OpenAI] = None
 
 
+def _new_openai_client(api_key: str, base_url: str | None = None) -> OpenAI:
+    kwargs = {"api_key": api_key, "max_retries": 5, "timeout": 60.0}
+    if base_url is not None:
+        kwargs["base_url"] = base_url
+    return OpenAI(**kwargs)
+
+
 def get_client() -> OpenAI:
     """Return the direct OpenAI client for TTS synthesis and Whisper transcription."""
     global _client
@@ -44,7 +51,7 @@ def get_client() -> OpenAI:
                 "OPENAI_API_KEY is required for direct OpenAI TTS synthesis and Whisper transcription. "
                 "Run `export OPENAI_API_KEY=sk-...` or add it to .env."
             )
-        _client = OpenAI(api_key=key, max_retries=5, timeout=60.0)
+        _client = _new_openai_client(key)
     return _client
 
 
@@ -88,18 +95,17 @@ def get_judge_client_and_model(model: str):
 
     if not prefer_or and primary:
         if _judge_client_kind != "openai":
-            _judge_client = OpenAI(api_key=primary, max_retries=5, timeout=60.0)
+            _judge_client = _new_openai_client(primary)
             _judge_client_kind = "openai"
         return _judge_client, model
     if orkey:
         if _judge_client_kind != "openrouter":
-            _judge_client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=orkey,
-                                   max_retries=5, timeout=60.0)
+            _judge_client = _new_openai_client(orkey, OPENROUTER_BASE_URL)
             _judge_client_kind = "openrouter"
         return _judge_client, _to_openrouter_model(model)
     if primary:
         if _judge_client_kind != "openai":
-            _judge_client = OpenAI(api_key=primary, max_retries=5, timeout=60.0)
+            _judge_client = _new_openai_client(primary)
             _judge_client_kind = "openai"
         return _judge_client, model
     raise RuntimeError(
@@ -390,6 +396,16 @@ def parse_rubric_response(data: object, raw: str) -> RubricResult:
     return RubricResult(scores=scores, reasons=reasons, raw=raw)
 
 
+def _rubric_from_json(raw: str) -> RubricResult:
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Judge returned invalid JSON: {raw[:300]}") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Judge returned JSON object expected: {raw[:300]}")
+    return parse_rubric_response(data, raw)
+
+
 def judge_rubric(reference: str, emotion: str, hypothesis: str,
                  duration: float, wer: float, model: Optional[str] = None) -> RubricResult:
     """Score a transcript against the English rubric using the evaluation model.
@@ -415,8 +431,7 @@ def judge_rubric(reference: str, emotion: str, hypothesis: str,
         response_format={"type": "json_object"},
     )
     raw = resp.choices[0].message.content or "{}"
-    data = json.loads(raw)
-    return parse_rubric_response(data, raw)
+    return _rubric_from_json(raw)
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +458,20 @@ def _resolve_gemini_model(api_key: str) -> str:
     except Exception:
         pass
     return config.GEMINI_MODEL_DEFAULT
+
+
+def _gemini_response_text(data: object) -> str:
+    if isinstance(data, dict):
+        candidates = data.get("candidates")
+        if isinstance(candidates, list) and candidates:
+            candidate = candidates[0]
+            content = candidate.get("content") if isinstance(candidate, dict) else None
+            parts = content.get("parts") if isinstance(content, dict) else None
+            if isinstance(parts, list):
+                for part in parts:
+                    if isinstance(part, dict) and isinstance(part.get("text"), str):
+                        return part["text"]
+    raise RuntimeError(f"Gemini did not return evaluation text: {str(data)[:300]}")
 
 
 def judge_gemini_audio(reference: str, emotion: str, audio_path: str) -> RubricResult:
@@ -487,16 +516,5 @@ def judge_gemini_audio(reference: str, emotion: str, audio_path: str) -> RubricR
     )
     with urllib.request.urlopen(req, timeout=90) as r:
         data = json.loads(r.read())
-    # Safety blocks may omit candidates, content, or parts; provide a contextual
-    # error instead of leaking a KeyError or IndexError to the caller.
-    candidates = data.get("candidates") or []
-    parts = []
-    if candidates:
-        parts = (candidates[0].get("content") or {}).get("parts") or []
-    if not parts or not parts[0].get("text"):
-        raise RuntimeError(
-            f"Gemini did not return evaluation text: {data.get('promptFeedback') or data}"
-        )
-    text = parts[0]["text"]
-    parsed = json.loads(text)
-    return parse_rubric_response(parsed, text)
+    text = _gemini_response_text(data)
+    return _rubric_from_json(text)

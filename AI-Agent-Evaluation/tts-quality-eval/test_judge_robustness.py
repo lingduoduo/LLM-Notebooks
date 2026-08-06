@@ -51,6 +51,67 @@ def _stub_judge(monkeypatch, payload: dict):
         pipeline, "get_judge_client_and_model", lambda model=None: (_FakeClient(), "fake-judge"))
 
 
+def test_get_judge_client_reuses_matching_backend(monkeypatch):
+    """Matching direct-OpenAI judge calls reuse their configured client."""
+    created = []
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            created.append(kwargs)
+
+    monkeypatch.setattr(pipeline, "OpenAI", FakeOpenAI)
+    monkeypatch.setattr(pipeline, "_judge_client", None)
+    monkeypatch.setattr(pipeline, "_judge_client_kind", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    first, first_model = pipeline.get_judge_client_and_model("gpt-4.1")
+    second, second_model = pipeline.get_judge_client_and_model("gpt-4.1-mini")
+
+    assert first is second
+    assert (first_model, second_model) == ("gpt-4.1", "gpt-4.1-mini")
+    assert created == [{"api_key": "openai-key", "max_retries": 5, "timeout": 60.0}]
+
+
+def test_get_judge_client_switches_to_openrouter_and_preserves_native_model(monkeypatch):
+    """A gpt-5 model selects OpenRouter and retains an already-native model ID."""
+    created = []
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            created.append(kwargs)
+
+    monkeypatch.setattr(pipeline, "OpenAI", FakeOpenAI)
+    monkeypatch.setattr(pipeline, "_judge_client", None)
+    monkeypatch.setattr(pipeline, "_judge_client_kind", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
+
+    direct, direct_model = pipeline.get_judge_client_and_model("gpt-4.1")
+    monkeypatch.delenv("OPENAI_API_KEY")
+    routed, routed_model = pipeline.get_judge_client_and_model("openai/gpt-5.6-luna")
+
+    assert direct is not routed
+    assert (direct_model, routed_model) == ("gpt-4.1", "openai/gpt-5.6-luna")
+    assert created == [
+        {"api_key": "openai-key", "max_retries": 5, "timeout": 60.0},
+        {"api_key": "openrouter-key", "max_retries": 5, "timeout": 60.0,
+         "base_url": pipeline.OPENROUTER_BASE_URL},
+    ]
+
+
+def test_rubric_from_json_rejects_non_object_root():
+    """A JSON array cannot be normalized as a rubric response."""
+    with pytest.raises(RuntimeError, match="JSON object"):
+        pipeline._rubric_from_json("[]")
+
+
+def test_gemini_response_text_returns_first_text_part():
+    """Gemini responses use the first available text part as their rubric payload."""
+    data = {"candidates": [{"content": {"parts": [{"text": "rubric-json"}]}}]}
+    assert pipeline._gemini_response_text(data) == "rubric-json"
+
+
 def test_normalize_words_handles_case_punctuation_and_contractions():
     assert pipeline.normalize_words("Hello, WORLD! Don't stop.") == [
         "hello", "world", "don't", "stop"
