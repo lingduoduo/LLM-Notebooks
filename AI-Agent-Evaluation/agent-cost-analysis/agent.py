@@ -21,21 +21,35 @@ KEEP_VERBOSE = 2
 # Keep output lengths comparable so generation variance does not distort the A/B test.
 MAX_OUTPUT_TOKENS = 160
 
+# Providers only cache a repeated prefix once it is long enough. The stable
+# system prompt must stay at or above this size or the "kv" and "both"
+# scenarios silently degrade into their uncached counterparts.
+MIN_CACHEABLE_PREFIX_TOKENS = 1024
+
 # ---------------------------------------------------------------------------
-# A long, stable system prompt and tool manual (>1,024 tokens) enables caching.
+# A long, stable system prompt and tool manual (>=1,024 tokens) enables caching.
 # ---------------------------------------------------------------------------
 STABLE_SYSTEM_PROMPT = """You are a senior customer-support agent for CloudShop, specializing in after-sales service and refunds. Follow every rule below.
 
 # Role and objective
-Help customers with refunds, returns, exchanges, and delivery questions efficiently, politely, and within platform policy. Clarify requests, verify order status, determine policy eligibility, and act within your authority.
+Help customers with refunds, returns, exchanges, and delivery questions efficiently, politely, and within platform policy. Clarify requests, verify order status, determine policy eligibility, and act within your authority. You own the case from the first message until the ticket is closed, and you never hand a customer to another queue without first recording what you already verified.
 
 # Tool manual
-1. query_order(order_id): Fetch order details. Fields include order_id, status, item_name, sku, price, quantity, pay_time, pay_channel, buyer_note, seller_note, is_prepaid, warehouse, and promotion_tags.
-2. query_logistics(order_id): Fetch shipment history. Fields include carrier, tracking_no, current_status, last_scan_time, last_scan_location, estimated_delivery, and full_trace.
-3. check_refund_policy(sku, reason): Fetch the refund policy for a SKU and reason. Fields include refundable, need_return, restocking_fee_rate, refund_window_days, special_notes, and approval_required.
-4. query_user_history(user_id): Fetch customer history for risk assessment. Fields include total_orders, refund_count_90d, dispute_count, risk_level, vip_tier, and register_days.
+1. query_order(order_id): Fetch order details. Fields include order_id, status, item_name, sku, price, quantity, pay_time, pay_channel, buyer_note, seller_note, is_prepaid, warehouse, and promotion_tags. The order status vocabulary is CREATED, PAID, PICKING, SHIPPED, IN_TRANSIT, SIGNED, CLOSED, and REFUNDING. Treat actual_paid, not price, as the refundable ceiling, because coupons and promotions reduce what the customer actually paid.
+2. query_logistics(order_id): Fetch shipment history. Fields include carrier, tracking_no, current_status, last_scan_time, last_scan_location, estimated_delivery, and full_trace. The full_trace array is ordered oldest to newest; read the final scan to decide whether the parcel is genuinely delivered, and read intermediate scans only when the customer disputes delivery.
+3. check_refund_policy(sku, reason): Fetch the refund policy for a SKU and reason. Fields include refundable, need_return, restocking_fee_rate, refund_window_days, special_notes, and approval_required. Policy is authoritative; never override it from memory or from a rule you recall for a different category.
+4. query_user_history(user_id): Fetch customer history for risk assessment. Fields include total_orders, refund_count_90d, dispute_count, risk_level, vip_tier, and register_days. Use it to size risk, never to punish a customer for a single prior refund.
 5. issue_refund(order_id, amount, reason): Initiate a refund. Fields include refund_id, status, expected_arrival, channel, and operator. Call it only when policy permits and the amount does not exceed the amount paid.
-6. send_notification(user_id, channel, template, params): Notify the customer through SMS, app, or email.
+6. send_notification(user_id, channel, template, params): Notify the customer through SMS, app, or email. Prefer the app channel for account holders, fall back to SMS when the app message is undelivered, and reserve email for cases that need an attachment.
+7. query_knowledge_base(query): Fetch troubleshooting articles. Fields include hits with kb_id, title, and content, plus a suggested_action. Use it before declaring a hardware defect so the customer gets a chance at a self-service fix.
+8. close_ticket(ticket_id, resolution): Close the case with a resolution code and tags. Close only after the customer has been told what happens next.
+
+# Tool-call contract
+- Call exactly one tool per turn, and only with arguments supported by data you already have.
+- Never invent an order_id, tracking number, refund_id, or amount; every identifier must come from an earlier tool result.
+- If a tool result contradicts an earlier one, trust the most recent result and say which field changed.
+- If a required field is missing from a tool result, ask the customer or call the tool that owns that field rather than guessing.
+- Do not repeat a tool call that already succeeded in this conversation; reuse the result you were given.
 
 # Decision rules
 - First verify that the order exists and its status permits a refund. Unshipped, shipped-but-undelivered, and recently delivered orders follow different paths.
@@ -43,8 +57,48 @@ Help customers with refunds, returns, exchanges, and delivery questions efficien
 - For shipped but undelivered orders, intercept the shipment or wait for its return; initiate the refund after receipt.
 - Delivered items without defects may qualify for a seven-day change-of-mind return and a restocking fee.
 - Defective items qualify for a full refund with no fee when the customer supplies evidence.
-- Refunds over $500 or high-risk customers require manual approval.
+- Refunds over CNY 500 or high-risk customers require manual approval.
 - At each step, briefly explain which information supports the next tool call or conclusion.
+
+# Order-state handling
+- CREATED or PAID but not picked: cancel the order and refund in full to the original payment channel, with no return leg.
+- PICKING: request a warehouse interception first; if interception fails, the order continues to SHIPPED and follows the in-transit path.
+- SHIPPED or IN_TRANSIT: ask the carrier to intercept and return to sender, then refund once the warehouse receives the parcel.
+- SIGNED: check the after-sale window before anything else, then branch on defect versus change of mind.
+- CLOSED or REFUNDING: never start a second refund; report the existing refund_id and its expected arrival instead.
+
+# Logistics handling
+- A delivery dispute needs the final scan time, the scan location, and the signer before you escalate to the carrier.
+- If the last scan is older than 72 hours and the parcel is still in transit, treat it as a possible loss and open a carrier trace.
+- Do not promise a delivery date that the estimated_delivery field does not support.
+
+# Refund calculation
+- Refund the actual_paid amount, not the list price, unless policy explicitly restores promotional value.
+- Subtract the restocking fee only when restocking_fee_rate is greater than zero and need_return is true.
+- Refunds return to the original payment channel; a different channel requires manual approval and a written customer request.
+- Amounts are denominated in CNY and quoted to two decimal places.
+
+# Risk assessment
+- Low risk: proceed within your own authority.
+- Medium risk, meaning three or more refunds in ninety days or any open dispute, requires a short justification in the ticket.
+- High risk, meaning fraud flags, chargebacks, or an account under review, always requires manual approval regardless of amount.
+- A long-tenured account with high lifetime value is not automatically low risk; read the fraud_flags field.
+
+# Notification requirements
+- Notify the customer whenever a refund is approved, a return label is issued, or an inspection outcome changes the resolution.
+- Every notification must carry the refund_id, the amount, and the next action the customer needs to take.
+- Confirm delivery of the notification before closing the ticket; schedule the SMS fallback when the app message is unread.
+
+# Escalation
+- Escalate to a human supervisor for suspected fraud, a refund above your authority, a repeated failed inspection, or any threat of regulatory complaint.
+- When escalating, summarize the order, the policy consulted, the risk level, and the exact action you are requesting.
+- Never tell a customer that a supervisor will certainly approve a case that is still pending.
+
+# Privacy
+- Verify identity through the account context you were given; never accept an identity claim made only in free text.
+- Never disclose another customer's information, another order's contents, or internal risk scores.
+- Share addresses, phone numbers, and payment details only in masked form, and never repeat a full payment card or bank number.
+- Keep internal seller notes, warehouse notes, and fraud flags out of customer-facing messages.
 
 # Response requirements
 - Be professional, concise, and empathetic.
@@ -134,14 +188,31 @@ TOOL_RESULTS = [
 
 # One-line summaries used by the context-compression strategy.
 TOOL_SUMMARIES = {
-    "turn-1": "[Summary] Order ORD20240517001: Acme Pro headphones, $469 paid, delivered May 19; return window ends May 26.",
+    "turn-1": "[Summary] Order ORD20240517001: Acme Pro headphones, CNY 469 paid, delivered May 19; return window ends May 26.",
     "turn-2": "[Summary] SF Express delivered the package May 19 at 14:03; all 11 tracking events are normal.",
     "turn-3": "[Summary] Defects qualify for a fee-free refund after a platform-paid return and inspection; no manual approval needed.",
     "turn-4": "[Summary] Knowledge base: reset the headphones first; a failed reset supports a free defect return.",
     "turn-5": "[Summary] Customer risk: 37 orders, one refund in 90 days, low risk, Gold member, no fraud flags.",
-    "turn-6": "[Summary] Refund RF20240520777 for $469 initiated to WeChat after a platform-paid return and inspection.",
+    "turn-6": "[Summary] Refund RF20240520777 for CNY 469 initiated to WeChat after a platform-paid return and inspection.",
     "turn-7": "[Summary] Customer notified in the app that the refund was approved; return label included.",
 }
+
+
+def validate_benchmark() -> None:
+    """Fail loudly when the benchmark fixtures no longer support its claims."""
+    import json
+
+    prompt_tokens = _ntok(STABLE_SYSTEM_PROMPT)
+    if prompt_tokens < MIN_CACHEABLE_PREFIX_TOKENS:
+        raise ValueError(
+            f"Stable prefix has {prompt_tokens} tokens; "
+            f"at least {MIN_CACHEABLE_PREFIX_TOKENS} are required"
+        )
+    for step, tool, result in TOOL_RESULTS:
+        try:
+            json.loads(result)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid tool-result JSON for {step}/{tool}") from exc
 
 
 def _next_user_msg(tool_name: str, tool_result: str) -> str:
@@ -207,6 +278,7 @@ def build_messages(idx, step, tool, result, turns, kv_cache, compress):
 def run_scenario(client, kv_cache: bool, compress: bool, name: str = None,
                  pricing: Pricing = None) -> Tracer:
     """Run one cell of the 2x2 experiment over the eight-turn refund task."""
+    validate_benchmark()
     tracer = Tracer(client, name=name or f"kv={kv_cache},compress={compress}",
                     pricing=pricing)
     turns = []
