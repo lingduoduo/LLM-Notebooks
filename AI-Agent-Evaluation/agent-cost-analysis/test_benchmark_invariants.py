@@ -7,8 +7,11 @@ The benchmark's conclusions only hold when its fixtures stay valid:
 """
 import json
 import re
+from pathlib import Path
 
 import agent
+
+README = Path(__file__).with_name("README.md")
 
 
 def test_stable_prompt_is_cache_eligible():
@@ -28,3 +31,10 @@ def test_scenario_uses_cny_without_dollar_amounts():
 
 def test_benchmark_validation_passes():
     agent.validate_benchmark()
+
+
+def test_readme_describes_synthetic_trace_and_cny():
+    readme = README.read_text(encoding="utf-8")
+    assert "synthetic" in readme.lower()
+    assert "CNY" in readme
+    assert "1,024" in readme
