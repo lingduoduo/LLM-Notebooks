@@ -159,8 +159,8 @@ def print_rubric() -> None:
     print("which can assess emotional delivery and vocal consistency.")
 
 
-def main() -> None:
-    global OUT_DIR
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line options for the TTS evaluation."""
     ap = argparse.ArgumentParser(
         description="Fully automated TTS quality evaluation (Experiment 6-5): multi-provider synthesis and LLM rubric scoring",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -188,7 +188,55 @@ def main() -> None:
                     help="Print all TTS providers and their configuration state, then exit (no key required)")
     ap.add_argument("--dump-rubric", action="store_true", dest="dump_rubric",
                     help="Print rubric dimension definitions, then exit (no key required)")
-    args = ap.parse_args()
+    return ap.parse_args(argv)
+
+
+def select_configs(provider_names: str | None, include_extra: bool) -> list[config.TTSConfig]:
+    """Return the requested provider configurations in command-line order."""
+    if not provider_names:
+        return list(config.TTS_CONFIGS) + (list(config.EXTRA_CONFIGS) if include_extra else [])
+
+    selected = []
+    for name in (item.strip() for item in provider_names.split(",")):
+        if not name:
+            continue
+        try:
+            selected.append(config.PROVIDER_CONFIGS[name])
+        except KeyError:
+            available = ", ".join(config.PROVIDER_CONFIGS)
+            raise ValueError(f"unknown provider {name!r}. Available: {available}") from None
+    return selected
+
+
+def select_corpus(text: str | None, quick: bool) -> list[config.Sample]:
+    """Return either one custom sample or the selected built-in corpus."""
+    if text:
+        return [config.Sample("custom", text, "custom text", "neutral")]
+    return list(config.CORPUS[:2] if quick else config.CORPUS)
+
+
+def run_evaluations(
+    configs: list[config.TTSConfig],
+    corpus: list[config.Sample],
+    use_gemini: bool,
+    fresh: bool,
+    judge_model: str | None,
+) -> list[dict]:
+    """Evaluate each configuration/sample pair in grid order."""
+    records = []
+    for cfg in configs:
+        print(f"\n### Configuration {cfg.name}  (provider={getattr(cfg, 'provider', 'openai')}, "
+              f"model={cfg.model}, voice={cfg.voice}, speed={cfg.speed})")
+        for sample in corpus:
+            record = evaluate_one(cfg, sample, use_gemini, fresh, judge_model)
+            print_detail(record, sample.text)
+            records.append(record)
+    return records
+
+
+def main() -> None:
+    global OUT_DIR
+    args = parse_args()
 
     load_env()
 
@@ -210,25 +258,12 @@ def main() -> None:
               file=sys.stderr)
         sys.exit(1)
 
-    # --providers selects one configuration per provider; otherwise use several OpenAI configurations.
-    if args.providers:
-        configs = []
-        for key in [p.strip() for p in args.providers.split(",") if p.strip()]:
-            if key not in config.PROVIDER_CONFIGS:
-                print(f"Error: unknown provider {key!r}. Available: {', '.join(config.PROVIDER_CONFIGS)}",
-                      file=sys.stderr)
-                sys.exit(1)
-            configs.append(config.PROVIDER_CONFIGS[key])
-    else:
-        configs = list(config.TTS_CONFIGS)
-        if args.extra:
-            configs += config.EXTRA_CONFIGS
-
-    if args.text:
-        corpus = [config.Sample(id="custom", text=args.text,
-                                challenge="custom text", emotion="neutral")]
-    else:
-        corpus = config.CORPUS[:2] if args.quick else config.CORPUS
+    try:
+        configs = select_configs(args.providers, args.extra)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
+    corpus = select_corpus(args.text, args.quick)
 
     judge_model = args.judge_model or config.JUDGE_MODEL
     mode = ("Gemini multimodal audio evaluation" if args.gemini
@@ -242,16 +277,11 @@ def main() -> None:
           f"Total evaluations: {len(configs) * len(corpus)}")
     print("=" * 72)
 
-    records = []
     t0 = time.time()
-    for cfg in configs:
-        print(f"\n### Configuration {cfg.name}  (provider={getattr(cfg, 'provider', 'openai')}, "
-              f"model={cfg.model}, voice={cfg.voice}, speed={cfg.speed})")
-        for sample in corpus:
-            rec = evaluate_one(cfg, sample, args.gemini, args.fresh,
-                               judge_model=None if args.gemini else args.judge_model)
-            print_detail(rec, sample.text)
-            records.append(rec)
+    records = run_evaluations(
+        configs, corpus, args.gemini, args.fresh,
+        judge_model=None if args.gemini else args.judge_model,
+    )
 
     rows = summarize(records)
     print("\n" + "=" * 72)
