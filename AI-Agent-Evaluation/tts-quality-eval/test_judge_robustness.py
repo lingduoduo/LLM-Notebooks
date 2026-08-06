@@ -112,6 +112,32 @@ def test_gemini_response_text_returns_first_text_part():
     assert pipeline._gemini_response_text(data) == "rubric-json"
 
 
+def test_judge_paths_delegate_raw_responses_to_shared_rubric_parser(monkeypatch, tmp_path):
+    """Both judge transports send their raw JSON text through one rubric parser."""
+    received = []
+    expected = pipeline.RubricResult(scores={}, reasons={})
+
+    def record_rubric(raw):
+        received.append(raw)
+        return expected
+
+    _stub_judge(monkeypatch, {"clarity": 4})
+    _stub_gemini(monkeypatch, {
+        "candidates": [{"content": {"parts": [{"text": "gemini-json"}]}}],
+    })
+    monkeypatch.setattr(pipeline, "_rubric_from_json", record_rubric)
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"\xff\xfb" + b"\x00" * 256)
+
+    openai_result = pipeline.judge_rubric(
+        "Reference text", "neutral", "Transcript text", 3.0, 0.05,
+    )
+    gemini_result = pipeline.judge_gemini_audio("Reference text", "neutral", str(audio))
+
+    assert (openai_result, gemini_result) == (expected, expected)
+    assert received == [json.dumps({"clarity": 4}), "gemini-json"]
+
+
 def test_normalize_words_handles_case_punctuation_and_contractions():
     assert pipeline.normalize_words("Hello, WORLD! Don't stop.") == [
         "hello", "world", "don't", "stop"
