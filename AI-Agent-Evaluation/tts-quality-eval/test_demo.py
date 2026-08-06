@@ -1,7 +1,19 @@
+from typing import get_type_hints
+
 import pytest
 
 import config
 import demo
+
+
+def test_provider_environment_names_have_precise_type():
+    assert get_type_hints(config.ProviderInfo)["env"] == tuple[str, ...]
+
+
+def test_env_get_uses_first_nonempty_alias(monkeypatch):
+    monkeypatch.setenv("FISH_API_KEY", "  ")
+    monkeypatch.setenv("FISHAUDIO_API_KEY", " legacy-key ")
+    assert config.env_get("FISH_API_KEY") == "legacy-key"
 
 
 def test_select_configs_uses_defaults_and_optional_extra():
