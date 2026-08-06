@@ -96,9 +96,18 @@ def collect_offline(keys, pricing, trace_path):
         data = json.load(f)
 
     by_key = {s.get("key", s.get("name")): s for s in data.get("scenarios", [])}
+    provenance = data.get("provenance", "unlabeled")
     print(f"Offline mode: reading {trace_path}")
-    print(f"  Trace model = {data.get('model', '?')}; {len(by_key)} captured scenarios. "
-          "Token counts are observed; costs use the current pricing.")
+    print(f"  Trace model = {data.get('model', '?')}; {len(by_key)} recorded scenarios; "
+          f"provenance = {provenance}; language = {data.get('language', '?')}.")
+    if provenance == "synthetic":
+        print("  Token counts are deterministic synthetic values derived from the "
+              "bundled fixtures, not measurements of a live model run.")
+    elif provenance == "observed":
+        print("  Token counts were measured during a live run.")
+    else:
+        print("  Provenance is unlabeled; treat these token counts with caution.")
+    print("  Costs are recalculated with the current pricing.")
 
     tracers = []
     for k in keys:
@@ -161,6 +170,10 @@ def print_ab_table(tracers):
 def dump_output(path, tracers, pricing, model):
     out = {
         "model": model,
+        # This path only ever runs after live model calls, so the usage recorded
+        # here is measured. The bundled trace is labeled "synthetic" instead.
+        "provenance": "observed",
+        "language": "en",
         "pricing": {"input": pricing.input_per_m, "cached": pricing.cached_per_m,
                     "output": pricing.output_per_m},
         "scenarios": [],
