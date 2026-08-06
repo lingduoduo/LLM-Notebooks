@@ -29,7 +29,7 @@
 - Consumes: `agent.STABLE_SYSTEM_PROMPT`, `agent.TOOL_RESULTS`, `agent.TOOL_SUMMARIES`, `agent._ntok(text)`.
 - Produces: `agent.MIN_CACHEABLE_PREFIX_TOKENS: int`, `agent.validate_benchmark() -> None`.
 
-- [ ] **Step 1: Write failing invariant tests**
+- [x] **Step 1: Write failing invariant tests**
 
 ```python
 import json
@@ -57,13 +57,13 @@ def test_benchmark_validation_passes():
     agent.validate_benchmark()
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `/Users/linghuang/miniconda3/bin/pytest -q test_benchmark_invariants.py`
 
 Expected: failures because `MIN_CACHEABLE_PREFIX_TOKENS` and `validate_benchmark` do not exist and the English prompt is too short.
 
-- [ ] **Step 3: Implement the minimum behavior**
+- [x] **Step 3: Implement the minimum behavior**
 
 Add `MIN_CACHEABLE_PREFIX_TOKENS = 1024`, expand `STABLE_SYSTEM_PROMPT` with relevant order-state, logistics, refund-policy, risk, notification, escalation, privacy, and tool-contract guidance, and change `$469`/`$500` to `CNY 469`/`CNY 500`. Implement:
 
@@ -86,13 +86,13 @@ def validate_benchmark() -> None:
 
 Call `validate_benchmark()` at the beginning of `run_scenario` so live runs fail clearly if fixtures regress.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run: `/Users/linghuang/miniconda3/bin/pytest -q test_benchmark_invariants.py`
 
 Expected: all invariant tests pass.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```bash
 git add AI-Agent-Evaluation/agent-cost-analysis/agent.py AI-Agent-Evaluation/agent-cost-analysis/test_benchmark_invariants.py
@@ -110,7 +110,7 @@ git commit -m "fix: preserve English benchmark invariants"
 - Consumes: trace top-level metadata and existing `collect_offline`, `dump_output` functions.
 - Produces: trace metadata fields `provenance: "synthetic" | "observed"` and `language: "en"`.
 
-- [ ] **Step 1: Write failing provenance tests**
+- [x] **Step 1: Write failing provenance tests**
 
 ```python
 def test_bundled_trace_is_labeled_synthetic_english():
@@ -127,23 +127,23 @@ def test_saved_live_trace_is_labeled_observed(tmp_path):
     assert data["language"] == "en"
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `/Users/linghuang/miniconda3/bin/pytest -q test_trace_offline.py`
 
 Expected: metadata assertions fail because the fields do not exist.
 
-- [ ] **Step 3: Implement trace provenance and deterministic English counts**
+- [x] **Step 3: Implement trace provenance and deterministic English counts**
 
 Add `"provenance": "synthetic"` and `"language": "en"` to the bundled trace. Regenerate its prompt/tool-context counts from the English fixtures using deterministic assistant placeholders and the four existing message-building strategies. Keep completion counts and latency fixed synthetic values, recompute component summaries, and ensure every cached count is between zero and its prompt count. Add observed metadata to `dump_output`, and print provenance in `collect_offline`.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run: `/Users/linghuang/miniconda3/bin/pytest -q test_trace_offline.py`
 
 Expected: all trace tests pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```bash
 git add AI-Agent-Evaluation/agent-cost-analysis/sample_trace.json AI-Agent-Evaluation/agent-cost-analysis/demo.py AI-Agent-Evaluation/agent-cost-analysis/test_trace_offline.py
@@ -161,7 +161,7 @@ git commit -m "fix: label and regenerate English offline trace"
 - Consumes: implemented cache threshold, CNY semantics, and trace provenance.
 - Produces: accurate user documentation for live and offline modes.
 
-- [ ] **Step 1: Add failing documentation assertions**
+- [x] **Step 1: Add failing documentation assertions**
 
 ```python
 def test_readme_describes_synthetic_trace_and_cny():
@@ -171,17 +171,17 @@ def test_readme_describes_synthetic_trace_and_cny():
     assert "1,024" in readme
 ```
 
-- [ ] **Step 2: Run the documentation test and verify RED**
+- [x] **Step 2: Run the documentation test and verify RED**
 
 Run: `/Users/linghuang/miniconda3/bin/pytest -q test_benchmark_invariants.py::test_readme_describes_synthetic_trace_and_cny`
 
 Expected: failure because README does not yet document these guarantees.
 
-- [ ] **Step 3: Update documentation**
+- [x] **Step 3: Update documentation**
 
 Document that live mode yields observed measurements, the bundled offline trace is deterministic synthetic English data, the refund amount is CNY 469, and the stable prefix is tested at 1,024 or more tokens. Keep `env.example` consistent with credential precedence and model override behavior.
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 ```bash
 cd AI-Agent-Evaluation/agent-cost-analysis
@@ -194,7 +194,7 @@ rg -n '[\p{Han}]' .
 
 Expected: all tests pass, compilation and JSON parsing exit zero, the offline CLI reports four scenarios and synthetic provenance, and the character scan has no matches.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```bash
 git add AI-Agent-Evaluation/agent-cost-analysis/README.md AI-Agent-Evaluation/agent-cost-analysis/env.example AI-Agent-Evaluation/agent-cost-analysis/test_benchmark_invariants.py
