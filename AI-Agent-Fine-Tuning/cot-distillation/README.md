@@ -24,8 +24,10 @@ Three steps, corresponding to step one of experiment 7-9, "collect trajectories"
    by the API — and newer models summarize more aggressively (see the measurements
    below). If you need the verbatim chain of thought, use an open model's native
    API instead, such as Kimi K3.
-3. **Verify and filter.** The rule-based verifier checks the `Final Answer` value
-   and keeps only correct trajectories, written as SFT data in the messages format
+3. **Verify and filter.** The rule-based verifier checks the `Final Answer` value.
+   A problem whose answer does not verify is resampled at a higher temperature up to
+   `--max_retries` times, and only correct trajectories are kept, written as SFT
+   data in the messages format
    `question -> <think>thinking</think> + final answer`. A student imitates a
    flawed thought process just as readily as a sound one, so this step is not
    optional.
@@ -71,8 +73,9 @@ Common arguments: `--model` to swap the teacher, `--base_url` / `--api_key_env` 
 swap the endpoint, `--reasoning_effort` (for adaptive-thinking models such as
 Opus 4.8) and `--reasoning_max_tokens` (for manual-budget models such as
 Sonnet 4.5) to control the chain of thought, `--concurrency` for parallelism,
-`--max_retries` for retries after a failure (each retry raises the temperature to
-get a different trajectory), and `--request_timeout` for the per-request hard
+`--max_retries` for retries after an API error *or an unverified answer* (each
+retry raises the temperature to resample a different trajectory -- rejection
+sampling), and `--request_timeout` for the per-request hard
 timeout (essential when collecting from long-thinking models — see the
 engineering lessons below). Run `python generate_data.py --help` for the full list.
 
@@ -160,7 +163,8 @@ SFT 数据最高效的方式就是**蒸馏前沿模型**：通过大规模 API �
    逐 token 的原始思维链只存在于加密的 `signature` 字段中，API 不暴露），
    且模型越新摘要越激进（见文末实测）。若需要逐 token 原文，
    推荐直接用开放模型原生 API，例如 Kimi K3（见下文对照实验的运行参数）。
-3. **验证过滤**：用规则验证器核对 `Final Answer` 数值，只保留答对的轨迹，
+3. **验证过滤**：用规则验证器核对 `Final Answer` 数值；未通过验证的题会升温
+   重采样，最多重试 `--max_retries` 次，只保留答对的轨迹，
    写成 `问题 → <think>思考</think> + 最终答案` 的 messages 格式 SFT 数据。
    错误的思考过程会被学生一并模仿，所以这一步不能省。
 
@@ -199,7 +203,8 @@ python analyze_data.py
 常用参数：`--model` 换教师模型、`--base_url`/`--api_key_env` 换端点、
 `--reasoning_effort`（Opus 4.8 等自适应思考模型）与 `--reasoning_max_tokens`
 （Sonnet 4.5 等手动预算模型）控制思维链、`--concurrency` 并发数、
-`--max_retries` 失败重试次数（重试时自动升温换取不同轨迹）、
+`--max_retries` API 出错**或答案未通过验证**时的重试次数
+（重试自动升温以重采样不同轨迹，即拒绝采样）、
 `--request_timeout` 单请求硬超时（采集长思考模型时必备，见文末工程教训）。
 
 ## 输出

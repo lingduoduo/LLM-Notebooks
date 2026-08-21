@@ -55,22 +55,42 @@ def load_problems(path: str) -> list[dict]:
     return problems
 
 
+# Must start with a digit: the old "-?[\\d,]+" also matched a bare "," so a line
+# ending in prose punctuation parsed to None instead of the number before it.
+NUMBER = r"-?\d[\d,]*(?:\.\d+)?"
+MARKED_ANSWER = re.compile(rf"Final Answer[:：]\s*({NUMBER})", re.IGNORECASE)
+ANY_NUMBER = re.compile(NUMBER)
+
+
+def _to_float(token: str) -> Optional[float]:
+    try:
+        return float(token.replace(",", ""))
+    except ValueError:
+        return None
+
+
 def extract_predicted_number(text: str) -> Optional[float]:
     """Parse the final answer value out of the model output.
 
-    Prefers the Final Answer marker and otherwise falls back to the last number.
+    Prefers the Final Answer marker the prompt asks for. If it is absent, fall back
+    to the last number on the final non-empty line only -- scanning the whole text
+    would happily pick up a step number or a cross-reference from the middle of the
+    reasoning, which is a wrong answer dressed up as a parsed one.
+
     The full-width colon stays in the pattern so trajectories collected with the
     earlier Chinese answer suffix still parse.
     """
-    m = re.findall(r"Final Answer[:：]\s*(-?[\d,]+(?:\.\d+)?)", text, re.IGNORECASE)
-    if not m:
-        m = re.findall(r"-?[\d,]+(?:\.\d+)?", text)
-    if not m:
-        return None
-    try:
-        return float(m[-1].replace(",", ""))
-    except ValueError:
-        return None
+    marked = MARKED_ANSWER.findall(text)
+    if marked:
+        return _to_float(marked[-1])
+
+    for line in reversed(text.strip().splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        numbers = ANY_NUMBER.findall(line)
+        return _to_float(numbers[-1]) if numbers else None
+    return None
 
 
 def verify(text: str, gold: float, tol: float = 1e-6) -> bool:
@@ -79,6 +99,28 @@ def verify(text: str, gold: float, tol: float = 1e-6) -> bool:
     if pred is None:
         return False
     return abs(pred - float(gold)) <= tol * max(1.0, abs(float(gold)))
+
+
+def accumulate_usage(total: Optional[dict], usage) -> Optional[dict]:
+    """Sum usage across attempts so rejected samples are still counted as billed.
+
+    Keeping only the last attempt's usage would understate cost exactly when
+    rejection sampling is doing the most work. Numeric top-level fields are summed;
+    anything else (nested detail dicts) keeps the latest attempt's value.
+    """
+    if usage is None:
+        return total
+    current = usage.model_dump() if hasattr(usage, "model_dump") else dict(usage)
+    if total is None:
+        return current
+    merged = dict(total)
+    for key, value in current.items():
+        previous = merged.get(key)
+        if isinstance(value, (int, float)) and isinstance(previous, (int, float)):
+            merged[key] = previous + value
+        else:
+            merged[key] = value
+    return merged
 
 
 def get_reasoning(message) -> str:
@@ -114,10 +156,12 @@ async def distill_one(client: AsyncOpenAI, problem: dict, args, semaphore) -> di
         "reasoning": None,
         "verified": False,
         "usage": None,
+        "attempts": 0,
         "error": None,
     }
     async with semaphore:
         for attempt in range(args.max_retries + 1):
+            record["attempts"] = attempt + 1
             try:
                 kwargs = {}
                 if args.reasoning_effort:
@@ -143,10 +187,14 @@ async def distill_one(client: AsyncOpenAI, problem: dict, args, semaphore) -> di
                 msg = resp.choices[0].message
                 record["content"] = msg.content or ""
                 record["reasoning"] = get_reasoning(msg)
-                record["usage"] = resp.usage.model_dump() if resp.usage else None
+                record["usage"] = accumulate_usage(record["usage"], resp.usage)
                 record["verified"] = verify(record["content"], problem["answer"])
-                record["error"] = None  # This attempt succeeded; drop any earlier attempt's error
-                break
+                record["error"] = None  # This attempt returned; drop any earlier attempt's error
+                if record["verified"]:
+                    break
+                # Wrong answer: fall through and resample at a higher temperature. This
+                # is rejection sampling, and it is what the temperature bump above is
+                # for -- retrying only on exceptions would never exercise it.
             except Exception as e:
                 record["error"] = f"attempt {attempt}: {type(e).__name__}: {e}"
         status = "OK" if record["verified"] else ("ERR" if record["error"] else "WRONG")

@@ -112,3 +112,87 @@ def test_valid_problem_file_still_loads():
     problems = gd.load_problems(str(Path(__file__).parent / "problems.jsonl"))
     assert len(problems) == 24
     assert all(set(gd.REQUIRED_FIELDS) <= set(p) for p in problems)
+
+
+class _ScriptedClient:
+    """Returns the scripted contents in order; a None entry raises instead."""
+
+    def __init__(self, contents):
+        self.contents = iter(contents)
+        self.chat = types.SimpleNamespace(completions=self)
+
+    async def create(self, **kwargs):
+        content = next(self.contents)
+        if content is None:
+            raise RuntimeError("transient 503")
+        message = types.SimpleNamespace(content=content, reasoning="r")
+        usage = types.SimpleNamespace(
+            model_dump=lambda: {"prompt_tokens": 5, "completion_tokens": 50}
+        )
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)], usage=usage
+        )
+
+
+def _collect(contents, **overrides):
+    return asyncio.run(
+        gd.distill_one(
+            _ScriptedClient(contents),
+            {"id": "p", "question": "q", "answer": 42},
+            _args(max_retries=2, **overrides),
+            asyncio.Semaphore(1),
+        )
+    )
+
+
+def test_wrong_answer_is_resampled():
+    """A wrong answer must trigger a retry, not just an exception."""
+    record = _collect(["Final Answer: 7", "Final Answer: 42"])
+    assert record["verified"] is True
+    assert record["attempts"] == 2
+
+
+def test_exhausted_resampling_keeps_the_last_trajectory():
+    record = _collect(["Final Answer: 7", "Final Answer: 8", "Final Answer: 9"])
+    assert record["verified"] is False
+    assert record["attempts"] == 3
+    assert record["content"] == "Final Answer: 9"
+    assert record["error"] is None  # A wrong answer is not an API error
+
+
+def test_usage_sums_every_billed_attempt():
+    """Rejected samples are billed, so they must show up in the usage totals."""
+    record = _collect(["Final Answer: 7", "Final Answer: 42"])
+    assert record["usage"]["completion_tokens"] == 100
+    assert record["usage"]["prompt_tokens"] == 10
+
+
+def test_answer_verified_on_first_try_costs_one_attempt():
+    record = _collect(["Final Answer: 42"])
+    assert record["attempts"] == 1
+    assert record["usage"]["completion_tokens"] == 50
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Long reasoning with 111 and 222\n\nFinal Answer: 337", 337.0),
+        ("Step 1: compute 12\nStep 2: check 999\nThe answer is 337.", 337.0),
+        ("$$\\boxed{337}$$", 337.0),
+        ("no numbers here", None),
+        ("The answer is 1,234.", 1234.0),
+        # "-?[\\d,]+" used to match a bare comma, so prose punctuation parsed to None
+        ("just, commas, here", None),
+        ("Final Answer: -42", -42.0),
+    ],
+)
+def test_answer_parsing(text, expected):
+    assert gd.extract_predicted_number(text) == expected
+
+
+def test_fallback_ignores_numbers_above_the_final_line():
+    """The old parser scanned the whole text and would return 999 here."""
+    text = "The answer is 337.\nSee step 999 for the derivation, which has no answer."
+    assert gd.extract_predicted_number(text) == 999.0  # final line's last number
+    # ...but a number buried mid-reasoning is never reached when the final line has one:
+    assert gd.extract_predicted_number("junk 111\nFinal Answer: 337") == 337.0
