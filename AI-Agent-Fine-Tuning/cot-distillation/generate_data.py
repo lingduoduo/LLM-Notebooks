@@ -31,13 +31,27 @@ from openai import AsyncOpenAI
 
 ANSWER_SUFFIX = "\n\nReason step by step, and give the final answer on the last line in the format \"Final Answer: <number>\" (the number only, no units)."
 
+REQUIRED_FIELDS = ("id", "question", "answer")
+
+
 def load_problems(path: str) -> list[dict]:
+    """Load problems, rejecting malformed rows up front.
+
+    Validating here turns a bad row into one clear pre-flight error instead of a
+    KeyError raised mid-collection, which would abort the run and leave the SFT
+    output unwritten.
+    """
     problems = []
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
+        for lineno, line in enumerate(f, 1):
             line = line.strip()
-            if line:
-                problems.append(json.loads(line))
+            if not line:
+                continue
+            problem = json.loads(line)
+            missing = [key for key in REQUIRED_FIELDS if key not in problem]
+            if missing:
+                raise SystemExit(f"{path} line {lineno}: missing required field(s): {', '.join(missing)}")
+            problems.append(problem)
     return problems
 
 
@@ -131,6 +145,7 @@ async def distill_one(client: AsyncOpenAI, problem: dict, args, semaphore) -> di
                 record["reasoning"] = get_reasoning(msg)
                 record["usage"] = resp.usage.model_dump() if resp.usage else None
                 record["verified"] = verify(record["content"], problem["answer"])
+                record["error"] = None  # This attempt succeeded; drop any earlier attempt's error
                 break
             except Exception as e:
                 record["error"] = f"attempt {attempt}: {type(e).__name__}: {e}"
@@ -193,8 +208,10 @@ async def main():
     client = AsyncOpenAI(base_url=args.base_url, api_key=api_key, timeout=args.request_timeout)
     semaphore = asyncio.Semaphore(args.concurrency)
 
-    os.makedirs(os.path.dirname(args.raw_output), exist_ok=True)
-    os.makedirs(os.path.dirname(args.sft_output), exist_ok=True)
+    for output_path in (args.raw_output, args.sft_output):
+        directory = os.path.dirname(output_path)
+        if directory:  # A bare filename has no directory part; os.makedirs("") would fail
+            os.makedirs(directory, exist_ok=True)
 
     # Incremental flush: write each raw trajectory as soon as its problem finishes, so a hung or
     # interrupted process does not lose the results already collected
