@@ -433,22 +433,28 @@ TASKS: List[Dict] = [
 ]
 
 
-def grade(task: Dict, called_tools: List[str]) -> Dict:
-    """Grade a task from the tools that were actually called."""
+def grade(task: Dict, called_tools: List[str], *, finished: bool,
+          successful_tools: List[str]) -> Dict:
+    """Grade tool selection separately from successful task completion."""
     called = set(called_tools)
+    successful = set(successful_tools)
     filled = []
     missed = []
     for slot in task["required_slots"]:
-        if any(t in called for t in slot):
+        if any(t in successful for t in slot):
             filled.append(slot)
         else:
             missed.append(slot)
     used_generic = sorted(called & GENERIC_TOOL_NAMES)
-    correct = len(missed) == 0
+    selected_correctly = all(any(t in called for t in slot)
+                             for slot in task["required_slots"])
+    correct = finished and len(missed) == 0
     return {
         "correct": correct,                       # Whether every slot was filled.
         # Exact = all slots filled with no generic fallback misuse.
         "precise": correct and not used_generic,
+        "selected_correctly": selected_correctly,
+        "finished": finished,
         "filled_slots": len(filled),
         "total_slots": len(task["required_slots"]),
         "missed_slots": missed,

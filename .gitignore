@@ -118,6 +118,7 @@ pip-delete-this-directory.txt
 
 attention/attention/data/processed_reviews
 *.txt
+!AI-Agent-Tools/active-tool-discovery/requirements-dev.txt
 *.csv
 runs/
 snips_clf/

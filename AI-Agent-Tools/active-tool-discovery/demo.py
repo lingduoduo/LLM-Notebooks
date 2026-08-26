@@ -46,6 +46,23 @@ STRATEGIES = {
 STRATEGY_ORDER = ["full", "prefilter", "discovery"]
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def _parse_strategies(value: str):
+    strategies = [item.strip() for item in value.split(",") if item.strip()]
+    if not strategies:
+        raise ValueError("at least one strategy is required")
+    bad = [item for item in strategies if item not in STRATEGIES]
+    if bad:
+        raise ValueError(f"unknown strategies: {bad}; choices: {list(STRATEGIES)}")
+    return sorted(strategies, key=STRATEGY_ORDER.index)
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="demo.py",
@@ -63,17 +80,17 @@ def build_parser() -> argparse.ArgumentParser:
                          "Quote IDs containing parentheses, such as 'opinion(inducement)'.")
     ap.add_argument("--strategies", metavar="LIST", default="full,prefilter,discovery",
                     help="Comma-separated strategies: full/prefilter/discovery; defaults to all three.")
-    ap.add_argument("--tool-set-size", type=int, default=None, metavar="N",
+    ap.add_argument("--tool-set-size", type=_positive_int, default=None, metavar="N",
                     help="Limit the catalog to N tools while retaining base, generic, and task tools.")
-    ap.add_argument("--top-k", type=int, default=4, metavar="K",
+    ap.add_argument("--top-k", type=_positive_int, default=4, metavar="K",
                     help="Candidates returned by each discover_tools call (default: 4).")
-    ap.add_argument("--prefilter-n", type=int, default=10, metavar="N",
+    ap.add_argument("--prefilter-n", type=_positive_int, default=10, metavar="N",
                     help="Candidates injected by one-shot retrieval prefiltering (default: 10).")
     ap.add_argument("--model", default=os.getenv("MODEL", "gpt-5.6-luna"), metavar="NAME",
                     help="Chat model (MODEL or gpt-5.6-luna by default); ignored offline.")
     ap.add_argument("--embed-model", default=os.getenv("EMBED_MODEL", "text-embedding-3-small"),
                     metavar="NAME", help="Embedding model (default: text-embedding-3-small); ignored offline.")
-    ap.add_argument("--max-steps", type=int, default=10, metavar="N",
+    ap.add_argument("--max-steps", type=_positive_int, default=10, metavar="N",
                     help="Maximum ReAct steps per task (default: 10).")
     ap.add_argument("--offline", action="store_true",
                     help="Offline mechanism check using local hash embeddings and a scripted mock; no API key.")
@@ -97,6 +114,8 @@ def _make_task_from_query(query: str):
     """Wrap a one-off --query as a scored task, inferring slots by keyword."""
     from offline_backend import match_intents
     slots = [[tool] for tool, _ in match_intents(query)]
+    if not slots:
+        raise ValueError("could not infer any capability for the ad-hoc query")
     return {"id": "adhoc", "prompt": query, "required_slots": slots}
 
 
@@ -117,18 +136,19 @@ def run_strategy(key, client, model, prompt, index, tools, args):
 
 
 def main():
-    args = build_parser().parse_args()
-
-    strategies = [s.strip() for s in args.strategies.split(",") if s.strip()]
-    bad = [s for s in strategies if s not in STRATEGIES]
-    if bad:
-        print(f"Unknown strategies: {bad}; choices: {list(STRATEGIES)}")
-        sys.exit(2)
-    strategies.sort(key=STRATEGY_ORDER.index)
+    parser = build_parser()
+    args = parser.parse_args()
+    try:
+        strategies = _parse_strategies(args.strategies)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     # ---- Tasks ----
     if args.query:
-        tasks = [_make_task_from_query(args.query)]
+        try:
+            tasks = [_make_task_from_query(args.query)]
+        except ValueError as exc:
+            parser.error(str(exc))
     else:
         tasks = TASKS
         if args.tasks:
@@ -195,11 +215,14 @@ def main():
         print("-" * 92)
         for key in strategies:
             res, latency = run_strategy(key, client, model, task["prompt"], index, tools, args)
-            g = grade(task, res["called"])
+            g = grade(
+                task, res["called"], finished=res["finished"],
+                successful_tools=res["successful"],
+            )
             records.append({"task": task["id"], "strategy": key, "result": res,
                             "grade": g, "latency_s": round(latency, 3)})
             cname = STRATEGIES[key][0]
-            print(f"[{cname}] injected {res['injected_tokens']:>6} tokens "
+            print(f"[{cname}] introduced {res['injected_tokens']:>6} schema tokens "
                   f"({res['num_tools_exposed']} tools exposed)  latency {latency:5.2f}s")
             if key == "prefilter":
                 print(f"           Prefiltered: {res['prefiltered']}")
@@ -229,7 +252,8 @@ def _print_summary(tasks, strategies, records):
     print("=" * 92)
     print("Summary (exact match = all capability slots filled with no generic fallback misuse)")
     print("=" * 92)
-    header = f"{'Strategy':<20}{'Exact':>10}{'Complete':>10}{'Avg tokens':>14}{'Total tokens':>14}{'Avg latency(s)':>16}"
+    header = (f"{'Strategy':<20}{'Exact':>10}{'Complete':>10}"
+              f"{'Avg schema tok':>16}{'Total schema tok':>18}{'Avg latency(s)':>16}")
     print(header)
     print("-" * 92)
     for key in strategies:
@@ -241,13 +265,14 @@ def _print_summary(tasks, strategies, records):
         avg_tok = sum(tok) / len(tok) if tok else 0
         avg_lat = sum(lat) / len(lat) if lat else 0
         print(f"{STRATEGIES[key][0]:<12}{f'{precise}/{n}':>10}{f'{correct}/{n}':>10}"
-              f"{avg_tok:>16.0f}{sum(tok):>14}{avg_lat:>12.3f}")
+              f"{avg_tok:>16.0f}{sum(tok):>18}{avg_lat:>12.3f}")
     print("-" * 92)
     if "full" in strategies and "discovery" in strategies:
         ft = sum(r["result"]["injected_tokens"] for r in records if r["strategy"] == "full")
         at = sum(r["result"]["injected_tokens"] for r in records if r["strategy"] == "discovery")
         if at:
-            print(f"Injected tokens: full {ft} vs active discovery {at}; about {ft/at:.1f}x fewer per task.")
+            print(f"Schema tokens introduced: full {ft} vs active discovery {at}; "
+                  f"about {ft/at:.1f}x fewer per task.")
 
 
 if __name__ == "__main__":
