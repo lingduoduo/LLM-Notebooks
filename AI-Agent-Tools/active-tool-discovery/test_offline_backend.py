@@ -41,7 +41,12 @@ def test_offline_campaign_preserves_strategy_contract_and_token_totals():
             ),
         }
         for strategy, result in results.items():
-            precise[strategy] += int(grade(task, result["called"])["precise"])
+            precise[strategy] += int(grade(
+                task,
+                result["called"],
+                finished=result["finished"],
+                successful_tools=result["successful"],
+            )["precise"])
             tokens[strategy] += result["injected_tokens"]
 
     assert precise == {"full": 8, "prefilter": 3, "discovery": 8}

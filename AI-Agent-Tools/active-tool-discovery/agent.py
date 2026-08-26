@@ -86,22 +86,41 @@ def _extract_json(text: str):
     """Extract the first JSON object from a model response."""
     text = text.strip()
     text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-    # Find the first opening brace and its matching closing brace.
-    start = text.find("{")
-    if start == -1:
-        return None
-    depth = 0
-    for i in range(start, len(text)):
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-            if depth == 0:
-                try:
-                    return json.loads(text[start:i + 1])
-                except json.JSONDecodeError:
-                    return None
+    decoder = json.JSONDecoder()
+    for start, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[start:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
     return None
+
+
+def _tool_succeeded(result: str) -> bool:
+    """Return whether a mock/tool result represents a successful execution."""
+    try:
+        payload = json.loads(result)
+    except (TypeError, json.JSONDecodeError):
+        return False
+    if (not isinstance(payload, dict) or payload.get("error")
+            or payload.get("success") is False):
+        return False
+    return str(payload.get("status", "ok")).lower() not in {"error", "failed", "failure"}
+
+
+def _valid_action(action) -> bool:
+    if (not isinstance(action, dict) or not isinstance(action.get("tool"), str)
+            or not isinstance(action.get("arguments"), dict)):
+        return False
+    args = action["arguments"]
+    if action["tool"] == "finish":
+        return isinstance(args.get("answer"), str) and bool(args["answer"].strip())
+    if action["tool"] == "discover_tools":
+        return isinstance(args.get("need"), str) and bool(args["need"].strip())
+    return True
 
 
 def _run_loop(client, model, system_prompt, task_prompt, available_names,
@@ -110,11 +129,12 @@ def _run_loop(client, model, system_prompt, task_prompt, available_names,
     Text-based ReAct loop.
     available_names: names currently callable, excluding discover_tools/finish;
       grows dynamically after discover_tools calls in active-discovery mode.
-    Returns (called_tools, trace, finished).
+    Returns (called_tools, successful_tools, trace, finished).
     """
     messages = [{"role": "system", "content": system_prompt},
                 {"role": "user", "content": task_prompt}]
     called: List[str] = []
+    successful: List[str] = []
     trace: List[str] = []
     finished = False
 
@@ -134,7 +154,7 @@ def _run_loop(client, model, system_prompt, task_prompt, available_names,
         messages.append({"role": "assistant", "content": content})
 
         action = _extract_json(content)
-        if action is None or "tool" not in action:
+        if not _valid_action(action):
             trace.append(f"[format error] Model did not output valid JSON: {content[:80]!r}")
             messages.append({"role": "user",
                              "content": "Your response is not valid JSON. Output only the required JSON object."})
@@ -171,10 +191,12 @@ def _run_loop(client, model, system_prompt, task_prompt, available_names,
         called.append(name)
         impl = TOOL_IMPLS.get(name)
         result = impl(args) if impl else json.dumps({"error": f"unknown tool {name}"})
+        if _tool_succeeded(result):
+            successful.append(name)
         trace.append(f"[call] {name}({json.dumps(args, ensure_ascii=False)})")
         messages.append({"role": "user", "content": f"Tool {name} returned: {result}"})
 
-    return called, trace, finished
+    return called, successful, trace, finished
 
 
 # ---------------------------------------------------------------------------
@@ -192,10 +214,12 @@ def run_full_injection(client, model, task_prompt: str, tools: List[Dict] = None
         "[TOOL CATALOG]\n" + tools_text + "\n\n" + _PROTOCOL
     )
     available = {t["function"]["name"] for t in tools}
-    called, trace, finished = _run_loop(client, model, system, task_prompt, available,
-                                        max_steps=max_steps)
+    called, successful, trace, finished = _run_loop(
+        client, model, system, task_prompt, available, max_steps=max_steps
+    )
     return {"mode": "full_injection", "injected_tokens": injected,
             "num_tools_exposed": len(tools), "called": called,
+            "successful": successful,
             "trace": trace, "finished": finished}
 
 
@@ -221,11 +245,13 @@ def run_retrieval_prefilter(client, model, task_prompt: str, index, top_n: int =
         "[TOOL CATALOG]\n" + tools_text + "\n\n" + _PROTOCOL
     )
     available = set(picked)
-    called, trace, finished = _run_loop(client, model, system, task_prompt, available,
-                                        max_steps=max_steps)
+    called, successful, trace, finished = _run_loop(
+        client, model, system, task_prompt, available, max_steps=max_steps
+    )
     return {"mode": "retrieval_prefilter", "injected_tokens": injected,
             "num_tools_exposed": len(picked_tools), "prefiltered": picked,
-            "called": called, "trace": trace, "finished": finished}
+            "called": called, "successful": successful,
+            "trace": trace, "finished": finished}
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +267,7 @@ def run_active_discovery(client, model, task_prompt: str, index, top_k=4,
                  + render_tool(DISCOVER_TOOL) + "\n" + FINISH_TOOL_DESC)
 
     discovered_names = set()          # Specialized tools loaded in this run.
-    discovered_texts: List[str] = []  # Their schema text for on-demand token counts.
+    injected_schema_blocks: List[str] = []  # Every schema block appended to history.
     available = set(BASE_TOOL_NAMES)
 
     def on_discover(need: str):
@@ -251,10 +277,11 @@ def run_active_discovery(client, model, task_prompt: str, index, top_k=4,
             if name in BASE_TOOL_NAMES:
                 continue
             names.append(name)
-            lines.append(render_tool(tbn[name]) + f"   (similarity {score:.3f})")
+            schema_text = render_tool(tbn[name])
+            lines.append(schema_text + f"   (similarity {score:.3f})")
+            injected_schema_blocks.append(schema_text)
             if name not in discovered_names:
                 discovered_names.add(name)
-                discovered_texts.append(render_tool(tbn[name]))
         status = f"\n\n[STATUS BAR | AVAILABLE TOOLS] {sorted(available | set(names))}"
         body = ("discover_tools matched and loaded these specialized tools; they are ready to call:\n"
                 + "\n".join(lines) + status)
@@ -267,12 +294,14 @@ def run_active_discovery(client, model, task_prompt: str, index, top_k=4,
         "For multi-part tasks, discover each distinct capability separately and verify that every subtask is complete before finishing.\n\n"
         "[BASE TOOLS]\n" + base_text + "\n\n" + _PROTOCOL
     )
-    called, trace, finished = _run_loop(client, model, system, task_prompt,
-                                        available, on_discover=on_discover,
-                                        max_steps=max_steps)
+    called, successful, trace, finished = _run_loop(
+        client, model, system, task_prompt, available,
+        on_discover=on_discover, max_steps=max_steps
+    )
 
-    injected = count_tokens(base_text) + count_tokens("\n".join(discovered_texts))
+    injected = count_tokens(base_text) + count_tokens("\n".join(injected_schema_blocks))
     return {"mode": "active_discovery", "injected_tokens": injected,
             "num_tools_exposed": len(BASE_TOOL_NAMES) + 1 + len(discovered_names),
             "discovered": sorted(discovered_names),
-            "called": called, "trace": trace, "finished": finished}
+            "called": called, "successful": successful,
+            "trace": trace, "finished": finished}
