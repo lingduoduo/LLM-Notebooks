@@ -7,7 +7,7 @@
 - **Core behavior:** compare `run_full_injection`, `run_retrieval_prefilter`, and `run_active_discovery`.
 - **State / protocol:** available-tool names, appended schemas, and JSON action records.
 - **Verifier:** [`test_offline_backend.py`](test_offline_backend.py) plus the exact-match scoring in [`tools_library.py`](tools_library.py).
-- **Experiment variable:** catalog size, retrieval `top_k`, strategy and task mix; compare latency, tokens and exact completion.
+- **Experiment variable:** catalog size, retrieval `top_k`, strategy and task mix; compare latency, schema footprint and exact completion.
 - **Scope:** this directory is a teaching and CI mechanism demo; it does not claim formal real-tool campaign evidence.
 
 ---
@@ -16,7 +16,7 @@
 
 When an Agent has hundreds of tools, a common approach is to inject every tool JSON schema into the system prompt. That creates two problems:
 
-1. **Token waste**: Full schemas for 126 tools are about **11.6k tokens**, re-billed on every reasoning step.
+1. **Token waste**: Full schemas for 126 tools are about **11.6k schema tokens** in the initial prompt and remain part of the context on later reasoning steps.
 2. **Instruction-following degradation**: On slightly vague tasks, the model “casts a wide net” and calls generic fallbacks (`web_search` / `google_search` / `universal_search`) together with specialized tools—or even replaces specialized tools with generic search (e.g. looking up a stock price via generic `web_search`).
 
 **Active discovery** keeps only a few base tools plus a `discover_tools(need)` meta-tool in the system prompt. When the model hits a capability gap, it describes the need in natural language; the system retrieves the 3–5 most relevant specialized tools via embedding similarity, appends their schemas as a **user message** (protecting the system-prefix KV cache), and updates the status bar of available tools.
@@ -35,8 +35,8 @@ agent.py           Three ReAct strategies (text protocol: model outputs one JSON
                    - run_retrieval_prefilter: one-shot top-n retrieve by initial query (book’s “retrieval prefilter”)
                    - run_active_discovery: base tools + discover_tools; retrieve-on-demand during execution
 offline_backend.py Offline backend: LocalEmbedder (local bag-of-words hash) + MockChatClient (scripted mock)
-                   so --offline runs end-to-end without any API key (token/latency real; accuracy = heuristic routing)
-demo.py            Same tasks under selected strategies; prints token / latency / call traces / exact match; summary table
+                   so --offline runs end-to-end without any API key (schema counts/latency measured; accuracy = heuristic routing)
+demo.py            Same tasks under selected strategies; prints schema footprint / latency / call traces / exact match; summary table
 ```
 
 **Why “text inject + text parse” instead of native OpenAI function calling?**
@@ -55,7 +55,11 @@ cd AI-Agent-Tools/active-tool-discovery
 # Install this demo's dependencies in your active Python environment:
 python -m pip install -r requirements.txt
 
-# Path A: offline mechanism self-check (no keys; token/latency real; accuracy = heuristic routing only)
+# Contributors: install test/lint dependencies and run the validation suite:
+python -m pip install -r requirements-dev.txt
+python -m pytest -q && python -m ruff check .
+
+# Path A: offline mechanism self-check (no keys; schema footprint/latency measured; accuracy = heuristic routing only)
 python demo.py --offline
 
 # Path B: real model (needed for small-model instruction-following degradation)
@@ -74,7 +78,7 @@ python demo.py --offline --output results/offline.json         # export structur
 
 Default model `gpt-5.6-luna`; override with `--model` or env: `python demo.py --model gpt-5.6-luna`.
 First run builds tool embeddings and caches under `.cache/`. Full flags: `python demo.py --help`
-(`--query / --tasks / --strategies / --tool-set-size / --top-k / --prefilter-n / --model / --embed-model / --max-steps / --offline / --output`).
+(`--query / --tasks / --strategies / --tool-set-size / --top-k / --prefilter-n / --model / --embed-model / --max-steps / --offline / --output`). Numeric experiment parameters must be positive, and ad-hoc queries that do not map to a known capability are rejected rather than scored vacuously.
 
 ### Adaptation / extension
 
@@ -85,7 +89,7 @@ First run builds tool embeddings and caches under `.cache/`. Full flags: `python
 
 ### Offline mechanism self-check (`python demo.py --offline`)
 
-One real `--offline` run (8 tasks × three strategies). **Token/latency are real tiktoken/wall-clock**; **accuracy only reflects scripted heuristic routing**, not a real model—the mock is a “strong router” and never degrades, so full injection also scores perfectly.
+One real `--offline` run (8 tasks × three strategies). **Schema-token counts and latency are measured with tiktoken/wall-clock**; **accuracy only reflects scripted heuristic routing**, not a real model—the mock is a “strong router” and never degrades, so full injection also scores perfectly. “Complete” requires successful required tool results and a final `finish` action.
 
 | Strategy | Exact match | Task complete | Avg inject tokens | Total inject tokens | Avg latency (s) |
 |---|---|---|---|---|---|
@@ -95,7 +99,7 @@ One real `--offline` run (8 tasks × three strategies). **Token/latency are real
 
 Two **real, reproducible structural** takeaways:
 
-1. **Tokens diverge as catalog size grows**: full injection is fixed at 11,391 tokens/task; prefilter and discovery inject under 1,000 on average (**~12.1×** smaller for active discovery). With `--tool-set-size 20` the gap shrinks—confirming “more tools → full injection hurts more.”
+1. **Schema footprint diverges as catalog size grows**: full injection introduces 11,391 schema tokens/task; prefilter and discovery introduce under 1,000 on average (**~12.1×** smaller for active discovery). These are schema-text counts, not cumulative provider billing across every ReAct request. With `--tool-set-size 20` the gap shrinks—confirming “more tools → a larger full-injection context.”
 2. **Prefilter structurally misses tools on multi-step cross-domain tasks**: one-shot top-10 completes only 3/8 tasks in the current English catalog; active discovery retrieves per emerging `need` and completes 8/8.
 
 ### Conclusions (one real run, gpt-5.6-luna, 2026-07)
@@ -118,7 +122,7 @@ Two **real, reproducible structural** takeaways:
 
 (Prefilter avg 971 tokens/task, total 7768; mean latency ~11.5 / 9.6 / 10.7 s for the three strategies—measured this run.)
 
-1. **Token savings remain robust**: full injection fixed at **11,630 tokens/task**; discovery **295–1,055**, total 93,040 → 4,733 (**~19.7×**). Part of the larger ratio is gpt-5.6-luna abandoning some tasks without `discover_tools` (only 3 base tools = 295 tokens). The structural gain still holds: full injection re-bills tens of thousands; on-demand injects thousands or fewer.
+1. **Schema-footprint savings remain robust**: full injection introduced **11,630 schema tokens/task**; discovery **295–1,055**, total 93,040 → 4,733 (**~19.7×**). Part of the larger ratio is gpt-5.6-luna abandoning some tasks without `discover_tools` (only 3 base tools = 295 tokens). This compares schema text introduced into context, not cumulative provider token billing.
 
 2. **Book core phenomenon on two “inducement” tasks**: with vague wording, full injection grabs generic fallbacks—
    - `opinion(inducement)`: full called `search_news, search_news, web_search, search_tweets` (⚠️ included generic **`web_search`**); discovery retrieved `search_news / get_news_by_source / ...` (**no** `web_search`) and only used specialized news tools (✅).
@@ -152,18 +156,18 @@ Two **real, reproducible structural** takeaways:
 - **Weak gpt-4o-mini:** under full injection never abandons (8/8 complete) but wide-nets generics on 3 tasks → **5/8 exact**. Discovery blocks inflated generics: **8/8 exact, 0 generic misuse, still 8/8 complete** (+3 exact tasks, zero completion loss).
 - **Strong gpt-5.6-luna:** generic misuse only on 2 inducement tasks; discovery cleans those but exact only **3/8 → 4/8 (+1)** and completion **falls 5/8 → 4/8**. Main failure is abandon, not wrong pick—retrieval cannot fix “no tool call at all.” The weakness scaffolding targets is thin on strong models, so that value fades.
 
-#### Value 2: inject-token savings — **persists** regardless of model strength
+#### Value 2: schema-footprint savings — **persists** regardless of model strength
 
 Full injection is always **11,630 tokens/task** (all 126 schemas in system). On-demand injects a few hundred to ~1k:
 
 - Weak gpt-4o-mini: 93,040 → 7,266, **~12.8×**
 - Strong gpt-5.6-luna: 93,040 → 4,733, **~19.7×** (larger partly because abandon skips `discover_tools`)
 
-Token savings hold on both models and grow with catalog size—the hard reason to keep scaffolding in the strong-model era.
+Schema-footprint savings hold on both models and grow with catalog size. Provider billing requires separate usage accounting across every request.
 
 #### One-line summary
 
-> **Stronger models weaken “help it not pick the wrong tool”** (gpt-4o-mini full 5/8→discovery 8/8 exact, zero completion loss; gpt-5.6-luna only 3/8→4/8 and completion drops, because losses are “abandon” not “wrong pick”). **Token savings stay** (~12.8× / ~19.7×). On strong models, the main case for active discovery shifts from “fix instruction-following degradation” to “control context cost.”
+> **Stronger models weaken “help it not pick the wrong tool”** (gpt-4o-mini full 5/8→discovery 8/8 exact, zero completion loss; gpt-5.6-luna only 3/8→4/8 and completion drops, because losses are “abandon” not “wrong pick”). **Schema-footprint savings stay** (~12.8× / ~19.7×). On strong models, the main case for active discovery shifts from “fix instruction-following degradation” to “control context size.”
 
 ### Files
 
@@ -172,6 +176,6 @@ Token savings hold on both models and grow with catalog size—the hard reason t
 - `agent.py` — three strategies (full / prefilter / discovery) ReAct loops + token stats
 - `offline_backend.py` — `LocalEmbedder` + `MockChatClient` for `--offline`
 - `demo.py` — multi-strategy CLI demo
-- `requirements.txt` / `env.example`
+- `requirements.txt` / `requirements-dev.txt` / `env.example`
 
 ---
