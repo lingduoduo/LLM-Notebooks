@@ -49,8 +49,19 @@ def validate_record(record, task):
             raise ValueError(f'{key} must be nonempty text')
     if not isinstance(record.get('context'), dict) or not isinstance(record.get('metadata'), dict):
         raise ValueError('context and metadata must be objects')
+    if 'benchmark_group' in record['metadata']:
+        group = record['metadata']['benchmark_group']
+        if not isinstance(group, str) or not group.strip():
+            raise ValueError('benchmark_group must be nonempty text')
     if record.get('human') is not None:
         task.validate_scores(record['human'])
+    if 'human_decision' in record:
+        if type(record['human_decision']) is not bool:
+            raise ValueError('human_decision must be a boolean')
+        if not isinstance(record.get('human_rationale'), str) or not record['human_rationale'].strip():
+            raise ValueError('human_rationale is required for pass/fail labels')
+        if record.get('human') is not None and task.passed(record['human']) != record['human_decision']:
+            raise ValueError('Human scores contradict the pass/fail decision')
 
 
 class TaskJudge:
@@ -83,15 +94,24 @@ class Alignment:
     def __init__(self, task):
         self.task = task
         self.n = 0
+        self.decisions = 0
         self.agree = dict.fromkeys(task.rubric, 0)
         self.tp = self.fp = self.tn = self.fn = 0
 
-    def add(self, human, result):
-        self.task.validate_scores(human)
-        self.n += 1
-        for name in self.agree:
-            self.agree[name] += int(human[name] == result['scores'][name])
-        actual, predicted = self.task.passed(human), result['passed']
+    def add(self, human, result, decision=None):
+        if human is not None:
+            self.task.validate_scores(human)
+            self.n += 1
+            for name in self.agree:
+                self.agree[name] += int(human[name] == result['scores'][name])
+        if decision is None:
+            if human is None:
+                raise ValueError('A human decision or criterion scores are required')
+            decision = self.task.passed(human)
+        if type(decision) is not bool:
+            raise ValueError('Human decision must be boolean')
+        self.decisions += 1
+        actual, predicted = decision, result['passed']
         self.tp += int(actual and predicted)
         self.fp += int(not actual and predicted)
         self.tn += int(not actual and not predicted)
@@ -101,7 +121,9 @@ class Alignment:
         def ratio(a, b):
             return a / b if b else None
         criteria = {k: ratio(v, self.n) for k, v in self.agree.items()}
-        return {'labeled_count': self.n, 'criterion_agreement': criteria,
+        return {'labeled_count': self.decisions, 'score_labeled_count': self.n,
+                'decision_agreement': ratio(self.tp + self.tn, self.decisions),
+                'criterion_agreement': criteria,
                 'macro_agreement': sum(criteria.values()) / len(criteria) if self.n else None,
                 'tp': self.tp, 'fp': self.fp, 'tn': self.tn, 'fn': self.fn,
                 'precision': ratio(self.tp, self.tp + self.fp),
@@ -116,17 +138,22 @@ def align(judge, calibration, validation):
     ids, contents = set(), set()
     for record in calibration + validation:
         validate_record(record, judge.task)
-        if record.get('human') is None:
+        if record.get('human') is None and 'human_decision' not in record:
             raise ValueError('Alignment requires independent human labels')
         content = digest({'context': record['context'], 'output': record['output']})
         if record['id'] in ids or content in contents:
             raise ValueError('Alignment splits require unique IDs and disjoint examples')
         ids.add(record['id'])
         contents.add(content)
+    calibration_groups = {r.get('metadata', {}).get('benchmark_group') for r in calibration}
+    validation_groups = {r.get('metadata', {}).get('benchmark_group') for r in validation}
+    if (calibration_groups & validation_groups) - {None}:
+        raise ValueError('Related benchmark families must not cross alignment splits')
     feedback = []
     for record in calibration:
         result = judge.evaluate(record)
-        if record['human'] != result['scores']:
+        if ((record.get('human') is not None and record['human'] != result['scores'])
+                or ('human_decision' in record and record['human_decision'] != result['passed'])):
             feedback.append({**record, 'result': result})
     candidate = judge
     if feedback:
@@ -143,13 +170,17 @@ def align(judge, calibration, validation):
     for record in validation:
         original = judge.evaluate(record)
         revised = candidate.evaluate(record) if candidate is not judge else original
-        before.add(record['human'], original)
-        after.add(record['human'], revised)
-        comparisons.append({'id': record['id'], 'human': record['human'],
+        before.add(record.get('human'), original, record.get('human_decision'))
+        after.add(record.get('human'), revised, record.get('human_decision'))
+        comparisons.append({'id': record['id'], 'human': record.get('human'),
+                            'human_decision': record.get('human_decision'),
+                            'human_rationale': record.get('human_rationale'),
                             'before': original, 'after': revised})
     old, new = before.report(), after.report()
-    promoted = (new['macro_agreement'] > old['macro_agreement']
-                and all(new['criterion_agreement'][k] >= old['criterion_agreement'][k] for k in judge.task.rubric)
+    metric = 'macro_agreement' if old['score_labeled_count'] else 'decision_agreement'
+    promoted = (new[metric] > old[metric]
+                and all(old['criterion_agreement'][k] is None or
+                        new['criterion_agreement'][k] >= old['criterion_agreement'][k] for k in judge.task.rubric)
                 and new['fp'] <= old['fp'] and new['fn'] <= old['fn'])
     return (candidate if promoted else judge), {
         'promoted': promoted, 'before': old, 'after': new, 'disagreements': feedback,
@@ -199,9 +230,9 @@ def evaluate_stream(records, judge, output_dir, workers=4, review_size=100, seed
                 processed += 1
                 errors += int(result['status'] == 'error')
                 accepted += int(result['passed'])
-                if isinstance(record, dict) and record.get('human') is not None:
+                if isinstance(record, dict) and (record.get('human') is not None or 'human_decision' in record):
                     if result['status'] == 'ok':
-                        stats.add(record['human'], result)
+                        stats.add(record.get('human'), result, record.get('human_decision'))
                     else:
                         labeled_errors += 1
                 sink.write(json.dumps({'sequence': processed, 'record': record, 'version': config['version'],
@@ -224,13 +255,15 @@ def evaluate_stream(records, judge, output_dir, workers=4, review_size=100, seed
         alerts.append(f'{errors} evaluation errors; those outputs were not accepted')
     if human['macro_agreement'] is not None and human['macro_agreement'] < agreement_threshold:
         alerts.append('Human macro agreement below threshold')
+    if human['decision_agreement'] is not None and human['decision_agreement'] < agreement_threshold:
+        alerts.append('Human pass/fail agreement below threshold')
     if human['false_accept_rate'] is not None and human['false_accept_rate'] > max_false_accept_rate:
         alerts.append('Human false-accept rate above threshold')
     report = {'status': 'complete', 'created_at': datetime.now(timezone.utc).isoformat(),
               'judge_version': config['version'], 'processed': processed, 'errors': errors,
               'model_accepted': accepted, 'model_accept_rate': accepted / processed,
               'human_alignment': human, 'labeled_errors': labeled_errors,
-              'alignment_status': 'measured_on_labeled_successes' if stats.n else 'unavailable_no_scored_human_labels',
+              'alignment_status': 'measured_on_labeled_successes' if stats.decisions else 'unavailable_no_scored_human_labels',
               'alerts': alerts, 'review_sample_size': len(reservoir), 'seed': seed,
               'thresholds': {'agreement': agreement_threshold, 'false_accept_rate': max_false_accept_rate}}
     with (output / 'review_queue.jsonl').open('x', encoding='utf-8') as sink:
