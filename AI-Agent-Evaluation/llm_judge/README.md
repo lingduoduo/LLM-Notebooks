@@ -341,3 +341,118 @@ not a substitute for representative labels or subgroup analysis.
 These are quality-threshold checks, not a statistical drift test or an online
 experiment analysis. Scheduling, catalog ingestion, distributed queues, rate
 control, experiment randomization, and user-trust measurement remain external.
+
+## Benchmark Data Creation: experts, gray areas, and human judgments
+
+`create_benchmark.py` provides an author → augment → rate → build workflow for
+hard and near-boundary examples. Expert and LLM outputs are **candidates**, never
+automatic ground truth. Human raters supply explicit pass/fail decisions and
+written rationales. Existing criterion-score labels remain supported, but scores
+are optional for this workflow and are never inferred from a binary decision.
+
+**1. Experts author cases.** Each expert input is a JSONL record with `id`,
+`context`, `output`, `metadata`, `expert_id`, `difficulty` (`hard` or `boundary`),
+and `boundary_reason`. Use `group_id` to tie related cases to the same scenario;
+it defaults to the expert example ID. For explanations, provide the member's
+watch history and metadata for both recommended and reference titles. Craft cases
+such as a supported paraphrase versus a stronger unsupported tone claim, or a
+watched-title reference versus an invented favorite-title claim.
+
+Prepare the supplied **synthetic** expert fixtures without model calls:
+
+```bash
+python AI-Agent-Evaluation/llm_judge/create_benchmark.py prepare \
+  --task AI-Agent-Evaluation/llm_judge/tasks/similarity.json \
+  --experts AI-Agent-Evaluation/llm_judge/data/expert_cases.jsonl \
+  --output-dir /tmp/benchmark-candidates
+```
+
+**2. Optionally augment with an LLM.** Add `--augment-count 2 --model your-model`
+to generate two gray-area variants per expert seed. This makes real calls using
+`GENERATOR_API_KEY` (fallback `OPENAI_API_KEY`) and `--base-url` /
+`GENERATOR_BASE_URL`. The augmenter can change output wording, but preserves the
+seed's evidence snapshot and family. Its response may contain only output text
+and an authoring note, with no scores or pass/fail labels. Duplicate candidate
+IDs/content and malformed responses are rejected. Requests are bounded to
+1–20 variants per seed; review generation quality before treating candidates as
+useful benchmark coverage.
+
+Preparation writes:
+
+- `candidates.jsonl`: text, evidence, difficulty, boundary note, source/author,
+  seed lineage, family and task hash.
+- `rating_queue.jsonl`: blind records with candidate hashes and blank rating fields.
+- `task.json`: the rubric/instructions the raters should use.
+
+The rating queue omits author identity, source, authoring notes and proposed
+verdicts. Share the queue and task rubric with raters, keeping the candidate file
+separate during blind review.
+
+**3. Humans rate independently.** Give each rater a copy of the queue. They fill
+in `rater_id`, `passed` (JSON `true` or `false`), and a nonempty `rationale` that
+identifies the supported evidence or the concrete defect. Preserve `id` and
+`candidate_hash`. The minimal submitted rating is:
+
+```json
+{"id":"romance-overclaim","candidate_hash":"copy-the-hash-from-the-queue","rater_id":"rater-17","passed":false,"rationale":"Watch history shows interaction, not that this is the member's favorite film."}
+```
+
+Optional `scores` must cover all task criteria and agree with the pass decision.
+The default requires two distinct raters per candidate. Rater identifiers are
+attribution supplied by your annotation process, not authenticated identities;
+the CLI cannot verify expertise or whether ratings were independently collected.
+
+**4. Build the reviewed benchmark.** Supply all rater files:
+
+```bash
+python AI-Agent-Evaluation/llm_judge/create_benchmark.py build \
+  --task /tmp/benchmark-candidates/task.json \
+  --candidates /tmp/benchmark-candidates/candidates.jsonl \
+  --ratings rater-a.jsonl rater-b.jsonl \
+  --validation-fraction 0.25 --seed 7 \
+  --output-dir /tmp/reviewed-benchmark
+```
+
+For an entirely offline fixture walkthrough, replace the two rater paths with
+`AI-Agent-Evaluation/llm_judge/data/expert_ratings_fixture.jsonl`. These authored
+fixture ratings match the unaugmented example candidates; they are **not evidence
+of actual expert or human-rater activity**. Added LLM candidates still need new
+human ratings. Do not copy fixture verdicts onto new text.
+
+Only candidates with enough consistent ratings enter `benchmark.jsonl`.
+Conflicting pass/fail or criterion-score judgments go to `pending.jsonl` until a
+human adjudicator resolves them. Supply `--adjudications adjudicated.jsonl` using
+the same rating shape and an adjudicator's identifier, final decision and written
+rationale. Adjudication does not bypass the minimum rating count. A candidate
+edit or rubric change invalidates old hashes and requires fresh ratings.
+
+The builder rejects stale hashes, unknown IDs, duplicate submissions by one
+rater, missing rationales and decisions inconsistent with supplied scores. It
+preserves all ratings and the adjudication in accepted records, including human
+rationales. `manifest.json` records a content-derived version, accepted/pending
+counts, pass/fail counts and expert/LLM source counts. Exit code `2` means some
+candidates remain pending; `1` means invalid input; `0` means all are resolved.
+Use new or empty output directories so earlier benchmark versions remain intact.
+
+With `--validation-fraction`, the builder also writes `calibration.jsonl` and
+`validation.jsonl`. Splitting happens by family, keeping expert seeds and all
+LLM variants together. At least two accepted families are required; otherwise
+omit the flag until more independent cases are reviewed. Family-level splitting
+cannot discover semantic overlap between separately authored families, so experts
+must assign related cases consistently and inspect split coverage.
+
+**5. Use the benchmark for alignment.** The outputs use the task-independent
+`batch.py` schema: `human_decision`, `human_rationale`, and optional `human`
+criterion scores. Pass the exported calibration/validation files to `batch.py`
+with the exported `task.json` and a separate production stream. Binary-only labels
+produce pass/fail agreement, confusion counts, precision/recall and false-accept
+rate; criterion agreement remains `null`. Reflection receives calibration human
+rationales, and binary-only promotion requires improved held-out decision
+agreement without increasing false accepts or false rejects. Related families
+are rejected if manually placed across alignment splits. Normal judging prompts
+still contain only context and output, never human labels or rationales.
+
+Hard-case benchmark composition is deliberate and is not representative of
+production traffic. Use independent production sampling for prevalence and live
+quality monitoring; do not interpret boundary-case pass rates as user-facing
+failure rates.
