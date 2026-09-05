@@ -51,8 +51,11 @@ def run(args):
     if args.backend == 'demo':
         judge, generator, reflector = DemoJudge(), DemoGenerator(), Reflector()
     else:
-        client = ChatClient(args.model, args.base_url, os.getenv('OPENAI_API_KEY', ''), args.timeout)
-        judge, generator, reflector = LLMJudge(client), LLMGenerator(client), LLMReflector()
+        judge_client = ChatClient(args.judge_model or args.model, args.judge_base_url or args.base_url,
+                                  os.getenv('JUDGE_API_KEY', os.getenv('OPENAI_API_KEY', '')), args.timeout)
+        generator_client = ChatClient(args.generator_model or args.model, args.generator_base_url or args.base_url,
+                                      os.getenv('GENERATOR_API_KEY', os.getenv('OPENAI_API_KEY', '')), args.timeout)
+        judge, generator, reflector = LLMJudge(judge_client), LLMGenerator(generator_client), LLMReflector()
 
     calibration_results, calibration_metrics = evaluate(judge, calibration)
     feedback = []
@@ -80,6 +83,8 @@ def run(args):
     report = {
         'created_at': datetime.now(timezone.utc).isoformat(), 'backend': args.backend,
         'scenario': args.scenario,
+        'models': {'judge': getattr(getattr(judge, 'client', None), 'model', 'demo'),
+                   'generator': getattr(getattr(generator, 'client', None), 'model', 'demo')},
         'calibration_ids': [ex.id for ex in calibration],
         'validation_ids': [ex.id for ex in validation],
         'production_ids': [ex.id for ex in sample],
@@ -116,6 +121,10 @@ def main():
     parser.add_argument('--backend', choices=['demo', 'llm'], default='demo')
     parser.add_argument('--model', default=os.getenv('LLM_MODEL'))
     parser.add_argument('--base-url', default=os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1'))
+    parser.add_argument('--judge-model', default=os.getenv('JUDGE_MODEL'))
+    parser.add_argument('--generator-model', default=os.getenv('GENERATOR_MODEL'))
+    parser.add_argument('--judge-base-url', default=os.getenv('JUDGE_BASE_URL'))
+    parser.add_argument('--generator-base-url', default=os.getenv('GENERATOR_BASE_URL'))
     parser.add_argument('--timeout', type=float, default=60)
     parser.add_argument('--benchmark', type=Path, default=None)
     parser.add_argument('--validation', type=Path, default=None)
