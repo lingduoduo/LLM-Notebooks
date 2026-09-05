@@ -170,3 +170,20 @@ def split_groups(records, validation_fraction=0.25, seed=7):
     validation_groups = set(groups[:count])
     return ([r for r in records if r['metadata']['benchmark_group'] not in validation_groups],
             [r for r in records if r['metadata']['benchmark_group'] in validation_groups])
+
+
+def split_training_groups(records, development_fraction=0.25, holdout_fraction=0.25, seed=7):
+    """Keep whole expert/LLM families in calibration, development or final holdout."""
+    if not 0 < development_fraction < 1 or not 0 < holdout_fraction < 1 or development_fraction + holdout_fraction >= 1:
+        raise ValueError('Development and holdout fractions must be positive and sum to less than 1')
+    groups = sorted({r['metadata']['benchmark_group'] for r in records})
+    if len(groups) < 3:
+        raise ValueError('At least three independent families are required for training splits')
+    random.Random(seed).shuffle(groups)
+    holdout_count = min(len(groups)-2, max(1, round(len(groups)*holdout_fraction)))
+    development_count = min(len(groups)-holdout_count-1, max(1, round(len(groups)*development_fraction)))
+    holdout = set(groups[:holdout_count])
+    development = set(groups[holdout_count:holdout_count+development_count])
+    return ([r for r in records if r['metadata']['benchmark_group'] not in holdout | development],
+            [r for r in records if r['metadata']['benchmark_group'] in development],
+            [r for r in records if r['metadata']['benchmark_group'] in holdout])
