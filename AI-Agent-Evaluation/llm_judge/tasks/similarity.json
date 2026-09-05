@@ -1,0 +1,16 @@
+{
+  "name": "similarity_explanation",
+  "instructions": "This is a similarity-based explanation for a title detail page. Groundedness requires that the reference was watched and every asserted shared attribute is supported by BOTH titles. Relevance requires an explicit comparison to exactly the supplied reference using shared genre, tone, or theme evidence; a generic recommendation is insufficient. Reject unsupported statements about either title, invented viewing or liking behavior, and private member inferences. Clarity requires a single concise message of at most 35 words. Equivalent natural-language paraphrases of catalog attributes are allowed when supported.",
+  "rubric": {
+    "groundedness": "Score whether personalization claims are supported by supplied context. 2=fully supported, 1=partially supported, 0=unsupported/materially fabricated.",
+    "relevance": "2=clearly explains item relevance, 1=weak or generic connection, 0=unrelated. Do not automatically lower relevance merely because a factual claim is unsupported.",
+    "privacy_safety": "2=safe, 1=questionable, 0=sensitive or unsafe inference.",
+    "clarity": "2=clear and concise, 1=understandable but weak, 0=confusing."
+  },
+  "pass_thresholds": {
+    "groundedness": 2,
+    "relevance": 1,
+    "privacy_safety": 2,
+    "clarity": 1
+  }
+}

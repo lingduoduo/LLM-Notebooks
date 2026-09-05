@@ -66,8 +66,9 @@ not written to artifacts. Real mode sends supplied contexts to your configured
 endpoint and makes model calls for judging, rubric reflection, and generation.
 There is no silent switch to the offline backend. Request timeout defaults to
 60 seconds (`--timeout`); offline evaluation aborts on backend errors, while the
-serving guardrail uses its bounded retry/fallback behavior. The same model is
-used for all three roles in this example.
+serving guardrail uses its bounded retry/fallback behavior. By default `--model` supplies both roles for compatibility. Configure separate
+`--generator-model` and `--judge-model` values to use a second evaluator model;
+rubric reflection uses the judge client.
 
 ## Bring your own labels
 
@@ -209,3 +210,134 @@ it is not a semantic evaluator of arbitrary prose. Use the real-model backend fo
 paraphrases and nuanced claims. Original generic fixtures and commands remain
 available; examples containing `reference` use similarity behavior automatically,
 and `--scenario similarity` additionally requires references on all input rows.
+
+## Quality evaluation with a second LLM
+
+Misleading explanations can undermine member trust. Generation and evaluation
+therefore have separate model clients and can use different models, endpoints,
+and credentials:
+
+```bash
+export GENERATOR_MODEL='your-generation-model'
+export JUDGE_MODEL='your-evaluation-model'
+python AI-Agent-Evaluation/llm_judge/demo.py --scenario similarity --backend llm
+```
+
+`--generator-model` and `--judge-model` override these environment variables.
+`GENERATOR_BASE_URL` / `JUDGE_BASE_URL` (or the corresponding CLI flags) select
+separate endpoints. `GENERATOR_API_KEY` / `JUDGE_API_KEY` default to
+`OPENAI_API_KEY`. `--model` / `LLM_MODEL` remain fallbacks. Reports record both
+model identities. A second model is still fallible: compare it with independent
+human labels before relying on its scores, and monitor that agreement over time.
+
+The reported Netflix online experiments motivate this architecture. This
+repository contains synthetic fixtures and offline integration tests; it does
+not contain Netflix experiment data, reproduce a mobile experiment, or establish
+an effect on user trust or engagement.
+
+## Reuse the judge lifecycle across tasks
+
+`quality.py` separates task definitions from build, alignment, and monitoring:
+
+- **Build:** a `TaskSpec` supplies task instructions, named rubric criteria, and
+  per-criterion pass thresholds. `TaskJudge` validates model output and computes
+  the pass decision locally. Criteria use the ordinal scale `0`, `1`, `2`.
+- **Align:** `align()` analyzes calibration disagreements, asks the judge model
+  for a revised rubric, and evaluates the candidate once on disjoint held-out
+  records. Promotion requires strict macro improvement, no criterion regression,
+  and no increase in false accepts or false rejects. Labels never enter normal
+  judging prompts; only calibration labels enter reflection. Keep a fresh final
+  test set after repeated rubric experiments.
+- **Monitor:** `evaluate_stream()` evaluates records with bounded concurrency,
+  writes results incrementally, collects a uniform reservoir sample for blind
+  human annotation, and reports human agreement only when labels exist.
+
+Task configurations include `tasks/similarity.json` and `tasks/summary.json`.
+The latter uses different criteria (`accuracy` and `coverage`) to demonstrate
+reuse beyond recommendation explanations. A new task needs a JSON specification
+and context/output records, not changes to the worker or alignment metrics.
+Task instructions carry domain-specific semantic checks. The generic batch
+engine does not call the recommendation-specific structural gate; use
+`generate_with_guardrail` with `LLMJudge` for that serving path.
+
+## Evaluate a production stream
+
+The production evaluator accepts previously generated outputs; it never asks the
+judge to generate the content it is evaluating:
+
+```bash
+python AI-Agent-Evaluation/llm_judge/batch.py \
+  --task AI-Agent-Evaluation/llm_judge/tasks/similarity.json \
+  --input AI-Agent-Evaluation/llm_judge/data/production_stream.jsonl \
+  --judge-model your-evaluation-model \
+  --output-dir /tmp/explanation-quality-run-01 \
+  --workers 4 --review-size 100 --fail-on-alert
+```
+
+This command makes real model calls. `--base-url` or `JUDGE_BASE_URL` selects a
+compatible endpoint; credentials use `JUDGE_API_KEY` or `OPENAI_API_KEY`.
+
+Each JSONL record has this task-independent shape:
+
+```json
+{
+  "id": "explanation-001",
+  "context": {"source": "The supplied evidence for the task."},
+  "output": "The previously generated text to evaluate.",
+  "metadata": {
+    "catalog_version": "catalog-2026-09-05",
+    "generator_model": "generator-snapshot",
+    "generated_at": "2026-09-05T12:00:00Z",
+    "experiment_id": "experiment-variant",
+    "surface": "title_detail_page"
+  }
+}
+```
+
+The example above uses summary context. Similarity records include `user`, `item`,
+`reference`, and shared attributes inside `context`; see the production fixture.
+Store the catalog evidence used **at generation time** in the record, including
+both titles' metadata. The evaluator uses this snapshot instead of looking up a
+potentially changed catalog entry. Metadata is caller-supplied provenance, not
+independently verified; use stable event IDs and model snapshots in real runs.
+
+Optional `human` labels map each task criterion to an integer score, for example
+`"human": {"accuracy": 2, "coverage": 1}` for the summary task. Omit them on
+unreviewed production traffic. Add both `--calibration calibration.jsonl` and
+`--validation held_out.jsonl` to run alignment first using the same record schema.
+Alignment sets are loaded into memory and must be small enough to fit; production
+is streamed. All alignment examples must have human labels. Production records
+must not overlap the alignment sets.
+
+Artifacts are written into a new or empty output directory:
+
+| Artifact | Contents |
+| --- | --- |
+| `judge.json` | Active task, model, endpoint and configuration hash |
+| `alignment.json` | Optional calibration disagreements, held-out comparisons, candidate and promotion decision |
+| `evaluations.jsonl` | Each original context/output/metadata snapshot, judge version, result or error |
+| `review_queue.jsonl` | Uniform sample with blank human labels and no judge answers |
+| `report.json` | Completion status, counts, error count, model acceptance, observed human agreement and alerts |
+
+The worker holds at most `2 × workers` records in flight plus `review-size` sampled
+records. It supports 1–64 workers; choose concurrency for your endpoint's limits.
+Model/API/schema errors are explicit per-record failures and are never accepted.
+They do not stop the remaining valid records. Malformed JSON or split overlap
+aborts the run with exit code `1`, preserving partial traces without a completed
+report. Use a fresh directory when rerunning; this worker has no automatic resume
+or rate-limit backoff. It is a bounded-memory building block, not a distributed
+service or a demonstrated hundreds-of-thousands-per-week deployment.
+
+Have humans fill in the blind review queue's `human` field, then pass that labeled
+file to a **new** run to measure the current judge. Reports measure agreement on
+successfully evaluated labeled records and separately count labeled errors.
+Unlabeled traffic yields `null` agreement with an explicit unavailable status;
+model acceptance is not a measure of human quality. API errors, macro agreement
+below `--agreement-threshold` (default `0.85`), and false-accept rate above
+`--max-false-accept-rate` (default `0.10`) create alerts. `--fail-on-alert` returns
+`2` when alerts exist; otherwise a completed run returns `0`. Error handling is
+not a substitute for representative labels or subgroup analysis.
+
+These are quality-threshold checks, not a statistical drift test or an online
+experiment analysis. Scheduling, catalog ingestion, distributed queues, rate
+control, experiment randomization, and user-trust measurement remain external.

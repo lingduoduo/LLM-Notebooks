@@ -1,0 +1,12 @@
+{
+  "name": "source_summary",
+  "instructions": "Evaluate whether the output is a faithful, useful summary of context.source.",
+  "rubric": {
+    "accuracy": "2=all claims supported by the source, 1=minor unsupported detail, 0=materially fabricated or contradicted.",
+    "coverage": "2=covers main source points, 1=misses a secondary point, 0=misses the main point."
+  },
+  "pass_thresholds": {
+    "accuracy": 2,
+    "coverage": 1
+  }
+}

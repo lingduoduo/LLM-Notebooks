@@ -50,6 +50,7 @@ class CLITests(unittest.TestCase):
         from judge import DemoJudge, DEFAULT_RUBRIC
         from models import BenchmarkExample, UserContext, Item, HumanLabel
         requests = []
+        request_models = []
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -57,6 +58,7 @@ class CLITests(unittest.TestCase):
 
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                request_models.append(body['model'])
                 system = body['messages'][0]['content']
                 payload = json.loads(body['messages'][1]['content'])
                 requests.append((system, payload))
@@ -84,7 +86,8 @@ class CLITests(unittest.TestCase):
         thread.start()
         try:
             with tempfile.TemporaryDirectory() as tmp:
-                run = subprocess.run([sys.executable, str(SCRIPT), '--backend', 'llm', '--model', 'test-model',
+                run = subprocess.run([sys.executable, str(SCRIPT), '--backend', 'llm', '--generator-model', 'generator-model',
+                                      '--judge-model', 'judge-model',
                                       '--base-url', f'http://127.0.0.1:{server.server_port}/v1',
                                       '--output-dir', tmp], capture_output=True, text=True, timeout=30)
                 self.assertEqual(run.returncode, 0, run.stderr)
@@ -94,6 +97,8 @@ class CLITests(unittest.TestCase):
                 self.assertEqual(len(report['generation']['traces']), 2)
                 self.assertTrue(report['monitoring']['drifted'])
                 self.assertTrue(any(s.startswith('Improve') for s, _ in requests))
+                self.assertEqual(set(request_models), {'generator-model', 'judge-model'})
+                self.assertEqual(report['models'], {'generator': 'generator-model', 'judge': 'judge-model'})
                 for system, payload in requests:
                     if system.startswith('Evaluate'):
                         self.assertNotIn('human', payload)
