@@ -456,3 +456,110 @@ Hard-case benchmark composition is deliberate and is not representative of
 production traffic. Use independent production sampling for prevalence and live
 quality monitoring; do not interpret boundary-case pass rates as user-facing
 failure rates.
+
+## Training: LLM Judge Development
+
+`train_judge.py` iteratively improves the judge's **rubric prompts**, using the
+human labels and written rationales exported by Benchmark Data Creation. It does
+not fine-tune model weights. `training.py` reuses the task-independent judge and
+metrics, so both similarity explanations and other task definitions work.
+
+Prepare three separate, human-rated sets:
+
+- **Calibration:** the only examples whose human labels/rationales are shown to
+  the reflector; fixed anchor examples also come from here.
+- **Development:** repeatedly evaluated to accept/reject candidate rubrics and
+  measure progress. This is a tuning set, not an untouched test set. Its examples
+  and labels are not sent to the reflection prompt.
+- **Final holdout:** evaluated once after the rubric loop stops, never used to
+  revise or select a candidate. A final failure prevents an aligned result.
+
+The Birth builder can create these files from a sufficiently large reviewed
+benchmark. Add `--validation-fraction 0.25 --holdout-fraction 0.25` to the existing
+`create_benchmark.py build` command. With a holdout fraction it exports
+`calibration.jsonl`, `development.jsonl`, and `holdout.jsonl` instead of the
+previous two-way split. Entire expert/LLM families stay together. At least three
+independent families are needed, and the training CLI also checks class coverage
+and sample size in each split. The four-example Birth fixture is intentionally
+too small for a meaningful three-way training run.
+
+Run training against your model:
+
+```bash
+python AI-Agent-Evaluation/llm_judge/train_judge.py \
+  --task /tmp/reviewed-benchmark/task.json \
+  --calibration /tmp/reviewed-benchmark/calibration.jsonl \
+  --development /tmp/reviewed-benchmark/development.jsonl \
+  --holdout /tmp/reviewed-benchmark/holdout.jsonl \
+  --judge-model your-evaluation-model \
+  --output-dir /tmp/judge-training-01 \
+  --max-rounds 5 --patience 2 \
+  --target-agreement 0.90 --target-score-agreement 0.85 \
+  --max-false-accept-rate 0.10 --min-recall 0.90
+```
+
+Credentials use `JUDGE_API_KEY` or `OPENAI_API_KEY`; `--base-url` / `JUDGE_BASE_URL`
+and `--timeout` configure the model endpoint. These are real model calls. The
+repository's training tests exercise the complete HTTP flow against a scripted
+local server; no production model alignment result is implied by those tests.
+
+Every training record needs human labels and a nonempty `human_rationale`.
+Binary-only labels are supported directly; criterion scores remain optional.
+The default requires at least 20 labeled examples and at least 5 human passes and
+5 human fails **in each split**. `--min-examples` and `--min-per-class` change these
+checks for controlled experiments. They are minimum evidence checks, not a
+statistical power calculation or a guarantee of generalization.
+
+Each round follows this procedure:
+
+1. Compare the current judge with human decisions and any criterion scores on
+   calibration and development records.
+2. Collect calibration mismatches, including the model's rationale, the human's
+   decision/rationale, and the supplied evidence.
+3. Ask the model to explain each mismatch and propose a general rubric revision,
+   using fixed human-labeled anchor examples to preserve important boundaries.
+4. Evaluate the proposed rubric. Retain it only when decision or score agreement
+   improves on at least one tuning split, neither split gains false accepts or
+   false rejects, no criterion agreement decreases, and anchors do not regress.
+5. Repeat until targets are met or the configured round/stagnation limit is
+   reached. The final selected judge is then evaluated once on the holdout.
+
+Anchors default to up to four calibration records, selected deterministically
+with both pass and fail cases when space permits. Use repeated
+`--anchor-id example-id` arguments to choose them explicitly, or `--anchor-count`
+to change the automatic count. Anchors remain fixed throughout the run. Their
+human judgments appear in reflection prompts only; ordinary judging calls still
+contain just context and output. The learned rubric is the deployed artifact;
+anchors are not silently added as few-shot labels to evaluation prompts.
+
+An aligned result requires the targets on calibration, development **and** final
+holdout: pass/fail agreement at least `0.90`, false-accept rate at most `0.10`, and
+human-pass recall at least `0.90`, by default. If criterion labels are present,
+each criterion's agreement must also reach `0.85`. With binary labels, criterion
+agreement remains `null` and is not fabricated.
+
+Stopping is explicit. Unchanged/rejected candidates count toward `--patience`;
+`--max-rounds` bounds revision attempts. If calibration has no remaining
+mismatches but development targets are still unmet, training stops and reports
+that condition rather than using development labels as reflection examples.
+Exhaustion, stagnation, or holdout failure is **not convergence**. The report
+lists unmet targets so you can collect additional expert cases or resolve label
+ambiguity. Do not tune on an exposed final holdout; reserve a new one for a later
+training experiment.
+
+Artifacts:
+
+| Artifact | Purpose |
+| --- | --- |
+| `iterations.jsonl` | Flushed baseline, each reflection/revision/evaluation, acceptance/rejection reasons, and final holdout evaluation |
+| `checkpoint_judge.json` | Latest accepted task/model configuration; also retained if a later request fails |
+| `active_task.json` | Final selected rubric, directly consumable by `batch.py --task` |
+| `report.json` | Alignment outcome, stop reason, thresholds, anchor examples, split hashes/IDs, metrics and complete history |
+| `failure.json` | Error details if a started run aborts on malformed responses or backend errors |
+
+Exit code `0` means all configured targets were met, `2` means the run completed
+without meeting them, and `1` means invalid input or a backend failure. A rubric
+artifact may exist for an unaligned run; check `report.json` before using it.
+Existing output directories must be empty, preserving prior experiments. The
+original one-revision `batch.py --calibration ... --validation ...` option remains
+available; this command supplies the iterative development phase.

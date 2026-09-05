@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from benchmark_authoring import augment, build_benchmark, import_experts, rating_queue, split_groups, task_hash
+from benchmark_authoring import augment, build_benchmark, import_experts, rating_queue, split_groups, split_training_groups, task_hash
 from llm_backend import BackendError, ChatClient
 from quality import TaskSpec, digest, read_records
 
@@ -34,6 +34,7 @@ def main():
     build.add_argument('--adjudications', type=Path)
     build.add_argument('--min-raters', type=int, default=2)
     build.add_argument('--validation-fraction', type=float, default=0, help='0 disables splitting; otherwise split by family')
+    build.add_argument('--holdout-fraction', type=float, default=0, help='Reserve a third split for iterative training')
     build.add_argument('--seed', type=int, default=7)
     args = parser.parse_args()
     try:
@@ -60,7 +61,9 @@ def main():
         adjudications = list(read_records(args.adjudications)) if args.adjudications else []
         accepted, pending = build_benchmark(candidates, ratings, task, args.min_raters, adjudications)
         splits = None
-        if args.validation_fraction:
+        if args.holdout_fraction:
+            splits = split_training_groups(accepted, args.validation_fraction, args.holdout_fraction, args.seed)
+        elif args.validation_fraction:
             splits = split_groups(accepted, args.validation_fraction, args.seed)
         report = {'version': digest({'task': asdict(task), 'records': sorted(accepted, key=lambda r: r['id'])}),
                   'task_version': task_hash(task), 'candidate_count': len(candidates), 'accepted_count': len(accepted),
@@ -69,13 +72,17 @@ def main():
                   'human_fail_count': sum(not r['human_decision'] for r in accepted),
                   'sources': {source: sum(r['metadata']['provenance']['source'] == source for r in accepted)
                               for source in ('expert', 'llm')},
-                  'validation_fraction': args.validation_fraction, 'seed': args.seed}
+                  'validation_fraction': args.validation_fraction, 'holdout_fraction': args.holdout_fraction, 'seed': args.seed}
         args.output_dir.mkdir(parents=True, exist_ok=True)
         write_jsonl(args.output_dir / 'benchmark.jsonl', accepted)
         write_jsonl(args.output_dir / 'pending.jsonl', pending)
         if splits:
             write_jsonl(args.output_dir / 'calibration.jsonl', splits[0])
-            write_jsonl(args.output_dir / 'validation.jsonl', splits[1])
+            if len(splits) == 3:
+                write_jsonl(args.output_dir / 'development.jsonl', splits[1])
+                write_jsonl(args.output_dir / 'holdout.jsonl', splits[2])
+            else:
+                write_jsonl(args.output_dir / 'validation.jsonl', splits[1])
         (args.output_dir / 'task.json').write_text(json.dumps(asdict(task), indent=2) + '\n')
         (args.output_dir / 'manifest.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps(report, indent=2))
