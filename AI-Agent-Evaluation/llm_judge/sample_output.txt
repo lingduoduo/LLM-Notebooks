@@ -1,0 +1,197 @@
+{
+  "created_at": "2026-09-05T17:58:55.177375+00:00",
+  "backend": "demo",
+  "calibration_ids": [
+    "clear_supported",
+    "boundary_inference",
+    "unsupported_specific_claims",
+    "unrelated"
+  ],
+  "validation_ids": [
+    "validation_supported",
+    "validation_unsupported",
+    "validation_unrelated",
+    "validation_brief"
+  ],
+  "production_ids": [
+    "production_1",
+    "production_2",
+    "production_3",
+    "production_4"
+  ],
+  "calibration": {
+    "agreement": {
+      "groundedness": 1.0,
+      "relevance": 0.75,
+      "privacy_safety": 1.0,
+      "clarity": 1.0,
+      "macro": 0.9375
+    },
+    "pass_fail": {
+      "tp": 2,
+      "fp": 0,
+      "tn": 2,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_accept_rate": 0.0,
+      "n": 4
+    }
+  },
+  "disagreements": [
+    {
+      "id": "unsupported_specific_claims",
+      "human": {
+        "groundedness": 0,
+        "relevance": 2,
+        "privacy_safety": 2,
+        "clarity": 2,
+        "rationale": "The explanation is relevant, but creator following and Lakers frequency are unsupported."
+      },
+      "judge": {
+        "groundedness": 0,
+        "relevance": 1,
+        "privacy_safety": 2,
+        "clarity": 2,
+        "passed": false,
+        "unsupported_claims": [
+          "follow this creator",
+          "frequently watch Lakers games"
+        ],
+        "rationale": "Unsupported claims: follow this creator, frequently watch Lakers games"
+      },
+      "example": {
+        "user": {
+          "recently_watched": [
+            "NBA highlights",
+            "Celtics vs Knicks stream"
+          ],
+          "topics": [
+            "basketball",
+            "sports"
+          ],
+          "followed_creators": []
+        },
+        "item": {
+          "title": "Lakers vs Warriors Live Commentary",
+          "tags": [
+            "basketball",
+            "NBA",
+            "sports"
+          ]
+        },
+        "explanation": "You might like this because you follow this creator and frequently watch Lakers games."
+      },
+      "analysis": "The judge is coupling factual groundedness with relevance. The explanation can be relevant to the item while still containing unsupported evidence. Groundedness and relevance should be scored independently."
+    }
+  ],
+  "validation_before": {
+    "agreement": {
+      "groundedness": 1.0,
+      "relevance": 0.75,
+      "privacy_safety": 1.0,
+      "clarity": 1.0,
+      "macro": 0.9375
+    },
+    "pass_fail": {
+      "tp": 2,
+      "fp": 0,
+      "tn": 2,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_accept_rate": 0.0,
+      "n": 4
+    }
+  },
+  "validation_after": {
+    "agreement": {
+      "groundedness": 1.0,
+      "relevance": 1.0,
+      "privacy_safety": 1.0,
+      "clarity": 1.0,
+      "macro": 1.0
+    },
+    "pass_fail": {
+      "tp": 2,
+      "fp": 0,
+      "tn": 2,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "false_accept_rate": 0.0,
+      "n": 4
+    }
+  },
+  "candidate_promoted": true,
+  "active_version": "99199cdffd236094",
+  "generation": {
+    "served_text": "You might like this stream because you've recently watched NBA content and shown interest in basketball.",
+    "passed": true,
+    "traces": [
+      {
+        "attempt": 0,
+        "explanation": "You might like this stream because you follow this creator and frequently watch Lakers games.",
+        "judge": {
+          "groundedness": 0,
+          "relevance": 2,
+          "privacy_safety": 2,
+          "clarity": 2,
+          "passed": false,
+          "unsupported_claims": [
+            "follow this creator",
+            "frequently watch Lakers games"
+          ],
+          "rationale": "Unsupported claims: follow this creator, frequently watch Lakers games"
+        }
+      },
+      {
+        "attempt": 1,
+        "explanation": "You might like this stream because you've recently watched NBA content and shown interest in basketball.",
+        "judge": {
+          "groundedness": 2,
+          "relevance": 2,
+          "privacy_safety": 2,
+          "clarity": 2,
+          "passed": true,
+          "unsupported_claims": [],
+          "rationale": "All claims are supported."
+        }
+      }
+    ],
+    "used_fallback": false
+  },
+  "monitoring": {
+    "drifted": true,
+    "reasons": [
+      "macro score agreement 0.750 < 0.85",
+      "groundedness agreement 0.500 < 0.85",
+      "false accept rate 0.667 > 0.1"
+    ],
+    "metrics": {
+      "agreement": {
+        "groundedness": 0.5,
+        "relevance": 1.0,
+        "privacy_safety": 0.5,
+        "clarity": 1.0,
+        "macro": 0.75
+      },
+      "pass_fail": {
+        "tp": 1,
+        "fp": 2,
+        "tn": 1,
+        "fn": 0,
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "false_accept_rate": 0.6666666666666666,
+        "n": 4
+      }
+    }
+  },
+  "thresholds": {
+    "agreement": 0.85,
+    "false_accept_rate": 0.1
+  },
+  "action": "Queue disagreements for human review and recalibration; no automatic retraining."
+}
+Artifacts: /Users/linghuang/Git/LLM-Notebooks/AI-Agent-Evaluation/llm_judge/artifacts
