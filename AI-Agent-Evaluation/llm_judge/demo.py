@@ -34,7 +34,7 @@ def assert_disjoint(*datasets):
     ids, contents = set(), set()
     for examples in datasets:
         for ex in examples:
-            content = json.dumps([asdict(ex.user), asdict(ex.item), ex.explanation], sort_keys=True)
+            content = json.dumps([asdict(ex.user), asdict(ex.item), ex.explanation, asdict(ex.reference) if ex.reference else None], sort_keys=True)
             if ex.id in ids or content in contents:
                 raise ValueError('Datasets must have distinct IDs and no duplicate examples')
             ids.add(ex.id)
@@ -46,6 +46,8 @@ def run(args):
     validation = load_jsonl(args.validation)
     production = load_jsonl(args.production)
     assert_disjoint(calibration, validation, production)
+    if args.scenario == "similarity" and any(ex.reference is None for ex in calibration + validation + production):
+        raise ValueError("Similarity datasets require a reference title on every example")
     if args.backend == 'demo':
         judge, generator, reflector = DemoJudge(), DemoGenerator(), Reflector()
     else:
@@ -58,7 +60,8 @@ def run(args):
         human_scores = {name: getattr(ex.human, name) for name in result.scores()}
         if human_scores != result.scores():
             feedback.append({'id': ex.id, 'human': asdict(ex.human), 'judge': asdict(result),
-                             'example': {'user': asdict(ex.user), 'item': asdict(ex.item), 'explanation': ex.explanation},
+                             'example': {'user': asdict(ex.user), 'item': asdict(ex.item), 'explanation': ex.explanation,
+                                         'reference': asdict(ex.reference) if ex.reference else None},
                              'analysis': MetaJudge().analyze_disagreement(ex, result)})
     reflection_input = [f['analysis'] for f in feedback] if args.backend == 'demo' else feedback
     candidate = reflector.update(judge, reflection_input)
@@ -76,6 +79,7 @@ def run(args):
     drift = check_drift(sample, production_results, args.agreement_threshold, args.max_false_accept_rate)
     report = {
         'created_at': datetime.now(timezone.utc).isoformat(), 'backend': args.backend,
+        'scenario': args.scenario,
         'calibration_ids': [ex.id for ex in calibration],
         'validation_ids': [ex.id for ex in validation],
         'production_ids': [ex.id for ex in sample],
@@ -108,13 +112,14 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--scenario', choices=['generic', 'similarity'], default='generic')
     parser.add_argument('--backend', choices=['demo', 'llm'], default='demo')
     parser.add_argument('--model', default=os.getenv('LLM_MODEL'))
     parser.add_argument('--base-url', default=os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1'))
     parser.add_argument('--timeout', type=float, default=60)
-    parser.add_argument('--benchmark', type=Path, default=ROOT / 'data/benchmark.jsonl')
-    parser.add_argument('--validation', type=Path, default=ROOT / 'data/validation.jsonl')
-    parser.add_argument('--production', type=Path, default=ROOT / 'data/production_sample.jsonl')
+    parser.add_argument('--benchmark', type=Path, default=None)
+    parser.add_argument('--validation', type=Path, default=None)
+    parser.add_argument('--production', type=Path, default=None)
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'artifacts')
     parser.add_argument('--max-retries', type=int, default=2)
     parser.add_argument('--sample-size', type=int, default=300)
@@ -123,6 +128,11 @@ def main():
     parser.add_argument('--max-false-accept-rate', type=float, default=0.10)
     parser.add_argument('--fail-on-drift', action='store_true')
     args = parser.parse_args()
+    prefix = 'similarity_' if args.scenario == 'similarity' else ''
+    for field, filename in [('benchmark', 'benchmark'), ('validation', 'validation'),
+                            ('production', 'production_sample')]:
+        if getattr(args, field) is None:
+            setattr(args, field, ROOT / 'data' / f'{prefix}{filename}.jsonl')
     if args.max_retries < 0 or args.sample_size < 1 or args.timeout <= 0:
         parser.error('retry budget must be nonnegative; sample size and timeout must be positive')
     if not 0 <= args.agreement_threshold <= 1 or not 0 <= args.max_false_accept_rate <= 1:

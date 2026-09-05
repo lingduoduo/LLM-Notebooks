@@ -6,6 +6,9 @@ from llm_backend import BackendError
 
 class DemoGenerator:
     def generate(self, ex: BenchmarkExample, attempt: int, feedback: str = "") -> str:
+        if ex.reference is not None:
+            from similarity import render_explanation
+            return render_explanation(ex)
         if attempt == 0:
             return (
                 "You might like this stream because you follow this creator "
