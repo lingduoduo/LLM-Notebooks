@@ -149,3 +149,63 @@ and misses privacy violations. It exists to make the control flow reproducible;
 use `--backend llm` to evaluate with an actual language model. Provider transport
 is tested offline; live quality and model compatibility require running against
 your chosen endpoint.
+
+## Similarity-based title explanations
+
+A recommendation explanation is short, human-readable evidence for why a title
+was recommended, shown on its detail page after a member selects it on the
+homepage. The similarity scenario connects that title to **one watched reference
+title**, using attributes supported for both titles.
+
+```bash
+python AI-Agent-Evaluation/llm_judge/demo.py --scenario similarity
+# Use the same scenario with your configured model:
+python AI-Agent-Evaluation/llm_judge/demo.py --scenario similarity --backend llm
+```
+
+The example produces:
+
+> A funny, heartfelt holiday romance about love and new beginnings, much like “My Secret Santa.”
+
+In addition to the existing example fields, provide a `reference` title and typed
+attributes on both titles:
+
+```json
+{
+  "item": {
+    "title": "A Winter Beginning",
+    "genres": ["holiday romance"],
+    "tones": ["funny", "heartfelt"],
+    "themes": ["love", "new beginnings"]
+  },
+  "reference": {
+    "title": "My Secret Santa",
+    "genres": ["holiday romance"],
+    "tones": ["funny", "heartfelt"],
+    "themes": ["love", "new beginnings"]
+  }
+}
+```
+
+This is a fragment of the JSONL schema; full examples are in
+`data/similarity_benchmark.jsonl`, `data/similarity_validation.jsonl`, and
+`data/similarity_production_sample.jsonl`. The titles and metadata are illustrative
+fixtures, not verified catalog facts. `reference.title` must appear in
+`user.recently_watched` and differ from `item.title`. The caller selects the
+reference; this example does not implement recommendation ranking or reference
+selection. Watch history supports an interaction, not an assertion that the
+member liked the title.
+
+`similarity.py` computes genre/tone/theme intersections within each category
+(case-insensitive, with whitespace normalized). No shared attributes or an
+unwatched reference causes the guardrail to return its neutral fallback. Generated
+messages quote the one reference and are limited to 35 words. The local structural
+gate also applies to real-model results. The LLM receives metadata for both titles,
+shared evidence, and detail-page placement instructions; its rubric evaluates
+whether the comparison is supported, relevant, safe, and concise.
+
+The offline similarity judge conservatively checks a small template vocabulary;
+it is not a semantic evaluator of arbitrary prose. Use the real-model backend for
+paraphrases and nuanced claims. Original generic fixtures and commands remain
+available; examples containing `reference` use similarity behavior automatically,
+and `--scenario similarity` additionally requires references on all input rows.

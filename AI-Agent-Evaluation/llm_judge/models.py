@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -12,7 +12,10 @@ class UserContext:
 @dataclass
 class Item:
     title: str
-    tags: List[str]
+    tags: List[str] = field(default_factory=list)
+    genres: List[str] = field(default_factory=list)
+    tones: List[str] = field(default_factory=list)
+    themes: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -31,6 +34,7 @@ class BenchmarkExample:
     item: Item
     explanation: str
     human: HumanLabel
+    reference: Optional[Item] = None
 
 
 @dataclass

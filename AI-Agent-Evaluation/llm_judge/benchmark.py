@@ -93,7 +93,8 @@ def load_jsonl(path: str) -> List[BenchmarkExample]:
                 d = json.loads(line)
                 ex = BenchmarkExample(
                     id=d["id"], user=UserContext(**d["user"]), item=Item(**d["item"]),
-                    explanation=d["explanation"], human=HumanLabel(**d["human"]))
+                    explanation=d["explanation"], human=HumanLabel(**d["human"]),
+                    reference=Item(**d["reference"]) if d.get("reference") is not None else None)
                 for value in (ex.id, ex.explanation, ex.item.title, ex.human.rationale):
                     if not isinstance(value, str) or not value.strip():
                         raise ValueError("IDs, text and rationale must be nonempty strings")
@@ -101,6 +102,14 @@ def load_jsonl(path: str) -> List[BenchmarkExample]:
                                ex.user.followed_creators, ex.item.tags):
                     if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
                         raise ValueError("context fields and tags must be lists of strings")
+                for title in (ex.item, ex.reference):
+                    if title is None:
+                        continue
+                    if not isinstance(title.title, str) or not title.title.strip():
+                        raise ValueError("title must be nonempty text")
+                    for values in (title.tags, title.genres, title.tones, title.themes):
+                        if not isinstance(values, list) or not all(isinstance(v, str) and v.strip() for v in values):
+                            raise ValueError("title attributes must be lists of nonempty strings")
                 for criterion in ("groundedness", "relevance", "privacy_safety", "clarity"):
                     score = getattr(ex.human, criterion)
                     if type(score) is not int or score not in (0, 1, 2):

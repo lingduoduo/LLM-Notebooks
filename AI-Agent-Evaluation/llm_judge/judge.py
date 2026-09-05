@@ -32,6 +32,9 @@ class DemoJudge:
         self.decouple_relevance = decouple_relevance
 
     def evaluate(self, ex: BenchmarkExample) -> JudgeResult:
+        if ex.reference is not None:
+            from similarity import evaluate_demo
+            return evaluate_demo(ex, self.decouple_relevance)
         text = ex.explanation.lower()
         unsupported = []
 
