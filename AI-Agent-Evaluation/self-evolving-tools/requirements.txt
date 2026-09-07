@@ -1,0 +1,6 @@
+openai>=1.40.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+python-dotenv>=1.0.0
+# Domain libraries such as yfinance are intentionally omitted.
+# The agent discovers libraries online and installs them in the sandbox with pip as needed.
