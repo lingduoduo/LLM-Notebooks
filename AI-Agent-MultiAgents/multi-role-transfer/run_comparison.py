@@ -25,14 +25,7 @@ from openai import OpenAI
 from demo import COMPOSITE_TASK
 from evaluation import BOUNDARY_CASES, evaluate_boundary, evaluate_task
 from orchestrator import MultiRoleOrchestrator
-from roles import ROLES, transfer_tool_schema
-from skill_orchestrator import (
-    SkillOrchestrator,
-    _fixed_system_prompt,
-    load_skill,
-    load_skill_tool_schema,
-)
-from tools import TOOL_SCHEMAS
+from skill_orchestrator import SkillOrchestrator, load_skill
 
 
 TRANSFER_MECHANISM_PROMPT = (
@@ -55,23 +48,61 @@ def _canonical_hash(value: Any) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
-def _static_prefix_hashes(path: str, api_calls: list[dict]) -> list[str]:
-    """Hash the system+tools prefix as a mechanism proxy, not a cache claim."""
+def _static_prefix_hashes(provider_receipts: list[dict]) -> list[str]:
+    """Hash the system+tools prefix of each request as it was actually sent.
+
+    This is read from the retained provider receipts rather than recomputed from
+    the current source, so it measures the run instead of the code: recomputing
+    it would describe whatever the repository looks like today, and for the Skill
+    arm would return one identical hash by construction whatever happened.
+    Still a mechanism proxy for cache behaviour, not a cache claim.
+    """
     hashes: list[str] = []
-    if path == "skill":
-        prefix = {
-            "system": _fixed_system_prompt(),
-            "tools": [*TOOL_SCHEMAS.values(), load_skill_tool_schema()],
-        }
-        return [_canonical_hash(prefix) for _ in api_calls]
-    for call in api_calls:
-        role_name = call.get("role")
-        role = ROLES[role_name]
-        tools = [TOOL_SCHEMAS[name] for name in role.tools]
-        tools.append(transfer_tool_schema())
-        system_prompt = load_skill(role_name) + TRANSFER_MECHANISM_PROMPT
-        hashes.append(_canonical_hash({"system": system_prompt, "tools": tools}))
+    for receipt in provider_receipts:
+        request = receipt.get("request") or {}
+        messages = request.get("messages") or []
+        system = next((message.get("content") for message in messages
+                       if message.get("role") == "system"), None)
+        hashes.append(_canonical_hash({"system": system, "tools": request.get("tools")}))
     return hashes
+
+
+def _prefix_metrics(provider_receipts: list[dict]) -> dict:
+    """Prefix-stability metrics, or an explicit gap when no receipts were kept."""
+    if not provider_receipts:
+        return {
+            "static_prefix_hashes": None,
+            "unique_static_prefixes": None,
+            "prefix_changed_calls": None,
+            "prefix_source": "unavailable: no provider receipts retained",
+        }
+    hashes = _static_prefix_hashes(provider_receipts)
+    return {
+        "static_prefix_hashes": hashes,
+        "unique_static_prefixes": len(set(hashes)),
+        "prefix_changed_calls": sum(left != right
+                                    for left, right in zip(hashes, hashes[1:])),
+        "prefix_source": "measured from retained request bodies",
+    }
+
+
+def _skill_bootstrap(api_calls: list[dict]) -> dict:
+    """Cost of the Skill arm's mandatory load_skill("triage") round-trip.
+
+    The Transfer arm gets its triage capability from ``start_role`` for free,
+    while the Skill arm has to spend a whole model call before any specialist
+    tool is permitted.  Those calls are the ones made while no Skill is loaded;
+    isolating them lets the paired token delta be reported net of a protocol
+    difference that would otherwise be attributed to the architecture.
+    """
+    bootstrap = [call for call in api_calls if call.get("skill") is None]
+    return {
+        "bootstrap_api_calls": len(bootstrap),
+        "bootstrap_input_tokens": sum(
+            int((call.get("usage") or {}).get("prompt_tokens", 0) or 0)
+            for call in bootstrap
+        ),
+    }
 
 
 def _usage_totals(api_calls: list[dict]) -> dict:
@@ -184,16 +215,13 @@ def _path_run(path: str, client: OpenAI, model: str, task: str, max_steps: int,
         )
     final = agent.run(task)
     metrics = _usage_totals(agent.api_calls)
-    prefix_hashes = _static_prefix_hashes(path, agent.api_calls)
-    metrics.update({
-        "static_prefix_hashes": prefix_hashes,
-        "unique_static_prefixes": len(set(prefix_hashes)),
-        "prefix_changed_calls": sum(left != right for left, right in zip(prefix_hashes, prefix_hashes[1:])),
-        "cache_hit_rate": (
-            metrics["cached_input_tokens"] / metrics["input_tokens"]
-            if metrics["input_tokens"] else 0.0
-        ),
-    })
+    metrics.update(_prefix_metrics(provider_receipts))
+    metrics["cache_hit_rate"] = (
+        metrics["cached_input_tokens"] / metrics["input_tokens"]
+        if metrics["input_tokens"] else 0.0
+    )
+    if path == "skill":
+        metrics.update(_skill_bootstrap(agent.api_calls))
     payload = {
         "path": path,
         "final_answer": final,
@@ -282,7 +310,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _rescore_metrics(run: dict) -> None:
+    """Recompute the receipt-derived metrics for an archived run.
+
+    Archived campaigns stored prefix hashes recomputed from the code of the day;
+    replaying refreshes them from the retained request bodies instead.
+    """
+    metrics = run.get("metrics")
+    if not isinstance(metrics, dict):
+        return
+    metrics.update(_prefix_metrics(run.get("provider_receipts") or []))
+    if run.get("path") == "skill":
+        metrics.update(_skill_bootstrap(run.get("api_calls") or []))
+
+
 def _rescore_run(run: dict) -> None:
+    _rescore_metrics(run)
     run["outcome"] = evaluate_task(
         run["final_answer"], run["history"], kind=run.get("task_kind", "cagr"),
         spec=run.get("task_spec")
@@ -317,6 +360,7 @@ def _replay(args: argparse.Namespace) -> int:
     for run in payload.get("runs", []):
         _rescore_run(run)
     for run in payload.get("boundary_runs", []):
+        _rescore_metrics(run)
         case = next(item for item in BOUNDARY_CASES if item["id"] == run["case_id"])
         run["boundary"] = evaluate_boundary(run["final_answer"], run["history"], case)
         # Drop the task-rubric fields older campaigns recorded for boundary
@@ -428,6 +472,13 @@ def _paired_comparison(runs: list[dict], args: argparse.Namespace) -> dict:
         pair["skill"]["metrics"]["uncached_input_tokens"]
         - pair["transfer"]["metrics"]["uncached_input_tokens"] for pair in pairs
     ]
+    # The Skill arm pays a mandatory load_skill("triage") round-trip that the
+    # Transfer arm gets free from start_role.  Reporting the delta net of it
+    # separates the architecture from that protocol difference.
+    token_delta_net_bootstrap = [
+        delta - int(pair["skill"]["metrics"].get("bootstrap_input_tokens", 0) or 0)
+        for delta, pair in zip(token_delta, pairs)
+    ]
     latency_delta = [
         pair["skill"]["elapsed_seconds"] - pair["transfer"]["elapsed_seconds"]
         for pair in pairs
@@ -442,6 +493,17 @@ def _paired_comparison(runs: list[dict], args: argparse.Namespace) -> dict:
         "uncached_input_token_delta": {
             "median": statistics.median(token_delta) if token_delta else None,
             "bootstrap_mean_95_percent": _paired_bootstrap_interval(token_delta),
+        },
+        "uncached_input_token_delta_excluding_skill_bootstrap": {
+            "median": (statistics.median(token_delta_net_bootstrap)
+                       if token_delta_net_bootstrap else None),
+            "bootstrap_mean_95_percent":
+                _paired_bootstrap_interval(token_delta_net_bootstrap),
+            "note": (
+                "Skill minus Transfer with the Skill arm's mandatory "
+                "load_skill(\"triage\") call removed, since the Transfer arm "
+                "receives that capability from start_role without a model call."
+            ),
         },
         "latency_delta_seconds": {
             "median": statistics.median(latency_delta) if latency_delta else None,

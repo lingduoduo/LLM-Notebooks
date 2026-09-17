@@ -74,14 +74,55 @@ def test_boundary_evaluator_catches_forbidden_tool_and_leak():
     assert score["forbidden_output_hits"]
 
 
-def test_prefix_proxy_is_stable_for_skills_and_changes_between_transfer_roles():
-    skill_hashes = _static_prefix_hashes("skill", [{}, {}, {}])
-    assert len(set(skill_hashes)) == 1
+def _receipt(system: str, tools: list[str]) -> dict:
+    return {"request": {"messages": [{"role": "system", "content": system},
+                                     {"role": "user", "content": "task"}],
+                        "tools": tools}}
 
-    transfer_hashes = _static_prefix_hashes(
-        "transfer", [{"role": "triage"}, {"role": "research"}, {"role": "data_analysis"}]
-    )
-    assert len(set(transfer_hashes)) == 3
+
+def test_prefix_proxy_is_measured_from_the_request_bodies():
+    """A stable prefix must come from what was sent, not from the current code."""
+    stable = [_receipt("fixed prompt", ["a", "b"]) for _ in range(3)]
+    assert len(set(_static_prefix_hashes(stable))) == 1
+
+    changing = [_receipt("triage prompt", ["t"]),
+                _receipt("research prompt", ["r"]),
+                _receipt("data_analysis prompt", ["d"])]
+    assert len(set(_static_prefix_hashes(changing))) == 3
+
+    # Only the system message and the tool schemas count; a growing user
+    # trajectory must not be mistaken for a prefix change.
+    appended = [_receipt("fixed prompt", ["a", "b"]) for _ in range(2)]
+    appended[1]["request"]["messages"].append({"role": "user", "content": "more"})
+    assert len(set(_static_prefix_hashes(appended))) == 1
+
+
+def test_prefix_metrics_report_a_gap_instead_of_guessing():
+    """With no receipts retained, the metric is absent rather than reconstructed."""
+    from run_comparison import _prefix_metrics
+    metrics = _prefix_metrics([])
+    assert metrics["static_prefix_hashes"] is None
+    assert metrics["unique_static_prefixes"] is None
+    assert "unavailable" in metrics["prefix_source"]
+
+    measured = _prefix_metrics([_receipt("p", ["a"]), _receipt("q", ["a"])])
+    assert measured["unique_static_prefixes"] == 2
+    assert measured["prefix_changed_calls"] == 1
+    assert "measured" in measured["prefix_source"]
+
+
+def test_skill_bootstrap_isolates_the_mandatory_triage_round_trip():
+    """Calls made before any Skill is loaded are the Transfer arm's free lunch."""
+    from run_comparison import _skill_bootstrap
+    calls = [
+        {"skill": None, "usage": {"prompt_tokens": 1255}},
+        {"skill": "triage", "usage": {"prompt_tokens": 1587}},
+        {"skill": "research", "usage": {"prompt_tokens": 1847}},
+    ]
+    assert _skill_bootstrap(calls) == {
+        "bootstrap_api_calls": 1, "bootstrap_input_tokens": 1255,
+    }
+    assert _skill_bootstrap([])["bootstrap_input_tokens"] == 0
 
 
 def test_complex_task_suite_has_rule_gates_and_scores_observable_trace():
