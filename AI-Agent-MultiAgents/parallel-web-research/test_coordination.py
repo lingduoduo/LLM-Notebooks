@@ -7,7 +7,7 @@ from agents import Coordinator
 from agents import TaskState
 from agents import WorkerAgent
 from message_bus import MessageBus
-from sources import DEFAULT_SITES, load_sites
+from sources import load_sites
 
 
 @pytest.mark.asyncio

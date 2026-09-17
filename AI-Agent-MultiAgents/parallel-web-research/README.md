@@ -30,23 +30,15 @@ Implemented requirements:
 ## Run
 
 ```bash
-# From the repository root: use the shared Chapter 10 environment
-uv sync --locked --python 3.12 --extra ch10
+cd AI-Agent-MultiAgents/parallel-web-research
+python -m venv .venv
 
-# Activate it before changing directories:
 # macOS/Linux:
 source .venv/bin/activate
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 # Windows cmd: .venv\Scripts\activate.bat
 
-# pip fallback when uv is not installed:
-# python -m pip install -e ".[ch10]"
-
-cd AI-Agent-MultiAgents/parallel-web-research
-
-# Single-project compatibility path, still supported during migration:
-# python -m pip install -r requirements.txt
-
+python -m pip install -r requirements.txt
 playwright install chromium
 cp env.example .env                 # configure one real text-model endpoint
 python demo.py                       # 10 Stanford pages + real serial comparison
@@ -81,9 +73,9 @@ All 12 acceptance gates passed: the ten-site parallel and serial paths both
 found the target and closed all 20 contexts; the measured speedup was 1.872×;
 the cascade produced one broadcast, three loser acknowledgements, and 4/4
 closed contexts. The run retains 24 full browser observations, three raw ARK
-responses with unique response IDs and usage, and 114 bus events. Seven runtime
-source/input hashes and all four artifact hashes recompute exactly, and the
-credential scan found zero hits.
+responses with unique response IDs and usage, and 114 bus events. At the time of the run, seven runtime
+source/input hashes and all four artifact hashes recomputed exactly, and the
+credential scan found zero hits. See the Language section for subsequent source changes.
 
 ## Language
 

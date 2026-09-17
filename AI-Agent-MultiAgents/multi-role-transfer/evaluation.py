@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Iterable
+from typing import Iterable
 
 
 # Deliverable cap for the built-in ``cagr``/``writing`` strata.  The tasks now
@@ -152,8 +152,6 @@ def _custom_task_score(final_answer: str, history: list[dict], spec: dict) -> di
     forbidden_tools = set(spec.get("forbidden_tools", ()))
     required_patterns = list(spec.get("required_output_patterns", ()))
     forbidden_patterns = list(spec.get("forbidden_output_patterns", ()))
-    required_hits = [pattern for pattern in required_patterns
-                     if re.search(pattern, final_answer, re.I)]
     missing_patterns = [pattern for pattern in required_patterns
                         if not re.search(pattern, final_answer, re.I)]
     forbidden_hits = sorted(forbidden_tools.intersection(names))

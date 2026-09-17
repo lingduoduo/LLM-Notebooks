@@ -12,7 +12,6 @@ from provenance import (
     check_artifacts,
     check_runtime_sources,
     load_declared_drift,
-    sha256_file as sha256,
 )
 
 

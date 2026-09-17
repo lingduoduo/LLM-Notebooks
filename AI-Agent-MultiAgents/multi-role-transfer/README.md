@@ -93,22 +93,15 @@ Code structure:
 ## How to Run
 
 ```bash
-# From the repository root: use the shared Chapter 10 environment
-uv sync --locked --python 3.12 --extra ch10
+cd AI-Agent-MultiAgents/multi-role-transfer
+python -m venv .venv
 
-# Activate it before changing directories:
 # macOS/Linux:
 source .venv/bin/activate
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 # Windows cmd: .venv\Scripts\activate.bat
 
-# pip fallback when uv is not installed:
-# python -m pip install -e ".[ch10]"
-
-cd AI-Agent-MultiAgents/multi-role-transfer
-
-# Single-project compatibility path, still supported during migration:
-# python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # Configure API key (choose one)
 export OPENAI_API_KEY=your-openai-api-key        # Direct export
@@ -280,7 +273,9 @@ python demo.py --list-roles
 
 ## Language
 
-Runtime sources, Skill documents and the task sets are English. The task sets now request
+Runtime sources, Skill documents and the task sets are English. The default demo requests an
+English investor summary of at most 360 total characters, including spaces and punctuation;
+its evidence gate enforces the same limit. The task sets request
 **English deliverables**: `tasks.formal.json`, `tasks.complex.example.json` and `tasks.example.json`
 ask for English summaries, their Chinese scoring alternatives have been dropped, and every
 `max_deliverable_chars` was scaled by 3 (for example 140 -> 420, 160 -> 480) because a Chinese
@@ -310,16 +305,17 @@ everything else comes from [`validation/translation_map.json`](validation/transl
 The map is keyed by **source id** -- `translate_validation.source_key`, the first 32 hex
 characters of the SHA-256 of the Chinese source -- so `translation_map.json` holds no Chinese and
 reads as plain English. [`validation/translation_sources.json`](validation/translation_sources.json)
-records id -> source so each translation can be checked against what it translates;
-`translate_validation.py` hashes the string it finds in a bundle and never reads that file, but it
-is the only remaining copy of the strings from the two in-place-translated summaries, so it is not
-disposable.
+records each original source ID with its English translation and uses the same values as the map.
+The IDs remain hashes of the original Chinese strings; they are not recalculated from the English
+values. `translate_validation.py` still hashes original bundle text for its lookups, so converting
+this reference does not change translation matching. Original provider text remains in the retained
+bundles; earlier revisions of the source reference are available in Git history.
 
 Coverage is deliberately uneven, and the reports say so:
 
 | Bundle | Status |
 |---|---|
-| `exp10-1-kimi-k2.5-tavily-20260730-v1/v2` (historical summaries) | **English in place, no Chinese at all.** Nothing hashes or references these two files, so they were converted rather than mirrored. Their Chinese strings survive only as entries in [`validation/translation_sources.json`](validation/translation_sources.json), which is why that file is not disposable. |
+| `exp10-1-kimi-k2.5-tavily-20260730-v1/v2` (historical summaries) | **English in place, no Chinese at all.** Nothing hashes or references these two files, so they were converted rather than mirrored. Their original Chinese strings remain available in earlier Git revisions of `validation/translation_sources.json`. |
 | `exp10-1-kimi-k2.5-tavily-receipts-20260730-v3` (official run) | **The reading copies contain no Chinese at all**, including every Tavily source excerpt. The bundle itself is byte-identical, because `moonshot_receipts.json` / `tavily_receipts.json` carry `request_sha256`, `response_sha256`, `raw_response_bytes` and real provider response IDs. |
 | `judge.json` (comparison campaign) | **No Chinese at all** in the reading copy. |
 | `campaign.json` (comparison campaign) | Every model output, reasoning trace, tool result, handoff reason, task prompt and task spec is translated. What remains is **127 verbatim Tavily page excerpts (~100k Chinese characters)** of third-party news articles, PDF-extracted reports and site boilerplate, each identified by its URL. |
