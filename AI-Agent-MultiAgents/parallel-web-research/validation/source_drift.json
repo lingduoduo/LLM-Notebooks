@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "note": "Runtime source hashes in a retained manifest describe the code as it ran. Files listed here have legitimately changed since; every other recorded source must still match its manifest hash, and undeclared drift fails verification. Add a file here only together with the reason it changed.",
+  "declared_drift": {
+    "validation/runs/exp10-4-real-receipts-20260730-v2": {
+      "reason": "Runtime sources were translated from Chinese to English after this run was recorded: module docstrings and comments in message_bus.py, the TaskState enum values and worker status notes in agents.py, the CLI help and console output in demo.py, and the error messages in llm.py and sources.py. The run's own artifacts are unchanged and still recompute exactly; the recorded source hashes describe the Chinese-era code, and the Chinese status strings it emitted are preserved in message_bus_receipts.json and evidence.json as the record of that run.",
+      "files": [
+        "agents.py",
+        "demo.py",
+        "llm.py",
+        "message_bus.py",
+        "sources.py"
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+.env
+artifacts/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# The retained evidence package must be tracked: README cites it and
+# test_official_experiment.py reads it, so a fresh clone cannot verify anything
+# without it.  This negation overrides the repository-root "runs/" rule.
+!validation/runs/
+!validation/runs/**
