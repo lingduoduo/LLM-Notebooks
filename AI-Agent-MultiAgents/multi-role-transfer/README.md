@@ -1,4 +1,4 @@
-# Experiment 10-1: Two Ways to Implement Multi-Role Switching (★★)
+# Two Ways to Implement Multi-Role Switching (★★)
 
 Companion code for *Deep Understanding of AI Agents*. This is a controlled comparison of two ways to implement
 multi-role behavior over the same shared trajectory:
@@ -13,7 +13,11 @@ multi-role behavior over the same shared trajectory:
 - Unlike a predefined stage pipeline, both arms let the model decide which cross-domain capability to use next.
 - Both arms use the same canonical `SKILL.md` role documents and retain the same user/assistant/tool trajectory. The
   independent variable is where that document lives: a replaced high-priority system message, or an appended Skill
-  tool result. Each arm adds only the minimal instruction needed to invoke its transition tool.
+  tool result. The two arms are **not** matched on instruction length: the Transfer arm adds a
+  238-character mechanism note to the canonical role document, while the Skill arm's fixed system
+  prompt is about 1,983 characters because it also carries the mandatory Skill protocol. That
+  difference, and the Skill arm's mandatory `load_skill("triage")` round-trip, are properties of
+  these two implementations rather than of the two mechanisms; see Interpretation and Limitations.
 - The comparison separates mechanism metrics (prefix stability and transition calls) from target metrics (task success,
   uncached input tokens, latency, and boundary instruction-following), following Chapter 6's evaluation method.
 - The core mechanism is **autonomous role handoff**, but every tool used by an accepted run still performs
@@ -334,7 +338,8 @@ must not be verified against them.
 
 The authoritative package is [`validation/comparison/runs/exp10-1-qwen35flash-20260809-v2/`](validation/comparison/runs/exp10-1-qwen35flash-20260809-v2/), independently checked by [`validate_comparison.py`](validate_comparison.py) (12/12 gates). The campaign uses `qwen/qwen3.5-flash-02-23` through OpenRouter, 30 paired tasks at temperature 0, an eight-round per-cell limit, 60 main trajectories, and 12 boundary trajectories. The Skill arm now requires `load_skill("triage")` before any specialist tool.
 
-For this bounded model/configuration, Skill passes 15/30 deterministic task gates versus Transfer's 2/30. Skill's median delta is +6,855 uncached input tokens, +4.368 seconds, and +$0.00044304 repriced cost. Replaying `campaign.json` with the current scorer reproduces both pass counts exactly. An independent Gemini 2.5 Flash Lite judge reviewed all 30 pairs twice: Skill 32, Transfer 20, and 8 ties across 60 judgments. These are bounded architecture results, not model-independent superiority claims.
+For this bounded model/configuration, Skill passes 15/30 deterministic task gates versus Transfer's 2/30. Skill's median delta is +6,855 uncached input tokens (+5,054 once its mandatory `load_skill("triage")` call is
+excluded), +4.368 seconds, and +$0.00044304 repriced cost. Replaying `campaign.json` with the current scorer reproduces both pass counts exactly. An independent Gemini 2.5 Flash Lite judge reviewed all 30 pairs twice: Skill 32, Transfer 20, and 8 ties across 60 judgments. These are bounded architecture results, not model-independent superiority claims.
 
 **Known defect in the retained judge evidence.** The judge's position-swap control drew a fresh
 random order inside each repeat instead of inverting the first, so the two repeats were
@@ -441,12 +446,18 @@ According to public data from CAAM, China's new energy vehicle sales grew from 3
 - **The two arms are not perfectly matched, and the mismatch favours Transfer on the cost metrics.** The Skill arm must
   spend a real `load_skill("triage")` round-trip to earn the `triage` capability, while the Transfer arm receives it for
   free from `start_role` and has it prepended unconditionally to `observed_capabilities`. The Skill arm's fixed system
-  prompt is also ~1,983 characters against the Transfer arm's ~238-character mechanism note. Both differences inflate
-  the Skill arm's measured uncached input tokens and latency, so the reported +6,855-token and +4.368-second deltas
-  are properties of these two implementations, not of the two mechanisms in the abstract.
-- `_static_prefix_hashes` recomputes each prefix from the *current* code and role name rather than from the recorded
-  request bodies, and for the Skill arm it returns one hash by construction. Prefix stability therefore describes the
-  design of each arm, not a measurement of the run.
+  prompt is also ~1,983 characters against the Transfer arm's ~238-character mechanism note. That round-trip is now
+  measured rather than merely noted: every run records `bootstrap_api_calls` and `bootstrap_input_tokens` (the calls
+  made before any Skill is loaded), and the paired report carries
+  `uncached_input_token_delta_excluding_skill_bootstrap` alongside the raw delta. On the retained campaign the median
+  delta falls from **+6,855 to +5,054 uncached input tokens** once that one mandatory call is removed, so roughly a
+  quarter of the apparent penalty is the protocol rather than the architecture. The prompt-length difference is not
+  adjusted for and remains a property of these two implementations.
+- Prefix stability is **measured from the retained request bodies**, not recomputed from the current source. Each run's
+  `metrics.prefix_source` records which it is, and a run kept without provider receipts reports `null` metrics and an
+  explicit `unavailable` note rather than a number reconstructed from today's code. On the retained campaign this
+  confirms the mechanism empirically: the Skill arm shows 1 unique prefix and 0 changes, the Transfer arm 3 unique
+  prefixes and 2 changes per trajectory.
 - The `research` role requires a live Tavily credential. Missing credentials, HTTP failures, or empty provider results are surfaced explicitly and never replaced with canned facts.
 - Real LLM output has randomness: the exact number of handoff steps, the wording of each `reason`, whether the `coding` role is visited, etc., may vary between runs, but the handoff mechanism itself is consistent.
 - `orchestrator.py` has a hard `max_steps` limit (default 20) and a correction prompt for "same (role, tool, arguments) called ≥3 times consecutively" to prevent model infinite loops; this is a safety net, not an indication that every run will use all these steps.

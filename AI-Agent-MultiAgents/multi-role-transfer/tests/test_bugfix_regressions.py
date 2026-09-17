@@ -360,3 +360,49 @@ def test_historical_summaries_are_english_in_place():
         assert document["final_answer"]
         assert document["history"]
         assert document["acceptance_gates"]
+
+
+# --------------------------------------------- bootstrap-adjusted token delta
+
+def test_paired_delta_is_reported_net_of_the_skill_bootstrap():
+    """The mandatory triage round-trip must be separable from the architecture."""
+    import types
+    from run_comparison import _paired_comparison
+
+    def run(path, uncached, bootstrap=None, passed=True):
+        metrics = {"uncached_input_tokens": uncached, "cached_input_tokens": 0,
+                   "input_tokens": uncached, "output_tokens": 0, "api_calls": 1}
+        if bootstrap is not None:
+            metrics["bootstrap_input_tokens"] = bootstrap
+        return {"path": path, "pair_id": "p1", "trial": 1, "metrics": metrics,
+                "elapsed_seconds": 1.0, "outcome": {"pass": passed}}
+
+    args = types.SimpleNamespace(input_price_per_million=None,
+                                 output_price_per_million=None,
+                                 cached_input_price_per_million=None)
+    report = _paired_comparison(
+        [run("skill", 5000, bootstrap=1200), run("transfer", 2000)], args)
+
+    assert report["uncached_input_token_delta"]["median"] == 3000
+    adjusted = report["uncached_input_token_delta_excluding_skill_bootstrap"]
+    assert adjusted["median"] == 1800
+    assert "load_skill" in adjusted["note"]
+
+
+def test_adjusted_delta_falls_back_to_the_raw_delta_without_bootstrap_data():
+    """An archived run with no bootstrap field must not silently shift the delta."""
+    import types
+    from run_comparison import _paired_comparison
+
+    def run(path, uncached):
+        return {"path": path, "pair_id": "p1", "trial": 1,
+                "metrics": {"uncached_input_tokens": uncached, "cached_input_tokens": 0,
+                            "input_tokens": uncached, "output_tokens": 0, "api_calls": 1},
+                "elapsed_seconds": 1.0, "outcome": {"pass": True}}
+
+    args = types.SimpleNamespace(input_price_per_million=None,
+                                 output_price_per_million=None,
+                                 cached_input_price_per_million=None)
+    report = _paired_comparison([run("skill", 5000), run("transfer", 2000)], args)
+    assert report["uncached_input_token_delta"]["median"] == 3000
+    assert report["uncached_input_token_delta_excluding_skill_bootstrap"]["median"] == 3000
