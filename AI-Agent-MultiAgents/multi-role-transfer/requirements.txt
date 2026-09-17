@@ -1,0 +1,3 @@
+# Experiment 10-1: multi-role switching dependencies
+openai>=1.30.0        # OpenAI Python SDK for function calling and the handoff loop
+python-dotenv>=1.0.0  # Read OPENAI_API_KEY from .env (optional if already exported in the shell)

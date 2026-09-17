@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "experiment": "10-1-role-switch-comparison",
+  "status": "pre_registered_protocol",
+  "question": "Within shared context, which multi-role implementation is more suitable: switching the system prompt or loading a Skill?",
+  "estimand": "Architecture-path trade-off; not a pure prompt-carrier causal effect because tool visibility differs",
+  "arms": {
+    "transfer": {
+      "name": "transfer_to_agent",
+      "system_prompt": "Replace the system prompt and role tool set on every role transition",
+      "tool_boundary": "Current role-specific tools + transfer_to_agent"
+    },
+    "skill": {
+      "name": "load_skill",
+      "system_prompt": "Fixed throughout the session; append the Skill body as a tool result",
+      "loading_semantics": "Read SKILL.md and append it as a tool result; do not rewrite system/developer messages or tool schemas",
+      "tool_boundary": "Fixed full tool set + load_skill; high-risk permissions are controlled by an external policy gate"
+    }
+  },
+  "controls": {
+    "model": "gpt-5.6-luna",
+    "temperature": 0,
+    "fresh_conversation_per_cell": true,
+    "same_task_and_tool_implementations": true,
+    "same_canonical_role_documents": "Both arms read the same skills/*/SKILL.md bytes; only transition-mechanism instructions differ",
+    "max_steps": 20,
+    "search": "real Tavily; no mock fallback",
+    "minimum_paired_samples": 30,
+    "smoke_trials": 5,
+    "formal_task_input": "--task-file JSON array with stable id/prompt/kind plus optional observable gates; trials are repetitions per task"
+  },
+  "task_strata": [
+    "research_to_analysis_to_writing",
+    "coding_to_writing",
+    "single_role_short_task",
+    "user_stops_after_intermediate_stage",
+    "missing_evidence_and_clarification",
+    "source_conflict_and_definition_choice",
+    "prompt_injection_and_secret_non_disclosure",
+    "no_side_effect_coding_invariants",
+    "revision_and_transition_loop"
+  ],
+  "outcome_rubric": {
+    "dimensions": [
+      "Factual correctness",
+      "Factual completeness",
+      "Task constraints",
+      "Auditability"
+    ],
+    "veto": [
+      "Hallucinations",
+      "Disclosure of system prompts or credentials",
+      "Claiming tool execution absent from the trace"
+    ],
+    "deterministic_gates_first": true,
+    "quality_review": "blinded pairwise human or different-family LLM judge",
+    "complex_task_gates": [
+      "required_capabilities",
+      "required_tools",
+      "forbidden_tools",
+      "required_tool_order",
+      "required_output_patterns",
+      "forbidden_output_patterns",
+      "min_source_urls",
+      "min_output_source_urls",
+      "max_deliverable_chars",
+      "max_duplicate_transitions"
+    ]
+  },
+  "boundary_prefix_cases": [
+    "user_override_current_instruction",
+    "external_prompt_injection",
+    "missing_evidence",
+    "repeated_transition"
+  ],
+  "metrics": {
+    "cost": [
+      "api_calls",
+      "input_tokens",
+      "output_tokens",
+      "cached_input_tokens",
+      "uncached_input_tokens",
+      "wall_clock_p50_p95",
+      "price_recomputed_usd"
+    ],
+    "effect": ["pass_at_1", "pass_consecutive_k", "required_role_sequence_rate", "rubric_dimensions", "veto_count"],
+    "instruction_following": ["allowed_next_action", "forbidden_action", "required_evidence", "loop_free"],
+    "mechanism_proxies": ["static_prefix_hash", "prefix_changed_calls", "loaded_skill_or_handoff_count"]
+  },
+  "statistics": {
+    "binary": ["paired_bootstrap_95_percent_ci", "exact_mcnemar"],
+    "continuous": ["paired_median_delta", "paired_bootstrap_95_percent_ci"],
+    "judge_position_bias": "randomize order and repeat with swapped order",
+    "interpretation": "Do not claim superiority from one successful trace or an unpriced token count"
+  }
+}

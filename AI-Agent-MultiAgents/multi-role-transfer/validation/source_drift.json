@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "note": "Runtime source hashes in a retained manifest describe the code as it ran. Files listed here have legitimately changed since; every other recorded source must still match its manifest hash, and undeclared drift fails verification. Add a file here only together with the reason it changed.",
+  "declared_drift": {
+    "validation/runs/exp10-1-kimi-k2.5-tavily-receipts-20260730-v3": {
+      "reason": "Runtime sources were translated from Chinese to English, then corrected by the audit fixes (paired tool-result scoring, one handoff per turn, provider-labelled receipts), after this run was recorded. The run's own artifacts are unchanged and still recompute exactly; the recorded source hashes describe the Chinese-era code.",
+      "files": [
+        "demo.py",
+        "orchestrator.py",
+        "roles.py",
+        "run_official_experiment.py",
+        "tools.py"
+      ]
+    },
+    "validation/comparison/runs/exp10-1-qwen35flash-20260809-v2": {
+      "reason": "Runtime sources changed after this campaign was recorded: the audit fixes to the judge position swap, its packaging gate, tool-execution evidence scoring and the Skill document accounting. The campaign artifacts are unchanged and still recompute exactly, and replaying campaign.json with the corrected scorer reproduces the recorded 15/30 and 2/30 pass counts.",
+      "files": [
+        "evaluation.py",
+        "experiment_protocol.json",
+        "judge_comparison.py",
+        "orchestrator.py",
+        "package_comparison.py",
+        "run_comparison.py",
+        "skill_orchestrator.py",
+        "tasks.formal.json",
+        "tools.py",
+        "validate_comparison.py"
+      ]
+    }
+  }
+}

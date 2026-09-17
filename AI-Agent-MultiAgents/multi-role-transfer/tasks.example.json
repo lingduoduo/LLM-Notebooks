@@ -1,0 +1,17 @@
+[
+  {
+    "id": "cagr_nev",
+    "kind": "cagr",
+    "prompt": "Retrieve China's new energy vehicle sales for 2021, 2022, and 2023, calculate the CAGR, and write an English investor summary of at most 360 characters."
+  },
+  {
+    "id": "coding_fibonacci",
+    "kind": "coding",
+    "prompt": "Use Python to calculate the first 20 Fibonacci numbers and their sum, actually execute the code, and briefly explain the result to nontechnical readers."
+  },
+  {
+    "id": "short_writing",
+    "kind": "writing",
+    "prompt": "Rewrite this confirmed fact as an English summary of at most 360 characters: The new energy vehicle market is growing rapidly, but the conclusion must retain the source qualification."
+  }
+]

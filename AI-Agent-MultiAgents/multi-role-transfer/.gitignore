@@ -1,0 +1,23 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Derived English reading copies: regenerate with `python translate_validation.py`.
+# The human work product is validation/translation_map.json, which IS tracked.
+validation/translated/
+
+# Live comparison scratch output (the --output default) and its checkpoint temp file.
+validation/comparison/latest.json
+validation/comparison/*.json.tmp
+
+# Retained evidence packages must be tracked: README cites them and
+# test_official_experiment.py / validate_comparison.py read them, so a fresh
+# clone cannot verify anything without them.  These negations override the
+# repository-root "runs/" rule as well as the old blanket
+# "validation/comparison/" rule that used to live in this file.
+!validation/runs/
+!validation/runs/**
+!validation/comparison/runs/
+!validation/comparison/runs/**
