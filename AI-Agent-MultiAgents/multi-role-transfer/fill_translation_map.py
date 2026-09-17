@@ -28,13 +28,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
-from pathlib import Path
 
 from translate_validation import (
     CJK,
     MAP_FILE,
     SOURCES_FILE,
+    SOURCES_NOTE,
     load_sources,
     load_translations,
     residual_units,
@@ -97,11 +96,10 @@ def build_batches(units: list[str], batch_chars: int) -> list[list[str]]:
 
 
 def save(translations: dict[str, str], sources: dict[str, str]) -> None:
-    """Write the English map and the id -> source record together.
+    """Write the map and English source reference with their original lookup IDs.
 
-    They are written as a pair so an id can never appear in one without the
-    other, which is what keeps translation_map.json auditable while holding no
-    Chinese itself.
+    Read reference values from the translation map so even callers supplying
+    original Chinese source values cannot reintroduce them into the reference.
     """
     document = json.loads(MAP_FILE.read_text(encoding="utf-8"))
     document["translations"] = translations
@@ -109,7 +107,8 @@ def save(translations: dict[str, str], sources: dict[str, str]) -> None:
                         encoding="utf-8")
     record = (json.loads(SOURCES_FILE.read_text(encoding="utf-8"))
               if SOURCES_FILE.exists() else {"schema_version": 1, "sources": {}})
-    record["sources"] = sources
+    record["note"] = SOURCES_NOTE
+    record["sources"] = {key: translations[key] for key in sources}
     SOURCES_FILE.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n",
                             encoding="utf-8")
 
@@ -185,7 +184,7 @@ def main() -> int:
                 incomplete += 1
                 continue
             translations[key] = english
-            sources[key] = text
+            sources[key] = english
             added += 1
         save(translations, sources)
         print(f"batch {number}/{len(batches)}: +{len(results)} "

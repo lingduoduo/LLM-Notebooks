@@ -15,7 +15,7 @@ Three kinds of Chinese string are handled differently:
 * **Everything else** is looked up in ``validation/translation_map.json``, which is
   keyed by a hash of the Chinese source rather than by the source itself, so the
   map contains no Chinese.  ``validation/translation_sources.json`` records
-  hash -> source so the pairing stays auditable by hand; it is documentation and
+  original source ID -> English translation for reference; it is documentation and
   is not needed to run this script.
 * **Anything not covered** is left in the original Chinese, and every such JSON
   path is listed in the mirror's ``_translation`` block.  Nothing is dropped and
@@ -44,6 +44,7 @@ SOURCE_ROOT = ROOT / "validation"
 OUTPUT_ROOT = SOURCE_ROOT / "translated"
 MAP_FILE = SOURCE_ROOT / "translation_map.json"
 SOURCES_FILE = SOURCE_ROOT / "translation_sources.json"
+SOURCES_NOTE = 'Original source ID -> English translation, using the same IDs and English values as translation_map.json. IDs remain hashes of the original Chinese text, not of these English values. Original provider text is retained in the historical evidence bundles; earlier source-reference revisions are available in Git history.'
 
 CJK = re.compile(r"[一-鿿]")
 
@@ -98,7 +99,7 @@ def load_translations() -> dict[str, str]:
 
 
 def load_sources() -> dict[str, str]:
-    """Return {source_key: chinese source}; for auditing, not for lookups."""
+    """Return {original_source_key: English translation}; not used for lookups."""
     if not SOURCES_FILE.exists():
         return {}
     return json.loads(SOURCES_FILE.read_text(encoding="utf-8")).get("sources", {})

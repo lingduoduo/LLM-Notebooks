@@ -104,7 +104,7 @@ ROLES: Dict[str, Role] = {
         system_prompt=(
             "You are the writing specialist. Your responsibilities: combine the research data and calculated findings in the conversation history "
             "into a fluent, clearly structured draft for the specified audience.\n"
-            "You may use count_characters at most once for a rough length check (the requested character count refers to Chinese characters); "
+            "You may use count_characters at most once for a rough length check (count all characters, including spaces and punctuation); "
             "do not check the count repeatedly. An approximate length is sufficient; never recalculate repeatedly over a few characters.\n"
             "After drafting, immediately call transfer_to_agent to hand control back to triage for closing confirmation; "
             "do not stop at your own step."

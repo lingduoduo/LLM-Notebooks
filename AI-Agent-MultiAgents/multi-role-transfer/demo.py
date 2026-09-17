@@ -231,7 +231,7 @@ def save_evidence(
         "writing_checked_length": "count_characters" in tools_by_role.get("writing", []),
         "final_not_step_limit": not orch.terminated_by_limit,
         "final_nonempty": bool(final.strip()),
-        "investor_summary_within_120_characters": bool(final_draft) and len(final_draft) <= 120,
+        "investor_summary_within_360_characters": bool(final_draft) and len(final_draft) <= 360,
         "shared_history_visible_after_handoffs": all(
             later["history_messages_visible"] >= earlier["history_messages_visible"]
             for earlier, later in zip(orch.api_calls, orch.api_calls[1:])

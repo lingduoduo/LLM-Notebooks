@@ -323,20 +323,21 @@ def test_residual_queue_shrinks_as_the_map_grows():
     """Dropping an entry puts exactly its source back on the queue."""
     import translate_validation as tv
     translations = tv.load_translations()
-    sources = tv.load_sources()
     baseline = tv.residual_units(translations)
     # A source that really occurs in the bundles: removing its id from the map
     # must make that exact string reappear as outstanding work.
     victim = next(
-        (key for key, text in sources.items()
-         if text not in baseline and tv.residual_units(
+        (key for key in translations
+         if tv.residual_units(
              {k: v for k, v in translations.items() if k != key}) != baseline),
         None,
     )
     assert victim is not None, "expected at least one translated string in use"
     without = tv.residual_units(
         {k: v for k, v in translations.items() if k != victim})
-    assert sources[victim] in without
+    restored = set(without) - set(baseline)
+    assert len(restored) == 1
+    assert tv.source_key(restored.pop()) == victim
     assert len(without) == len(baseline) + 1
     assert tv.residual_units(translations) == baseline
 
