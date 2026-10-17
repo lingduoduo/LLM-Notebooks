@@ -346,3 +346,23 @@ def test_control_endpoint_rejects_bad_requests_without_raising(server):
     assert hub.fps == 60.0
     assert _post(port, b'{"command": "pause"}') == 200
     assert hub.paused.is_set()
+
+
+def test_memory_records_request_before_caller_mutates_it():
+    memory = AttemptMemory()
+    memory.start_episode()
+    state = _state(2.0, gap_distance_tiles=2)
+    memory.observe_request(state)
+    memory.note_choice('right_jump')
+    state['player']['x'] = 999
+    state['terrain']['gap_distance_tiles'] = 100
+    record = memory.note_death({'x': 520, 'y': 80})
+    assert record.trace[-1]['x'] == 500
+    assert record.gap_distance_tiles == 2
+
+
+def test_memory_preserves_zero_outcome_coordinates():
+    memory = AttemptMemory()
+    memory.observe_request({'player': {'x': 500, 'y': 80}})
+    record = memory.note_death({'x': 0, 'y': 0})
+    assert (record.at_x, record.at_y) == (0, 0)

@@ -49,8 +49,8 @@ class DoudizhuSession:
                     self.last_answer = None
                 continue
             with self.lock:
-                request = D.render_request(self.state)
                 record = D.make_record(self.state, 'dev')
+                request = {key: record[key] for key in ('state', 'questions', 'moves')}
                 self.last_question = request
                 self.last_probabilities = record['gold_probs']['move']
             time.sleep(self.pace)
@@ -65,9 +65,12 @@ class DoudizhuSession:
                 answer = {'move': 'm0'}
             moves = {f"m{i}": m for i, m in enumerate(legal)}
             # Unknown ids fall back to m0 (pass, or the first legal lead when passing is illegal).
-            move = moves.get(answer.get('move'), legal[0])
+            selected = answer.get('move') if isinstance(answer, dict) else None
+            if not isinstance(selected, str) or selected not in moves:
+                selected = 'm0'
+            move = moves[selected]
             with self.lock:
-                self.last_answer = answer.get('move')
+                self.last_answer = selected
             self.state = D.step(self.state, move)
             if self.state['done']:
                 with self.lock:

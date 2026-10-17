@@ -60,7 +60,7 @@ class BlackjackSession:
             except Exception as exc:  # keep the game thread alive on judge failure
                 print(f"judge error, falling back to 'stand': {exc!r}", file=sys.stderr)
                 answer = {'action': 'stand'}
-            action = answer.get('action')
+            action = answer.get('action') if isinstance(answer, dict) else None
             if action not in B.legal_actions(self.state):
                 action = 'stand'
             with self.lock:

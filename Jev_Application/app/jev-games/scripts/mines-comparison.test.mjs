@@ -30,3 +30,12 @@ test('a mine ends either policy under the same rules; flags never reveal hidden 
   applyAction(game,board,{kind:'reveal',cell:mine}); assert.equal(game.status,'lost'); assert.equal(game.visible[mine],'M');
   assert.throws(()=>applyAction(game,board,{kind:'flag',cell:1}));
 });
+
+test('cell coordinates reject out-of-board rows and columns instead of aliasing a valid cell', async () => {
+  const {parseCell} = await import('./mines-comparison-core.mjs');
+  for (const name of ['r1c15', 'r2c0', 'r0c14', 'r15c1', 'r999999999999999999999c1']) {
+    assert.equal(parseCell(name), -1, name);
+  }
+  assert.equal(parseCell('r1c1'), 0);
+  assert.equal(parseCell('r14c14'), 195);
+});

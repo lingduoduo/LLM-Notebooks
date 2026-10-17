@@ -16,6 +16,7 @@ import html
 import json
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 import threading
@@ -23,6 +24,7 @@ import time
 import urllib.request
 import webbrowser
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = Path(__file__).resolve().parent
 LOGS = HERE / "logs"
@@ -132,7 +134,8 @@ def spawn(name: str, cmd: list[str], cwd: Path) -> bool:
 
 def alive(port: int) -> bool:
     try:
-        return urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.5).status == 200
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.5) as response:
+            return response.status == 200
     except Exception:
         return False
 
@@ -257,7 +260,7 @@ def _runnable_page(self, slug: str, rerun: bool) -> None:
     title, cmd_tpl, tip, rep = RUNNABLES[slug]
     with RUN_LOCKS[slug]:  # 同一实验不并发跑两份
         if rerun or slug not in RESULTS:
-            RESULTS[slug] = (time.time(), run_command(cmd_tpl.replace('\"$PY\"', sys.executable)))
+            RESULTS[slug] = (time.time(), run_command(cmd_tpl.replace('\"$PY\"', shlex.quote(sys.executable))))
         _, out = RESULTS[slug]
     body = (f"<!doctype html><meta charset=\"utf-8\"><title>{title}</title>"
             "<style>body{background:#0d1117;color:#c9d1d9;font:13px/1.6 Menlo,monospace;padding:26px}"
@@ -273,8 +276,10 @@ def _runnable_page(self, slug: str, rerun: bool) -> None:
 
 def menu_page() -> str:
     rows = []
-    for name, title, port, path, tip, report in SERVICES:
-        up = alive(port)
+    # Probe in parallel so unavailable services share one timeout window.
+    with ThreadPoolExecutor(max_workers=max(1, len(SERVICES))) as pool:
+        statuses = list(pool.map(alive, (service[2] for service in SERVICES)))
+    for (name, title, port, path, tip, report), up in zip(SERVICES, statuses):
         rows.append(_card(title, f"http://127.0.0.1:{port}{path}", tip, report, up, f":{port}"))
     for name, title, path, tip, report in REPLAYS:
         rows.append(_card(title + "（回放）", path, tip, report, True, "本地录制 · 不调 API"))

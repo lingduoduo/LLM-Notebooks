@@ -88,3 +88,37 @@ def test_session_episodes_use_cli_seed():
         serve_doudizhu.time.sleep = original_sleep
     assert session.episode == 1
     assert session.state['seed'] == 11
+
+
+def test_reference_takes_winning_follow_before_passing_to_partner():
+    state = D.make_doudizhu(0)
+    state.update(turn=1, hands=[[4, 5], [8], [12, 13]])
+    trick = {'type': 'single', 'cards': [0], 'rank': 0, 'length': 1, 'owner': 2}
+    state['trick'] = trick
+    moves = D.gen_moves(state['hands'][1], trick)
+    choice = D._reference_move(state, moves, trick)
+    assert choice['type'] == 'single' and choice['cards'] == [8]
+
+
+def test_reference_leads_largest_plain_combination():
+    state = D.make_doudizhu(0)
+    state['hands'][0] = [0, 4, 8, 12, 16, 48]
+    moves = D.gen_moves(state['hands'][0])
+    choice = D._reference_move(state, moves, None)
+    assert choice['type'] == 'straight' and len(choice['cards']) == 5
+
+
+@pytest.mark.parametrize('answer', [None, [], {'move': []}, {'move': 'unknown'}])
+def test_malformed_judge_answers_use_and_report_legal_fallback(monkeypatch, answer):
+    session = serve_doudizhu.DoudizhuSession(lambda request: answer, pace=0, seed=1)
+    original_step = D.step
+    expected = D.gen_moves(session.state['hands'][session.state['turn']], session.state['trick'])[0]
+
+    def stop_after(state, move):
+        session.alive = False
+        assert move == expected
+        return original_step(state, move)
+
+    monkeypatch.setattr(D, 'step', stop_after)
+    session.run()
+    assert session.last_answer == 'm0'

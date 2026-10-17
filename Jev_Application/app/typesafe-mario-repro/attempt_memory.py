@@ -29,6 +29,7 @@ scripted pilot, not evidence that Jev received or used it.
 from __future__ import annotations
 
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -93,7 +94,7 @@ class AttemptMemory:
         The chosen action is not known when the request goes out — it is the answer — so
         the returned snapshot is filled in by :meth:`note_choice` once the reply lands.
         """
-        snapshot = PromptSnapshot(state=state)
+        snapshot = PromptSnapshot(state=deepcopy(state))
         self._recent_prompts.append(snapshot)
         return snapshot
 
@@ -154,8 +155,8 @@ class AttemptMemory:
 
         record = DeathRecord(
             episode=self.episodes,
-            at_x=int(outcome.get("x") or player.get("x") or 0),
-            at_y=int(outcome.get("y") or player.get("y") or 0),
+            at_x=int(outcome["x"] if outcome.get("x") is not None else player.get("x") or 0),
+            at_y=int(outcome["y"] if outcome.get("y") is not None else player.get("y") or 0),
             action=last.chosen if last else None,
             grounded=bool(player.get("grounded", True)),
             jump_phase=str(player.get("jump_phase") or "unknown"),
