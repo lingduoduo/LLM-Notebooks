@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -42,11 +43,11 @@ ARTIFACTS = HERE / "artifacts"
 class ScriptedPilotTransport(httpx2.BaseTransport):
     """Answers system_one requests in the real wire format, from the state alone."""
 
-    def __init__(self, *, delay_ms: float = 0.0) -> None:
-        self.requests: list[dict[str, Any]] = []
-        self.responses: list[dict[str, Any]] = []
-        self.delay_ms = delay_ms
-        self._legitimate_payload = True
+    def __init__(self, *, max_history: int | None = None) -> None:
+        # Short A/B runs keep every exchange (callers count them); a long-lived server
+        # passes ``max_history`` so the verbatim payloads cannot grow without bound.
+        self.requests: deque[dict[str, Any]] = deque(maxlen=max_history)
+        self.responses: deque[dict[str, Any]] = deque(maxlen=max_history)
 
     # -- the pilot's judgement, derived only from the state payload -----------------
     @staticmethod
@@ -253,6 +254,22 @@ def patched_client(transport: httpx2.BaseTransport, memory=None):
         typesafe_sdk.TypeSafeClient = real_client
 
 
+def episode_outcome(last: dict[str, Any]) -> tuple[bool, bool]:
+    """``(died, cleared)`` from a run's final JSONL record.
+
+    Each record holds the state observed *before* its action batch, so a death during
+    the final batch shows up only as ``terminated`` with ``episode.dead`` still false.
+    A terminated episode that is not a clear is a death.
+    """
+    terminated = bool(last.get("terminated"))
+    episode = last["state"]["episode"]
+    died = bool(episode["dead"])
+    cleared = bool(episode["stage_clear"]) or (
+        terminated and not died and last.get("reward", 0.0) >= 100.0
+    )
+    return died or (terminated and not cleared), cleared
+
+
 def summarise(log_path: Path) -> dict[str, Any]:
     records = [json.loads(line) for line in log_path.read_text().splitlines() if line.strip()]
     if not records:
@@ -265,11 +282,7 @@ def summarise(log_path: Path) -> dict[str, Any]:
     # The terminal outcome lands in the `terminated` flag of the final record: each record
     # stores the state observed *before* its action batch runs, so a stage clear during
     # that batch never appears as a state, only as this flag.
-    terminated = bool(last.get("terminated"))
-    died = bool(last["state"]["episode"]["dead"])
-    cleared = bool(last["state"]["episode"]["stage_clear"]) or (
-        terminated and not died and last.get("reward", 0.0) >= 100.0
-    )
+    died, cleared = episode_outcome(last)
     return {
         "decisions": len(records),
         "first_x": records[0]["state"]["player"]["x"],

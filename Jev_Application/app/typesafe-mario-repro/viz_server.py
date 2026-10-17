@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import struct
 import sys
@@ -34,6 +35,7 @@ import webbrowser
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -175,7 +177,9 @@ class VizHub:
                     self.memory.note_clear(mark)
                 else:
                     self.death_marks.append(mark)
-                    self.memory.note_death(mark)
+                    # The mark's "x" is best progress (for the tally); the lesson needs
+                    # where Mario actually died.
+                    self.memory.note_death({**mark, "x": mark["at_x"]})
                 self.episodes = self.episodes[-200:]
                 self.death_marks = self.death_marks[-200:]
                 self.clear_marks = self.clear_marks[-50:]
@@ -186,14 +190,16 @@ class V2HubTransport(ScriptedPilotTransport):
 
     ``_decide`` is overridden so the stand-in judge answers from the published
     ``takeoff_window`` verdicts — the JevHarness division of labour, where the harness
-    does the arithmetic and the judge reads conclusions.  Every outgoing request is kept
-    verbatim, so a death can be attributed to the exact state the pilot was given.
+    does the arithmetic and the judge reads conclusions.  Each outgoing request is handed
+    verbatim to the hub's memory, so a death can be attributed to the exact state the
+    pilot was given.  The transport itself keeps only the latest exchange: it lives for
+    the whole server and would otherwise grow without bound.
     """
 
     _decide = staticmethod(pilot_choose_v2)
 
     def __init__(self, hub: VizHub) -> None:
-        super().__init__()
+        super().__init__(max_history=1)
         self.hub = hub
 
     def handle_request(self, request):
@@ -1031,6 +1037,34 @@ tick();
 """
 
 
+MAX_CONTROL_BODY = 64 * 1024
+
+
+def parse_control_body(headers, read) -> dict | None:
+    """The JSON object of a ``/control`` POST, or ``None`` when it must be rejected.
+
+    ``headers`` is the request's header mapping and ``read(n)`` reads ``n`` body bytes.
+    A browser attaches ``Origin`` to cross-site POSTs, and a "simple" POST needs no
+    preflight, so any page could otherwise quit or wipe this server: a present Origin
+    must name this Host.  The length is bounded before reading so a bogus
+    Content-Length cannot block the handler thread.
+    """
+    origin = headers.get("Origin")
+    if origin and urlsplit(origin).netloc != (headers.get("Host") or ""):
+        return None
+    try:
+        length = int(headers.get("Content-Length") or 0)
+    except ValueError:
+        return None
+    if not 0 <= length <= MAX_CONTROL_BODY:
+        return None
+    try:
+        body = json.loads(read(length).decode("utf-8") or "{}")
+    except (ValueError, TypeError, UnicodeDecodeError):
+        return None
+    return body if isinstance(body, dict) else None
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     hub: VizHub
@@ -1145,11 +1179,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         hub = self.hub
-        length = int(self.headers.get("Content-Length") or 0)
-        try:
-            body = json.loads(self.rfile.read(length) or b"{}")
-        except json.JSONDecodeError:
-            body = {}
+        body = parse_control_body(self.headers, self.rfile.read)
+        if body is None:
+            # The body may be unread or malformed: never reuse this connection.
+            self.close_connection = True
+            self._send(400, "application/json", b'{"ok":false}')
+            return
 
         command = body.get("command")
         if self.path.split("?", 1)[0] != "/control" or not command:
@@ -1179,7 +1214,13 @@ class Handler(BaseHTTPRequestHandler):
                 if hub.auto_restart and hub._ended_at is not None:
                     hub._ended_at = time.monotonic() - hub.auto_restart_seconds
         elif command == "speed":
-            fps = float(body.get("fps") or hub.fps)
+            try:
+                fps = float(body.get("fps") or hub.fps)
+            except (ValueError, TypeError):
+                fps = math.nan
+            if not math.isfinite(fps):
+                self._send(400, "application/json", b'{"ok":false}')
+                return
             with hub.lock:
                 hub.fps = max(1.0, min(600.0, fps))
         else:

@@ -16,8 +16,9 @@ Nothing is substituted here except the HTTP hop to the model, because this machi
 * policy       — **real** upstream ``TypeSafePolicy`` (questions, SDK call, answer
   decoding) with the HTTP hop served by the scripted pilot.
 
-The scripted pilot is still not Jev; set ``TYPESAFE_API_KEY`` in the environment and this
-script talks to the real API with no other change.
+The scripted pilot is still not Jev.  ``patched_client`` always replaces the SDK
+transport with ``ScriptedPilotTransport``, so setting ``TYPESAFE_API_KEY`` does not switch
+this script to the real API: every request is answered locally.
 
 Run:  ../typesafe-mario/.venv/bin/python repro_real_env.py [--decisions 400]
 """
@@ -42,7 +43,6 @@ from typesafe_mario.policy import HeuristicPolicy, TypeSafePolicy  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 ARTIFACTS = HERE / "artifacts" / "real_env"
-ROM = Path(gym.__file__).parent / ".."  # resolved below for the provenance record
 
 
 def rom_path() -> Path:

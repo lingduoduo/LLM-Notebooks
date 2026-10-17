@@ -22,7 +22,8 @@ This module applies the same three patterns to Mario, measured on the real emula
   Outside that window the attempt fails no matter what the model chooses — and both prior
   failure modes we observed (stuck at x=594, pit deaths at x=1104) sit exactly outside it.
 * ``feasibility_features`` — turns the published distances into a takeoff-window verdict:
-  ``clearable`` / ``wait`` / ``too_late`` / ``too_early``, with the reasoning in numbers.
+  ``jump_now`` / ``wait`` / ``too_late`` / ``regain_speed`` / ``too_wide_from_here`` /
+  ``unclearable``, with the reasoning in numbers.
 * ``build_questions`` — per-action criteria with this-decision consequences inlined, and
   instructions as imperatives.
 * ``HazardLessons`` — the cross-episode memory distilled from raw death records into
@@ -147,7 +148,11 @@ def feasibility_features(state: Mapping[str, Any]) -> dict[str, Any]:
     if slow and required_height >= 3:
         projected_if_slow = max(0.0, distance_px - horizon * speed)
         window_probe = height_window_px(required_height)
-        still_far = window_probe is None or projected_if_slow > window_probe[0] + 24.0
+        # Taller than any arc (no window): speed will not help; fall through to the
+        # explicit unclearable verdict below.
+        still_far = (
+            window_probe is not None and projected_if_slow > window_probe[0] + 24.0
+        )
         if still_far:
             verdict["verdict"] = "regain_speed"
             verdict["advice"] = (
@@ -163,6 +168,13 @@ def feasibility_features(state: Mapping[str, Any]) -> dict[str, Any]:
     if kind == "obstacle":
         window = height_window_px(required_height)
         if window is None:
+            # Taller than the measured arc can reach (4 tiles): no takeoff clears it, so
+            # "no_hazard" would send the reader running into the wall.  Say so explicitly.
+            verdict["verdict"] = "unclearable"
+            verdict["advice"] = (
+                f"{required_height}-tile obstacle in {round(projected)}px is taller than "
+                f"the 4-tile peak of a running jump: no jump clears it; stop and back off"
+            )
             return verdict
         near, far = window
         # Landing on top of a pipe shorter than the full arc also clears it, so the far
@@ -170,11 +182,17 @@ def feasibility_features(state: Mapping[str, Any]) -> dict[str, Any]:
         verdict["takeoff_window_px"] = [round(near, 1), round(far, 1)]
         if projected > far:
             verdict["verdict"] = "wait"
-            frames = int((projected - far) / speed)
+            # Standing still (respawn, or a LEFT reversal) has no frame count to the
+            # window: it is never reached at the current speed, only after speeding up.
+            frames = int((projected - far) / speed) if speed > 0 else None
+            too_far = (
+                f"still {frames} frames too far for the takeoff window"
+                if frames is not None
+                else "not moving, so the takeoff window is not reached at current speed"
+            )
             verdict["advice"] = (
-                f"{required_height}-tile obstacle in {round(projected)}px: still {frames} "
-                f"frames too far for the takeoff window; keep running and jump when the "
-                f"projected distance enters the window"
+                f"{required_height}-tile obstacle in {round(projected)}px: {too_far}; "
+                f"keep running and jump when the projected distance enters the window"
             )
         elif projected >= near:
             verdict["clearable"] = True
@@ -199,7 +217,15 @@ def feasibility_features(state: Mapping[str, Any]) -> dict[str, Any]:
     far_edge = projected + gap_width_px
     verdict["gap_width_px"] = gap_width_px
     verdict["far_edge_px"] = round(far_edge, 1)
-    if far_edge > JUMP_SPAN_PX:
+    # A gap wider than the whole arc cannot be cleared from anywhere, least of all from
+    # the lip: "get closer" there walks straight into the pit.
+    if gap_width_px > JUMP_SPAN_PX:
+        verdict["verdict"] = "unclearable"
+        verdict["advice"] = (
+            f"gap of {gap_width} tiles ({round(gap_width_px)}px) is wider than the "
+            f"{JUMP_SPAN_PX}px running-jump span: no jump clears it; stop and back off"
+        )
+    elif far_edge > JUMP_SPAN_PX and projected > 8.0:
         verdict["verdict"] = "too_wide_from_here"
         verdict["advice"] = (
             f"gap of {gap_width} tiles, far edge {round(far_edge)}px out but a running "
@@ -304,7 +330,8 @@ def build_questions(state: Mapping[str, Any]) -> dict[str, Any]:
         "Commit to right_run_jump exactly when the verdict says jump_now; keep it held "
         "while rising. When the verdict says wait, keep running — an early takeoff falls "
         "short just as surely as a late one. When it says too_late, jump anyway to try "
-        "for the top, or reverse for a fresh run-up if the way back is clear."
+        "for the top, or reverse for a fresh run-up if the way back is clear. When it "
+        "says unclearable, no jump clears the hazard: do not run into it — stop or reverse."
         + enemy_note
         + lesson_text
         + " Answer with exactly one of the listed action IDs."
@@ -415,21 +442,11 @@ def pilot_choose_v2(state: Mapping[str, Any]) -> tuple[str, dict[str, float]]:
     episode = state.get("episode", {})
     window = state.get("takeoff_window", {})
     hazard = state.get("hazard", {})
-    history = state.get("prior_attempts") or {}
     stalled = int(episode.get("stalled_frames") or 0)
     horizon = int(
         (state.get("reaction_timing") or {}).get("action_horizon_frames") or 8
     )
     verdict = str(window.get("verdict") or "no_hazard")
-
-    lessons = history.get("lessons") or []
-    near_lesson = None
-    here = int(player.get("x") or 0)
-    for lesson in lessons:
-        delta = int(lesson.get("hazard_x") or 0) - here
-        if 0 < delta <= 192:
-            near_lesson = lesson
-            break
 
     # A hazard attempted repeatedly from a standstill keeps failing the same way: tall
     # obstacles need a running start (the measured 68px peak assumes full speed).  Back
@@ -453,6 +470,12 @@ def pilot_choose_v2(state: Mapping[str, Any]) -> tuple[str, dict[str, float]]:
         "contact_within_reaction_horizon"
     ):
         pick = Action.RIGHT_RUN_JUMP
+    elif verdict == "unclearable":
+        # No jump clears it: never run into it.  Back off while it is within one arc,
+        # otherwise just stop instead of closing the distance.
+        distance = window.get("distance_px")
+        near = distance is not None and float(distance) <= JUMP_SPAN_PX
+        pick = Action.LEFT if near else Action.NOOP
     elif wedged:
         pick = Action.LEFT
     elif verdict == "jump_now":

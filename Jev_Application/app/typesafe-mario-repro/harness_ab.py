@@ -19,8 +19,9 @@ of how good its information is.
 Honest scope
 ------------
 The reader is a rules-based stand-in, so what this measures is the value of harness
-information quality to a faithful reader.  With ``TYPESAFE_API_KEY`` the same script
-measures real Jev.
+information quality to a faithful reader.  ``patched_client`` always routes the SDK
+client through the local ``PilotTransport``, so setting ``TYPESAFE_API_KEY`` does not
+change that: no request reaches Jev and this script never measures the real model.
 
 Run:  ../typesafe-mario/.venv/bin/python harness_ab.py [--episodes 6] [--max-decisions 1500]
 """
@@ -55,7 +56,7 @@ from ab_real_env import (  # noqa: E402
 from attempt_memory import AttemptMemory  # noqa: E402
 from mario_harness_v2 import MarioHarnessV2, pilot_choose_v2  # noqa: E402
 from parser_fix import CorrectedParser  # noqa: E402
-from repro_run import patched_client  # noqa: E402
+from repro_run import episode_outcome, patched_client  # noqa: E402
 from typesafe_mario.actions import Action  # noqa: E402
 from typesafe_mario.policy import TypeSafePolicy  # noqa: E402
 
@@ -194,14 +195,10 @@ class EdgeEnv:
 def run_episode(*, variant: str, episode: int, seed: int, max_decisions: int,
                 frames_per_decision: int, memory: AttemptMemory | None) -> dict:
     relay = GroundedRelay()
-    created: dict[str, object] = {}
-    upstream_factory = runner_module.create_mario_env
 
     def factory(env_id: str, render_mode: str = "human"):
         env = JoypadSpace(gym.make(env_id, render_mode=render_mode), SIMPLE_MOVEMENT)
-        env = EdgeEnv(env, frames_per_decision, relay)
-        created["env"] = env
-        return env
+        return EdgeEnv(env, frames_per_decision, relay)
 
     runner_module.create_mario_env = factory  # type: ignore[assignment]
     runner_module.MarioStateParser = CorrectedParser  # sensor fix, see parser_fix.py
@@ -211,6 +208,10 @@ def run_episode(*, variant: str, episode: int, seed: int, max_decisions: int,
     # would hold a real client pointed at the real API with the placeholder key.
     from repro_run import ScriptedPilotTransport
 
+    if memory is not None:
+        # Count this attempt before it runs, so a death recorded below carries its own
+        # episode number rather than the previous one.
+        memory.start_episode()
     if variant == "v2":
         transport = PilotTransport(pilot_choose_v2)
     else:
@@ -242,18 +243,12 @@ def run_episode(*, variant: str, episode: int, seed: int, max_decisions: int,
     if not records:
         return {"episode": episode, "best_x": 0, "ended": "empty", "cleared": False}
     last = records[-1]
-    terminal = bool(last.get("terminated"))
     best_x = max(r["state"]["episode"]["best_progress"] for r in records)
-    died = bool(last["state"]["episode"]["dead"])
-    cleared = bool(
-        last["state"]["episode"]["stage_clear"]
-        or (terminal and not died and last.get("reward", 0.0) >= 100.0)
-    )
-    last_state = last["state"]
     # The §3.3 trap, again: each record holds the state BEFORE its action batch, so a
     # death in the final batch appears only as terminated=true with episode.dead still
     # false.  A terminated episode that is not a clear is a death, full stop.
-    died = died or (terminal and not cleared)
+    died, cleared = episode_outcome(last)
+    last_state = last["state"]
     out = {
         "episode": episode,
         "seed": seed,
@@ -289,7 +284,6 @@ def run_episode(*, variant: str, episode: int, seed: int, max_decisions: int,
                     else "blocked or enemy contact"
                 ),
             )
-        memory.start_episode()
     return out
 
 
@@ -342,7 +336,7 @@ def main() -> int:
     report: dict[str, Any] = {
         "env": "real gym_super_mario_bros + bundled ROM",
         "release_edge": "applied to BOTH variants (see README §4: the headless bug would mask harness quality)",
-        "reader": "scripted stand-in, NOT Jev (set TYPESAFE_API_KEY for the real model)",
+        "reader": "scripted stand-in, NOT Jev (TYPESAFE_API_KEY does not change this)",
         "episodes_per_variant": args.episodes,
         "max_decisions": args.max_decisions,
         "base_seed": args.base_seed,
