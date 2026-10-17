@@ -30,7 +30,10 @@ def cid() -> str:
 # ============================================================================
 
 CELL_0_SRC = '''# Cell 0 — Platform detection & dependency install
-import sys, os, subprocess, importlib
+import importlib
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 def detect_platform() -> str:
@@ -81,9 +84,9 @@ for pkg, name in [('-e .', 'llm_eval'), ('matplotlib', 'matplotlib')]:
         print(f"  ok: {name} installed")
 
 # Matplotlib backend-safe: avoid font warnings on minimal containers.
-import matplotlib
+# Imported here, not at the top: the loop above may have just installed it.
+import matplotlib  # noqa: E402
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
 print("matplotlib backend:", matplotlib.get_backend())'''
 
@@ -179,7 +182,8 @@ JevBench 把这件事显式分开：
 跑同一份题，两类模型得分能直接对比。'''
 
 CELL_4_SRC = '''# Cell 4 — 环境自检
-import sys, importlib
+import importlib
+import sys
 
 print("Python:", sys.version.split()[0])
 
@@ -240,8 +244,8 @@ tests/                              63 个单元测试
 CELL_6_SRC = '''# Cell 6 — 浏览题库
 from pathlib import Path
 from collections import Counter
+import json
 
-import llm_eval
 from llm_eval.task import load_tasks
 
 repo = Path.cwd()
@@ -276,7 +280,6 @@ for k, v in sorted(by_qtype.items(), key=lambda kv: -kv[1]):
 # Show 2 full records: one easy + one hard (per PRD §C)
 print("\\n=== sample 1 (easy: intent classification) ===")
 easy = next(t for t in tasks if t.family == "intent" and t.question_type == "choice")
-import json
 print(json.dumps(easy.to_dict(), indent=2, ensure_ascii=False))
 
 print("\\n=== sample 2 (hard: long policy reasoning) ===")
@@ -308,10 +311,10 @@ CELL_7_SRC = '''# Cell 7 — 9 个指标
 - `llm_eval/summarize.py` — 公共导出白名单 + 重算'''
 
 CELL_8_SRC = '''# Cell 8 — 第一次跑：mock + smoke
-import os, json
+import json
+import os
 from pathlib import Path
 
-import llm_eval
 from llm_eval.adapters import get_adapter
 from llm_eval.runner import run
 from llm_eval.summarize import public_export
@@ -345,8 +348,8 @@ with open(OUT_ROOT / "summary.json", "w") as f:
 print(f"completed: {len(results)} tasks")
 print(f"output:    {OUT_ROOT}")
 print(f"  - results.jsonl   ({len(results)} records)")
-print(f"  - summary.json    (public-safe aggregate)")
-print(f"  - ledger.jsonl    (cost events)")
+print("  - summary.json    (public-safe aggregate)")
+print("  - ledger.jsonl    (cost events)")
 print(f"  - raw/*.json      ({len(list((OUT_ROOT/'raw').iterdir()))} raw req/resp bodies)")'''
 
 CELL_9_SRC = '''# Cell 9 — 读懂 summary.json
@@ -434,6 +437,9 @@ cell 12 默认跑 `tasks/public/easy.jsonl`（48 题），成本约 $0.001–$0.
 '''
 
 CELL_11_SRC = '''# Cell 11 — 检查 & 配置 API key
+import os
+
+from llm_eval.adapters import OPENAI_MODELS
 
 # ┌─────────────────────────────────────────────────────────────────────────┐
 # │ ⚠️  DANGER ZONE — 明文 key 粘贴区（仅学习用！）                          │
@@ -472,9 +478,6 @@ base_url_overrides = {
     "TYPESAFE_API_KEY":  "https://api.typesafe.ai",          # Jev (native)
     "OPENAI_API_KEY":    "https://api.openai.com/v1",        # OpenAI
 }
-
-import os
-from llm_eval.adapters import OPENAI_MODELS
 
 # 合并 key：direct_keys > env var
 effective = {}
@@ -544,14 +547,16 @@ if any_pasted:
 '''
 
 CELL_12_SRC = '''# Cell 12 — 跑真模型：并行所有可用 provider（≤5 一批，跑全量 benchmark）
-import os, sys, time, json
+import json
+import os
+import sys
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-import urllib.request, urllib.error
+import urllib.error
+import urllib.request
 
 from IPython.display import display, Markdown
 
-import llm_eval
 from llm_eval.adapters import get_adapter
 from llm_eval.multi_config import MultiRunConfig, RunnerConfig
 from llm_eval.multi_runner import run_multi
@@ -594,7 +599,7 @@ OUT_ROOT.mkdir(parents=True, exist_ok=True)
 all_tasks = load_tasks(TASKS_PATH)
 n_tasks = len(all_tasks)
 print(f"benchmark: {TASKS_PATH}  ({n_tasks} tasks)")
-print(f"  estimated per-provider cost (input tokens × price):")
+print("  estimated per-provider cost (input tokens × price):")
 for p in PROVIDER_TABLE:
     if p.get("skip_reason"):
         continue
@@ -691,7 +696,7 @@ for p in PROVIDER_TABLE:
     elif code == 404:
         skipped.append((p, f"http {code}: model '{p['model']}' 此 endpoint 不可用"))
     elif code == 0:
-        skipped.append((p, f"chat endpoint unreachable（DNS / TLS / 代理）"))
+        skipped.append((p, "chat endpoint unreachable（DNS / TLS / 代理）"))
     else:
         skipped.append((p, f"http {code}: 未知状态"))
 
@@ -809,7 +814,8 @@ else:
 '''
 
 CELL_13_SRC = '''# Cell 13 — Mock 锚点对照（cell 14 会消费这里产出的 compare.json）
-import json, os
+import json
+import os
 from pathlib import Path
 
 import matplotlib
@@ -817,9 +823,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython.display import display, Markdown
 
-import llm_eval
-from llm_eval.multi_config import MultiRunConfig, RunnerConfig
-from llm_eval.multi_runner import run_multi
+# Re-imported so this cell also runs on its own (e.g. after a kernel restart).
+from llm_eval.multi_config import MultiRunConfig, RunnerConfig  # noqa: F811
+from llm_eval.multi_runner import run_multi  # noqa: F811
 from llm_eval.compare import compare_run, write_markdown_table
 
 # 两个 mock 锚点：mock-perfect（理论满分） + mock-uniform（随机分布）
@@ -866,7 +872,8 @@ cols = [
     ("cost_usd",     lambda r: r.get("cost_usd_total")),
 ]
 def fmt(v):
-    if v is None: return "—"
+    if v is None:
+        return "—"
     if isinstance(v, float):
         return f"{v:.4f}" if abs(v) < 100 else f"{v:.2f}"
     return str(v)
@@ -934,11 +941,11 @@ fig.savefig(charts_dir / "13_mock_compare.png", dpi=120, bbox_inches='tight')
 plt.close(fig)
 
 display(Markdown(
-    f"\\n所有产物：\\n"
-    f"- `runs/notebook-demo/multi/compare.json`\\n"
-    f"- `runs/notebook-demo/multi/compare.md`\\n"
-    f"- `runs/notebook-demo/multi/charts/13_full_metrics.png` (3×3 全指标)\\n"
-    f"- `runs/notebook-demo/multi/charts/13_mock_compare.png` (4 联简版)"
+    "\\n所有产物：\\n"
+    "- `runs/notebook-demo/multi/compare.json`\\n"
+    "- `runs/notebook-demo/multi/compare.md`\\n"
+    "- `runs/notebook-demo/multi/charts/13_full_metrics.png` (3×3 全指标)\\n"
+    "- `runs/notebook-demo/multi/charts/13_mock_compare.png` (4 联简版)"
 ))'''
 
 CELL_14_SRC = '''# Cell 14 — Main score + 4 维横评（token / time / cost / accuracy）
@@ -950,12 +957,16 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython.display import display, Markdown
 
+from llm_eval.task import load_tasks
+
 # 严格只显示真实数据（cell 12 runner 写到磁盘的 summary.json / results.jsonl + cell 13 mock 锚点）。
 # 缺失数据 → 显示 '—'，绝不编造任何数字。
 
 def _fmt(v):
-    if v is None: return "—"
-    if isinstance(v, bool): return str(v)
+    if v is None:
+        return "—"
+    if isinstance(v, bool):
+        return str(v)
     if isinstance(v, float):
         return f"{v:.2f}" if abs(v) >= 100 else f"{v:.4f}"
     if isinstance(v, int):
@@ -963,8 +974,10 @@ def _fmt(v):
     return str(v)
 
 def _fmt_usd(v):
-    if v is None: return "—"
-    if isinstance(v, (int, float)): return f"${v:.4f}"
+    if v is None:
+        return "—"
+    if isinstance(v, (int, float)):
+        return f"${v:.4f}"
     return str(v)
 
 def _load_real_tokens(results_path: Path):
@@ -1193,7 +1206,6 @@ display(Markdown(
 
 # === Step 6: Task coverage — 列出每个 provider 实际跑了哪些题 / 没跑哪些 ===
 # 加载真实 task 集（默认是 tasks/public_all.jsonl = 231 题）
-from llm_eval.task import load_tasks
 TASKS_PATH = globals().get("TASKS_PATH", "tasks/public_all.jsonl")  # cell 12 未在本 session 运行时的回退
 _coverage_tasks = load_tasks(TASKS_PATH)
 _all_task_ids = [t.id for t in _coverage_tasks]
@@ -1211,8 +1223,10 @@ if real_rows:
         if rs_path.exists():
             with rs_path.open() as f:
                 for line in f:
-                    try: r = json.loads(line)
-                    except: continue
+                    try:
+                        r = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
                     s = r.get("status", "?")
                     if s in statuses:
                         statuses[s].append(r.get("task_id", "?"))
@@ -1237,8 +1251,10 @@ if real_rows:
         if rs_path.exists():
             with rs_path.open() as f:
                 for line in f:
-                    try: r = json.loads(line)
-                    except: continue
+                    try:
+                        r = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
                     s = r.get("status", "?")
                     if s in statuses:
                         statuses[s].append(r.get("task_id", "?"))
