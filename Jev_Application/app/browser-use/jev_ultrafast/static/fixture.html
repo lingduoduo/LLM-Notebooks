@@ -358,6 +358,12 @@
         category = "all",
         free = false,
         searched = false;
+      // User/agent-typed values must never become markup on the control API's origin.
+      const escapeHtml = (value) =>
+        String(value).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
       const places = [
         {
           name: "Casa Flora",
@@ -440,7 +446,7 @@
       function detail(p) {
         location.hash = p.name.toLowerCase().replaceAll(" ", "-");
         document.title = `${p.name} · Forma`;
-        root.innerHTML = `<button type="button" class="back" id="back">← All stays</button><div class="detail">${art()}<div class="detail-copy"><div class="edition">${p.city.toUpperCase()} · ${p.category.toUpperCase()}</div><h1>${p.name}</h1><p>${p.description}</p><div class="price">€${p.price} <span>/ night · 2 guests</span></div><div class="success">${p.free ? "Free cancellation included" : "Non-refundable stay"}</div><p class="fixture-note">Your filters: ${category} · Free cancellation ${free ? "enabled" : "off"} · Destination ${query || "anywhere"}</p></div></div><footer>Local demo property. No reservation has been made.</footer>`;
+        root.innerHTML = `<button type="button" class="back" id="back">← All stays</button><div class="detail">${art()}<div class="detail-copy"><div class="edition">${p.city.toUpperCase()} · ${p.category.toUpperCase()}</div><h1>${p.name}</h1><p>${p.description}</p><div class="price">€${p.price} <span>/ night · 2 guests</span></div><div class="success">${p.free ? "Free cancellation included" : "Non-refundable stay"}</div><p class="fixture-note">Your filters: ${escapeHtml(category)} · Free cancellation ${free ? "enabled" : "off"} · Destination ${escapeHtml(query || "anywhere")}</p></div></div><footer>Local demo property. No reservation has been made.</footer>`;
         document.getElementById("back").onclick = () => {
           location.hash = "";
           travel();

@@ -40,9 +40,13 @@ def main():
                 state["verification_text"] = agent.browser.evaluate("document.body.innerText")
             finally:
                 (output / "state.json").write_text(json.dumps(state, indent=2))
-        assert state["status"] == "done"
-        assert state["page"]["url"].endswith("#casa-flora")
-        assert "Your filters: Design · Free cancellation enabled · Destination Lisbon" in state["verification_text"]
+        # Explicit checks, so verification still runs under `python -O`.
+        if not (
+            state["status"] == "done"
+            and state["page"]["url"].endswith("#casa-flora")
+            and "Your filters: Design · Free cancellation enabled · Destination Lisbon" in state["verification_text"]
+        ):
+            raise SystemExit(f"Smoke verification failed: status={state['status']} url={state['page']['url']}")
         result = {
             "ms": state["elapsed_ms"],
             "verified": True,

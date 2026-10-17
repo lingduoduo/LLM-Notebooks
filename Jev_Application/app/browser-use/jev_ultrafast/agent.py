@@ -8,6 +8,9 @@ from .browser import Browser, StalePage
 from .model import action_space, choose, field_context, field_text
 from .questions import MAX_STEPS
 
+# Consecutive stale/covered ticks before giving up; each one costs a model call with no progress.
+MAX_STALE_TICKS = 3
+
 
 class Agent:
     def __init__(self, url, goals, *, record_dir=None, screenshots=False):
@@ -16,6 +19,7 @@ class Agent:
             raise ValueError("Supply a task")
         plan = [task]
         self.pending_text = None
+        self.stale_ticks = 0
         self.browser = Browser(url)
         self.record_dir = Path(record_dir) if record_dir else None
         self.screenshots = screenshots or bool(record_dir)
@@ -31,6 +35,7 @@ class Agent:
             decision=None,
             history=[],
             status="ready",
+            reason=None,
             plan=plan,
             plan_index=0,
             decisions=[],
@@ -44,8 +49,11 @@ class Agent:
             (self.record_dir / "000000.jpg").write_bytes(base64.b64decode(page["screenshot"]))
 
     def snapshot(self):
+        decisions = self.state["decisions"]
         return {
             **{k: v for k, v in self.state.items() if k != "browser"},
+            # Only the latest decision's full model request is shown; older ones would grow every response.
+            "decisions": [{k: v for k, v in d.items() if k != "request"} for d in decisions[:-1]] + decisions[-1:],
             "elements": action_space(self.state["page"]["actions"])[0],
         }
 
@@ -55,10 +63,19 @@ class Agent:
         if name == "tick":
             try:
                 self.command("predict", {})
-                return self.command("act", {"fingerprint": state["page"]["fingerprint"]})
-            except StalePage:
+                result = self.command("act", {"fingerprint": state["page"]["fingerprint"]})
+                self.stale_ticks = 0
+                return result
+            except StalePage as exc:
                 state["decision"] = None
                 state["status"] = "ready"
+                self.stale_ticks += 1
+                if self.stale_ticks >= MAX_STALE_TICKS:
+                    # e.g. a covered target: re-observing alone would re-choose it until the call budget is spent.
+                    state["status"] = "blocked"
+                    state["reason"] = f"{self.stale_ticks} consecutive decisions could not execute: {exc}"
+                    state["elapsed_ms"] = round((time.perf_counter() - state["started_at"]) * 1000)
+                    return self.snapshot()
                 state["page"] = state["browser"].observe(screenshot=self.screenshots)
                 state["elapsed_ms"] = round((time.perf_counter() - state["started_at"]) * 1000)
                 return self.snapshot()

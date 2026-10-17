@@ -17,20 +17,51 @@ class StalePage(ValueError):
     """A decision no longer refers to the observed page."""
 
 
+# Only these evaluation failures mean the document went away; anything else is a real script error.
+NAVIGATION_ERRORS = (
+    "Execution context was destroyed",
+    "Cannot find context with specified id",
+    "Inspected target navigated or closed",
+    "Cannot find default execution context",
+)
+
+
+def evaluation_error(details):
+    exception = details.get("exception") or {}
+    description = exception.get("description") or details.get("text") or "Unknown evaluation error"
+    if any(marker in description for marker in NAVIGATION_ERRORS):
+        return StalePage("Document changed during evaluation")
+    return RuntimeError(f"Page evaluation failed: {description}")
+
+
 class Browser:
     def __init__(self, url):
+        self.after_input = None
         ensure_daemon()
         self.target = cdp("Target.createTarget", url="about:blank", background=True)["targetId"]
-        self.session = cdp("Target.attachToTarget", targetId=self.target, flatten=True)["sessionId"]
-        self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
-        # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
-        self.call("Emulation.setFocusEmulationEnabled", enabled=True)
-        self.call("Page.navigate", url=url)
-        deadline = time.monotonic() + 15
-        while time.monotonic() < deadline:
-            if self.evaluate("document.readyState") == "complete":
-                break
-            time.sleep(0.02)
+        try:
+            self.session = cdp("Target.attachToTarget", targetId=self.target, flatten=True)["sessionId"]
+            self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
+            # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
+            self.call("Emulation.setFocusEmulationEnabled", enabled=True)
+            self.call("Page.navigate", url=url)
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                try:
+                    if self.evaluate("document.readyState") == "complete":
+                        break
+                except StalePage:
+                    pass
+                time.sleep(0.02)
+            else:
+                raise TimeoutError(f"Page did not finish loading within 15 s: {url}")
+        except BaseException:
+            # Never leak the owned tab when setup fails.
+            try:
+                self.close()
+            except Exception:
+                pass
+            raise
 
     def call(self, method, **params):
         return cdp(method, session_id=self.session, **params)
@@ -38,11 +69,11 @@ class Browser:
     def evaluate(self, expression):
         response = self.call("Runtime.evaluate", expression=expression, returnByValue=True)
         if response.get("exceptionDetails"):
-            raise StalePage("Document changed during evaluation")
+            raise evaluation_error(response["exceptionDetails"])
         return response.get("result", {}).get("value")
 
     def observe(self, screenshot=True):
-        if getattr(self, "after_input", None):
+        if self.after_input:
             action, self.after_input = self.after_input, None
             # This is read-only and happens after execution was logged, even if navigation interrupts it.
             try:
@@ -83,7 +114,6 @@ class Browser:
                 if attempt == 9:
                     raise
                 time.sleep(0.02)
-        raise StalePage("Page did not settle")
 
     def fresh(self, page, action=None):
         if action is not None and action["kind"] in {"click", "select"}:
@@ -129,7 +159,7 @@ def browser_operation(request):
         if result.get("exceptionDetails"):
             if operation == "act" and request["action"]["kind"] == "select":
                 raise RuntimeError("Dropdown execution was interrupted; inspect before retrying.")
-            raise StalePage("Document changed during evaluation")
+            raise evaluation_error(result["exceptionDetails"])
         return result.get("result", {}).get("value")
 
     if operation == "act":

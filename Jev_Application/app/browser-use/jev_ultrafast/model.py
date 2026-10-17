@@ -24,10 +24,11 @@ def post_json(url, key, body):
         if response.is_error:
             raise RuntimeError(f"Model provider returned HTTP {response.status_code}; no action executed.")
         return response.json()
-    raise RuntimeError("Model unavailable")
 
 
 def validate_choice(answer, ids):
+    if not isinstance(answer, dict) or not isinstance(answer.get("probabilities"), dict):
+        raise ValueError("Invalid TypeSafe response; no action executed.")
     try:
         probabilities = answer["probabilities"]
         numbers = [*probabilities.values(), answer["confidence"]]
@@ -117,6 +118,8 @@ def choose(state, goal, history):
     }
     started = time.perf_counter()
     result = post_json("https://api.typesafe.ai/v1/systemone", os.environ["TYPESAFE_API_KEY"], body)
+    if not isinstance(result, dict) or not isinstance(result.get("answers"), dict) or "model" not in result:
+        raise ValueError("Invalid TypeSafe response; no action executed.")
     operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
     operation = operation_answer["choice"]
     target = None

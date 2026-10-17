@@ -14,6 +14,12 @@ HTML = """<!doctype html><title>Guard checks</title>
 <p id="outside">Unrelated offscreen text</p>"""
 
 
+def check(condition, message="guard check failed"):
+    # Explicit, so verification still runs under `python -O`.
+    if not condition:
+        raise AssertionError(message)
+
+
 def main():
     browser = Browser("data:text/html," + quote(HTML))
     passed = []
@@ -21,13 +27,13 @@ def main():
         page = browser.observe(screenshot=False)
         action = next(a for a in page["actions"] if a["label"] == "Continue")
         browser.evaluate("document.querySelector('#target').style.transform='translateX(200px)'")
-        assert browser.fresh(page), "Movement should use fresh geometry, not another model call"
+        check(browser.fresh(page), "Movement should use fresh geometry, not another model call")
         browser.act(action, page)
-        assert browser.evaluate("window.clicks") == 1
+        check(browser.evaluate("window.clicks") == 1)
         passed.append("moving target clicked at its current location")
 
         browser.evaluate("document.querySelector('#outside').textContent='Updated outside the viewport'")
-        assert browser.fresh(page)
+        check(browser.fresh(page))
         passed.append("unrelated offscreen text does not invalidate")
 
         mutations = {
@@ -46,7 +52,7 @@ def main():
                              "document.querySelector('#target').disabled=false")
             page = browser.observe(screenshot=False)
             browser.evaluate(expression)
-            assert not browser.fresh(page), label
+            check(not browser.fresh(page), label)
             passed.append(label + " invalidates")
 
         browser.evaluate("document.querySelector('#target').disabled=false; "
@@ -57,14 +63,14 @@ def main():
         browser.evaluate("const cover=document.createElement('div'); "
                          "cover.style.cssText='position:fixed;inset:0;z-index:9999;background:white'; "
                          "document.body.append(cover)")
-        assert browser.fresh(page)
+        check(browser.fresh(page))
         try:
             browser.act(action, page)
         except (RuntimeError, StalePage):
             pass
         else:
             raise AssertionError("Covered target was clicked")
-        assert browser.evaluate("window.clicks") == 1
+        check(browser.evaluate("window.clicks") == 1)
         passed.append("overlay blocked before input")
 
         browser.evaluate("document.body.innerHTML=" + repr("""
@@ -84,8 +90,8 @@ def main():
         page = browser.observe(screenshot=False)
         buy = next(a for a in page["actions"] if a["label"] == "Buy")
         browser.evaluate("document.querySelector('#unrelated').textContent='New unrelated news'")
-        assert browser.fresh(page, buy)
-        assert not browser.fresh(page)
+        check(browser.fresh(page, buy))
+        check(not browser.fresh(page))
         passed.append("click guard accepts unrelated visible updates; terminal guard rejects them")
         for label, expression in {
             "nearby price": "document.querySelector('#price').textContent='Total $100'",
@@ -96,21 +102,21 @@ def main():
             page = browser.observe(screenshot=False)
             buy = next(a for a in page["actions"] if a["label"] == "Buy")
             browser.evaluate(expression)
-            assert not browser.fresh(page, buy), label
+            check(not browser.fresh(page, buy), label)
             passed.append(label + " invalidates action-specific guard")
 
         page = browser.observe(screenshot=False)
         actions = page["actions"]
         for role in ("checkbox", "radio"):
-            assert {a["kind"] for a in actions if a.get("role") == role} == {"click"}
-        assert {a["kind"] for a in actions if a["label"] == "Read only"} == {"click"}
-        assert not any(a["label"] == "Disabled" or a.get("value") == "never expose this" for a in actions)
-        assert [a["value"] for a in actions if a["kind"] == "select"] == ["Design"]
+            check({a["kind"] for a in actions if a.get("role") == role} == {"click"})
+        check({a["kind"] for a in actions if a["label"] == "Read only"} == {"click"})
+        check(not any(a["label"] == "Disabled" or a.get("value") == "never expose this" for a in actions))
+        check([a["value"] for a in actions if a["kind"] == "select"] == ["Design"])
         passed.append("native controls expose only supported operations and safe values")
 
         select = next(a for a in actions if a["kind"] == "select")
         browser.act(select, page)
-        assert browser.evaluate("document.querySelector('#category').value") == "Design"
+        check(browser.evaluate("document.querySelector('#category').value") == "Design")
         passed.append("native dropdown selects an observed option")
 
         browser.evaluate("document.querySelector('#query').addEventListener('input',()=>setTimeout(()=>{"
@@ -121,11 +127,11 @@ def main():
         browser.act(field, page, text="Generated")
         page = browser.observe(screenshot=False)
         value = browser.evaluate("document.querySelector('#query').value")
-        assert value == "Generated", repr(value)
-        assert any(a.get("role") == "option" for a in page["actions"])
+        check(value == "Generated", repr(value))
+        check(any(a.get("role") == "option" for a in page["actions"]))
         passed.append("real text input waits for asynchronous combobox suggestions")
         browser.call("Page.navigate", url="about:blank")
-        assert not browser.fresh(page, field)
+        check(not browser.fresh(page, field))
         passed.append("navigation invalidates the old document")
     finally:
         browser.close()

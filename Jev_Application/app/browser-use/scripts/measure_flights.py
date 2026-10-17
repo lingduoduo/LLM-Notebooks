@@ -50,21 +50,23 @@ try:
 except Exception as exc:
     error = f"{type(exc).__name__}: {exc}"
 finally:
-    state = agent.snapshot()
-    measured_calls = {method: {"count": len(times), "ms": round(sum(times), 3)} for method, times in calls.items()}
-    # Both arms use a NEW final observation for the independent result check, outside timing.
-    final = agent.browser.observe(screenshot=True)
-    state["verification"] = verify(final)
-    state["error"] = error
-    state["cdp"] = measured_calls
-    state["source_hashes"] = source_hashes
-    state["task_hash"] = hashlib.sha256(json.dumps([URL, GOALS]).encode()).hexdigest()
-    state["configuration"] = {
-        key: os.environ.get(key)
-        for key in ("TYPESAFE_MODEL", "TEXT_MODEL", "TEXT_MODEL_BASE_URL", "TEXT_MODEL_REASONING")
-    }
-    state["browser_version"] = agent.browser.call("Browser.getVersion")["product"]
-    state["final_page"] = final
-    (folder / "state.json").write_text(json.dumps(state, indent=2))
-    agent.close()
+    try:
+        state = agent.snapshot()
+        measured_calls = {method: {"count": len(times), "ms": round(sum(times), 3)} for method, times in calls.items()}
+        # Both arms use a NEW final observation for the independent result check, outside timing.
+        final = agent.browser.observe(screenshot=True)
+        state["verification"] = verify(final)
+        state["error"] = error
+        state["cdp"] = measured_calls
+        state["source_hashes"] = source_hashes
+        state["task_hash"] = hashlib.sha256(json.dumps([URL, GOALS]).encode()).hexdigest()
+        state["configuration"] = {
+            key: os.environ.get(key)
+            for key in ("TYPESAFE_MODEL", "TEXT_MODEL", "TEXT_MODEL_BASE_URL", "TEXT_MODEL_REASONING")
+        }
+        state["browser_version"] = agent.browser.call("Browser.getVersion")["product"]
+        state["final_page"] = final
+        (folder / "state.json").write_text(json.dumps(state, indent=2))
+    finally:
+        agent.close()
 print("VERIFIED", state["verification"]["passed"], "ERROR", error, flush=True)
