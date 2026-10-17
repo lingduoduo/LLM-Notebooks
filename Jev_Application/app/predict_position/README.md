@@ -95,6 +95,8 @@ PYTHONPATH="/c/Users/24019/Desktop/NanoJev-main/scripts" \
 | `evaluate_native_qwen_navigation.py` | `evaluate_native_qwen_shooting.py` |
 | `test_appo_basic_data.py`、`test_native_qwen_unified.py`、`test_unified_training.py` | 对应测试的夹具 |
 
+另外，`unified_game_pipeline.source_hashes()` 和 `sonic_predict_data.SOURCES` 会对同目录下未随附的文件（`unified_grid_envs.py`、`scaled_maze.py`、`teachers.mjs`、`appo_basic_data.py` 等）计算 SHA256，所以缺这些文件时 `replay_unified_episodes.py` / `complete_sonic_evaluation.py` 等命令行会直接报 `FileNotFoundError`。
+
 ## 典型用法
 
 ```bash

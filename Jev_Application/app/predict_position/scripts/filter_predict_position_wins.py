@@ -2,7 +2,8 @@
 """Keep selected recorded NanoJev wins, preserving complete benchmark scores.
 
 This operation verifies and backs up the original media receipt before replacing
-its index. Kept case objects and frame pixels remain unchanged. Only unused,
+its index. The new index and receipt are staged first; unused media are then
+removed, the index is swapped in and the receipt is moved into place last. Kept case objects and frame pixels remain unchanged. Only unused,
 receipt-owned Predict Position atlases are removed from the development folder.
 There is no simulator, model inference, training or API request in this tool.
 """
@@ -15,7 +16,7 @@ import os
 from pathlib import Path
 import shutil
 
-from build_predict_position_demo import NANOJEV_SHA, ORDER, OUTPUT_NAME
+from build_predict_position_demo import DEMO_RECEIPT, NANOJEV_SHA, ORDER, OUTPUT_NAME
 from build_shooting_demo import require
 from replay_unified_episodes import load_json
 from unified_game_pipeline import digest, file_digest
@@ -75,7 +76,7 @@ def owned_path(root, item):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--site", type=Path, default=Path("web/dev"))
-    parser.add_argument("--source-receipt", type=Path, default=Path("results/predict_position_demo_v1/build_manifest.json"))
+    parser.add_argument("--source-receipt", type=Path, default=DEMO_RECEIPT)
     parser.add_argument("--selection", type=Path, default=Path("configs/predict_position_demo_v1.json"))
     parser.add_argument("--backup", type=Path, default=Path("runs/predict_position_wins_v2/original_demo"))
     parser.add_argument("--receipt", type=Path, default=Path("results/predict_position_wins_v2/filter_manifest.json"))
@@ -144,19 +145,28 @@ def main(argv=None):
     for item in generated:
         owned_path(args.site, item)
     pending = args.site / (OUTPUT_NAME + ".filtered")
-    require(not pending.exists(), "Index staging path already exists")
-    with pending.open("xb") as handle:
-        handle.write(encoded)
-    os.replace(pending, original_index)
+    pending_receipt = args.receipt.with_name(args.receipt.name + ".pending")
+    require(not pending.exists() and not pending_receipt.exists(), "Index or receipt staging path already exists")
+    # Stage everything that can fail (index bytes, receipt JSON) before touching
+    # the site, so a failure here leaves the original index and media intact.
+    try:
+        with pending.open("xb") as handle:
+            handle.write(encoded)
+        args.receipt.parent.mkdir(parents=True, exist_ok=True)
+        with pending_receipt.open("x") as handle:
+            json.dump(receipt, handle, indent=2, allow_nan=False); handle.write("\n")
+    except BaseException:
+        pending.unlink(missing_ok=True)
+        pending_receipt.unlink(missing_ok=True)
+        raise
     for item in removed:
         path = owned_path(args.site, item)
         require(file_digest(args.backup / item["path"]) == item["sha256"], "Removal backup changed")
         path.unlink()
+    os.replace(pending, original_index)
     for item in receipt["generated_files"]:
         owned_path(args.site, item)
-    args.receipt.parent.mkdir(parents=True, exist_ok=True)
-    with args.receipt.open("x") as handle:
-        json.dump(receipt, handle, indent=2, allow_nan=False); handle.write("\n")
+    os.replace(pending_receipt, args.receipt)
     print(json.dumps({"passed": True, "cases": len(filtered["cases"]), "retained_media": len(preserved),
         "removed_media": len(removed), "bytes": sum(item["bytes"] for item in receipt["generated_files"]),
         "receipt": str(args.receipt), "default_case_id": filtered["default_case_id"]}), flush=True)

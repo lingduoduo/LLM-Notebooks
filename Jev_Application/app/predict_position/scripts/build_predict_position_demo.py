@@ -25,6 +25,8 @@ from unified_game_pipeline import digest, file_digest
 NANOJEV_SHA = "f68c47d66998231b86b7e91b4ed5e82ae23acf104c8b7cd6d165c3ac7b7ffe1b"
 CASES_SHA = "d00f5b6aeaa9f2aac3e4b5010b31df4e86f77674cb588e17bc3f7d853e4a1f36"
 OUTPUT_NAME = "predict_position_results.json"
+# Shared with filter_predict_position_wins.py and docs/PREDICT_POSITION_DEMO.md.
+DEMO_RECEIPT = Path("results/predict_position_demo_v1/build_manifest.json")
 MODEL_TEXT = {
     "jev": ("Jev", "Recorded Jev API action probabilities"),
     "nanojev": ("NanoJev", "0.6B · mixed-task expert SFT · step 400"),
@@ -195,7 +197,7 @@ def main(argv=None):
     parser.add_argument("--cases", type=Path, default=Path("runs/sonic_unified_sft_v1/test_cases.jsonl"))
     parser.add_argument("--selection", type=Path, default=Path("configs/predict_position_demo_v1.json"))
     parser.add_argument("--output", type=Path, default=Path("web/dev"))
-    parser.add_argument("--receipt", type=Path, default=Path("runs/predict_position_demo_v1/build_manifest.json"))
+    parser.add_argument("--receipt", type=Path, default=DEMO_RECEIPT)
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args(argv)
     registry_sha = file_digest(args.cases)
