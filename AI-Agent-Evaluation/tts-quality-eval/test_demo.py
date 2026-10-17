@@ -22,8 +22,8 @@ def test_select_configs_uses_defaults_and_optional_extra():
 
 
 def test_select_configs_preserves_requested_provider_order():
-    configs = demo.select_configs("minimax, openai", False)
-    assert [item.provider for item in configs] == ["minimax", "openai"]
+    configs = demo.select_configs("elevenlabs, openai", False)
+    assert [item.provider for item in configs] == ["elevenlabs", "openai"]
 
 
 def test_select_configs_rejects_unknown_provider():

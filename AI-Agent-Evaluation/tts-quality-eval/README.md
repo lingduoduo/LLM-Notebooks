@@ -3,7 +3,7 @@
 This project implements an end-to-end benchmark pipeline for TTS quality across multiple providers and configurations. The same source scripts are synthesized, then evaluated with an LLM-as-a-Judge rubric.
 
 It compares:
-- provider differences (OpenAI, ElevenLabs, Fish Audio, Minimax)
+- provider differences (OpenAI, ElevenLabs, Fish Audio)
 - model / voice / speed settings
 - objective speech metrics and rubric-based subjective dimensions
 
@@ -66,7 +66,7 @@ python demo.py --quick
 python demo.py --extra
 python demo.py --gemini
 python demo.py --fresh
-python demo.py --providers openai,minimax,elevenlabs
+python demo.py --providers openai,elevenlabs,fishaudio
 python demo.py --text "Revenue grew 37.5 percent in 2026."
 python demo.py --judge-model gpt-5.6-luna
 python demo.py --output ./runs/exp1

@@ -5,7 +5,6 @@ step of SFT is obtaining high-quality demonstration data, and the most efficient
 way to get it is to **distill a frontier model**: collect the teacher's
 "thinking + answer" trajectories through bulk API calls, filter them with a
 rule-based verifier, and use what survives as training data for the student.
-(This is the route DeepSeek-R1 took when distilling smaller models.)
 
 ## Method
 
@@ -22,8 +21,9 @@ Three steps, corresponding to step one of experiment 7-9, "collect trajectories"
    rewritten by a separate summarizer model — the token-by-token raw chain of
    thought only exists inside the encrypted `signature` field and is not exposed
    by the API — and newer models summarize more aggressively (see the measurements
-   below). If you need the verbatim chain of thought, use an open model's native
-   API instead, such as Kimi K3.
+   below). If you need the verbatim chain of thought, serve an open-weight
+   reasoning model locally (e.g. vLLM's OpenAI-compatible server) and point
+   `--base_url` at it.
 3. **Verify and filter.** The rule-based verifier checks the `Final Answer` value.
    A problem whose answer does not verify is resampled at a higher temperature up to
    `--max_retries` times, and only correct trajectories are kept, written as SFT
@@ -32,22 +32,20 @@ Three steps, corresponding to step one of experiment 7-9, "collect trajectories"
    flawed thought process just as readily as a sound one, so this step is not
    optional.
 
-## Choosing a teacher model: open-source SOTA by default
+## Choosing a teacher model
 
 Most people doing post-training do **not** need to distill a closed model's chain
-of thought. The gap between today's best open models (DeepSeek V4, Kimi K3,
-GLM 5.2) and closed SOTA is smaller than it is usually assumed to be; if you are
-post-training a model of 200B parameters or less, an open SOTA teacher is entirely
-sufficient. The teacher only has to be *clearly better than the student*, not the
-best model in the world.
+of thought. If you are post-training a model of 200B parameters or less, a strong
+open-weight teacher served locally is usually sufficient. The teacher only has to
+be *clearly better than the student*, not the best model in the world.
 
-The Claude runs are kept here as a controlled comparison: **how do a closed API's
-summarized thinking and an open model's raw chain of thought actually differ as
-SFT data?**
+Supported hosted teachers are Claude via OpenRouter (default) and OpenAI
+(`--base_url https://api.openai.com/v1 --api_key_env OPENAI_API_KEY --model <model>`).
+Hosted Chinese-model API backends (Moonshot/Kimi, DeepSeek, Qwen/DashScope, GLM,
+etc.) have been removed and are rejected by `generate_data.py`.
 
 > Compliance note: this experiment only uses the reasoning/thinking capabilities
-> exposed by each vendor's official API (Claude returns summarized thinking; open
-> models such as Kimi K3 and DeepSeek return the raw chain of thought directly).
+> exposed by each vendor's official API (Claude returns summarized thinking).
 > It does not involve any means of bypassing a vendor's safety mechanisms. For
 > closed models, use of the distilled output must follow the corresponding
 > provider's terms.
@@ -62,7 +60,7 @@ export OPENROUTER_API_KEY=sk-or-...
 python generate_data.py --max_problems 2 \
   --sft_output /tmp/smoke_sft.jsonl --raw_output /tmp/smoke_raw.jsonl
 
-# Full collection (24 AIME problems; Opus 4.8 emits ~40k output tokens, Kimi K3 ~60k)
+# Full collection (24 AIME problems; Opus 4.8 emits ~40k output tokens)
 python generate_data.py
 
 # Dataset statistics
@@ -84,10 +82,13 @@ engineering lessons below). Run `python generate_data.py --help` for the full li
 | File | Contents |
 | --- | --- |
 | `data/sft_cot_distill_aime.jsonl` | Claude Opus 4.8 SFT training data (messages format, chain of thought wrapped in `<think>` tags) |
-| `data/sft_cot_distill_aime_kimi_k3.jsonl` | Kimi K3 SFT training data |
+| `data/sft_cot_distill_aime_kimi_k3.jsonl` | Recorded Kimi K3 SFT data from a past run (that hosted backend has since been removed) |
 | `data/raw_trajectories_*.jsonl` | Every raw trajectory, including those that failed verification, for analyzing the teacher's error patterns |
 
 ## AIME measurements: three teachers head to head (24 problems)
+
+> Historical results from past runs. The Kimi K3 (Moonshot API) backend has since
+> been removed from this project; its numbers are kept as recorded.
 
 | | Claude Sonnet 4.5 | Claude Opus 4.8 | Kimi K3 |
 | --- | --- | --- | --- |
@@ -146,8 +147,7 @@ and control coverage, diversity, and annotation accuracy according to the book's
 
 配套书中**实验 7-9（思维链蒸馏）**。SFT 的第一步是拿到高质量示范数据，而获取
 SFT 数据最高效的方式就是**蒸馏前沿模型**：通过大规模 API 调用，把教师模型的
-"思考 + 答案"轨迹采集下来，经规则验证器过滤后作为学生模型的训练数据
-（DeepSeek-R1 蒸馏小模型走的就是这条路线）。
+"思考 + 答案"轨迹采集下来，经规则验证器过滤后作为学生模型的训练数据。
 
 ## 方法
 
@@ -162,25 +162,25 @@ SFT 数据最高效的方式就是**蒸馏前沿模型**：通过大规模 API �
    注意：Claude API 返回的是 **summarized thinking**（由单独的摘要模型改写，
    逐 token 的原始思维链只存在于加密的 `signature` 字段中，API 不暴露），
    且模型越新摘要越激进（见文末实测）。若需要逐 token 原文，
-   推荐直接用开放模型原生 API，例如 Kimi K3（见下文对照实验的运行参数）。
+   可在本地部署开放权重推理模型（如 vLLM 的 OpenAI 兼容服务），并用 `--base_url` 指向它。
 3. **验证过滤**：用规则验证器核对 `Final Answer` 数值；未通过验证的题会升温
    重采样，最多重试 `--max_retries` 次，只保留答对的轨迹，
    写成 `问题 → <think>思考</think> + 最终答案` 的 messages 格式 SFT 数据。
    错误的思考过程会被学生一并模仿，所以这一步不能省。
 
-## 教师模型怎么选：默认开源 SOTA，不必盯着闭源
+## 教师模型怎么选
 
-对绝大多数做后训练的人来说，**不需要**去蒸馏闭源模型的思维链。当前最先进的
-开源模型（DeepSeek V4、Kimi K3、GLM 5.2 等）与 SOTA 闭源模型的差距并没有
-想象中大；如果你要后训练的是 200B 及以下规模的模型，用开源 SOTA 模型当教师
-已经完全够用——教师的水平只需要"明显高于学生"，不需要"全球第一"。
+对绝大多数做后训练的人来说，**不需要**去蒸馏闭源模型的思维链。如果你要后训练的是
+200B 及以下规模的模型，在本地部署一个强的开放权重模型当教师通常已经够用——
+教师的水平只需要"明显高于学生"，不需要"全球第一"。
 
-本目录保留 Claude 的采集结果，目的是做一个对照：**闭源 API 的
-summarized thinking 和开源模型的原始思维链，作为 SFT 数据到底有什么差别**。
+支持的托管教师：OpenRouter 上的 Claude（默认）与 OpenAI
+（`--base_url https://api.openai.com/v1 --api_key_env OPENAI_API_KEY --model <模型>`）。
+中国模型托管 API 后端（Moonshot/Kimi、DeepSeek、Qwen/DashScope、GLM 等）已移除，
+`generate_data.py` 会直接拒绝。
 
 > 合规说明：本实验只使用各厂商官方 API 提供的 reasoning/thinking 能力获取思维链
-> （Claude 在 API 中返回 summarized thinking，Kimi K3、DeepSeek 等开放模型直接
-> 返回原始思维链），不涉及任何绕过厂商安全机制的手段。对闭源模型，
+> （Claude 在 API 中返回 summarized thinking），不涉及任何绕过厂商安全机制的手段。对闭源模型，
 > 蒸馏产物的使用需遵守对应服务商的条款。
 
 ## 运行
@@ -193,7 +193,7 @@ export OPENROUTER_API_KEY=sk-or-...
 python generate_data.py --max_problems 2 \
   --sft_output /tmp/smoke_sft.jsonl --raw_output /tmp/smoke_raw.jsonl
 
-# 全量采集（24 道 AIME 题；Opus 4.8 输出约 4 万 token，Kimi K3 约 6 万）
+# 全量采集（24 道 AIME 题；Opus 4.8 输出约 4 万 token）
 python generate_data.py
 
 # 数据统计
@@ -212,10 +212,12 @@ python analyze_data.py
 | 文件 | 内容 |
 | --- | --- |
 | `data/sft_cot_distill_aime.jsonl` | Claude Opus 4.8 的 SFT 训练数据（messages 格式，思维链包在 `<think>` 标签内） |
-| `data/sft_cot_distill_aime_kimi_k3.jsonl` | Kimi K3 的 SFT 训练数据 |
+| `data/sft_cot_distill_aime_kimi_k3.jsonl` | 历史运行记录的 Kimi K3 SFT 数据（该托管后端已移除） |
 | `data/raw_trajectories_*.jsonl` | 全部原始轨迹（含未通过验证的），用于分析教师错误模式 |
 
 ## AIME 实测：三位教师的对照（24 题）
+
+> 以下为历史运行结果。Kimi K3（Moonshot API）后端已从本项目移除，其数据按原记录保留。
 
 | | Claude Sonnet 4.5 | Claude Opus 4.8 | Kimi K3 |
 | --- | --- | --- | --- |

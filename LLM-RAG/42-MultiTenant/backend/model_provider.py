@@ -70,30 +70,26 @@ class ModelRouter:
             state["last_topics"].append(topic)
             state["last_topics"] = state["last_topics"][-5:]
 
-        dashscope_key = os.getenv("DASHSCOPE_API_KEY")
-        if tenant_config.model != "fallback" and dashscope_key:
-            response = self._try_dashscope(state, context, tenant_config)
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if tenant_config.model != "fallback" and openai_key:
+            response = self._try_openai(state, context, tenant_config)
             if response:
                 return response
         return self._fallback_response(state, context, tenant_config, user_message)
 
-    def _try_dashscope(self, state: ChatState, context: TenantContext, tenant_config: TenantConfig) -> str:
+    def _try_openai(self, state: ChatState, context: TenantContext, tenant_config: TenantConfig) -> str:
+        """Call the official OpenAI Chat Completions API; return "" on any failure."""
         try:
-            import dashscope
-            from dashscope import Generation
-            from http import HTTPStatus
+            from openai import OpenAI
         except ModuleNotFoundError:
             return ""
         try:
-            dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
-            response = Generation.call(
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            response = client.chat.completions.create(
                 model=tenant_config.model,
                 messages=self._build_messages(state, context, tenant_config),
-                result_format="message",
             )
-            if response.status_code == HTTPStatus.OK:
-                return response.output.choices[0].message.content
-            return ""
+            return response.choices[0].message.content or ""
         except Exception:
             return ""
 

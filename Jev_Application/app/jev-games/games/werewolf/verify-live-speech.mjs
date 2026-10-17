@@ -14,7 +14,7 @@ const speeches = [];
 for (const id of ['jev_1', 'jev_2', 'jev_3', 'jev_4', 'jev_5']) {
   const decision = await decideForAgent(game, id, 'day_speech');
   const speech = speechFromDecision(game, id, decision);
-  assert.equal(speech?.source, 'deepseek', decision.fallbackReason);
+  assert.equal(speech?.source, 'openai', decision.fallbackReason);
   assert.equal(game.trace.decisions.at(-1).rawResponse, null, 'No Jev request during day');
   appendTranscript(game, { speaker: id, type: 'jev_message', ...speech });
   speeches.push(speech.text);
@@ -26,6 +26,6 @@ game.pending.voters = [...game.alive];
 game.pending.votes = {};
 const vote = await decideForAgent(game, 'jev_5', 'vote');
 assert.equal(vote.mode, 'jev');
-assert.equal(game.trace.decisions.at(-1).cognitionMode, 'deepseek');
+assert.equal(game.trace.decisions.at(-1).cognitionMode, 'openai');
 assert.equal(buildPublicState(game).cognitionMemory, undefined);
-console.log('PASS: five DS public speeches, zero daytime Jev calls, DS analysis → Jev vote.');
+console.log('PASS: five OpenAI public speeches, zero daytime Jev calls, OpenAI analysis → Jev vote.');

@@ -8,8 +8,8 @@ package the solution in the library, and use the new tool to complete the task.
 For similar tasks, first use search_tools to reuse tools instead of rebuilding.
 
 Uses function calling through the OpenAI SDK, defaulting to gpt-5.6-luna.
-Select an OpenAI-compatible provider with LLM_PROVIDER=openai|moonshot|ark.
-If its key is absent but OPENROUTER_API_KEY is set, fall back to OpenRouter.
+LLM_PROVIDER=openai is the only supported provider (and the default).
+If OPENAI_API_KEY is absent but OPENROUTER_API_KEY is set, fall back to OpenRouter.
 """
 
 import json
@@ -27,12 +27,10 @@ import base_tools
 from tool_manager import ToolLibrary, normalize_schema
 
 # --------------------------------------------------------------------------- #
-# LLM clients: OpenAI, Moonshot, and ARK use OpenAI-compatible interfaces
+# LLM client: official OpenAI API (OpenRouter is only a fallback route)
 # --------------------------------------------------------------------------- #
 _PROVIDERS = {
     "openai": ("OPENAI_API_KEY", None, "gpt-5.6-luna"),
-    "moonshot": ("MOONSHOT_API_KEY", "https://api.moonshot.cn/v1", "kimi-k3"),
-    "ark": ("ARK_API_KEY", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1-6-250615"),
 }
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -53,7 +51,11 @@ def _to_openrouter_model(model: str) -> str:
 
 def build_client():
     provider = os.environ.get("LLM_PROVIDER", "openai").lower()
-    key_env, base_url, default_model = _PROVIDERS.get(provider, _PROVIDERS["openai"])
+    if provider not in _PROVIDERS:
+        raise RuntimeError(
+            f"unsupported LLM_PROVIDER={provider!r}; supported: {', '.join(_PROVIDERS)}"
+        )
+    key_env, base_url, default_model = _PROVIDERS[provider]
     model = os.environ.get("LLM_MODEL", default_model)
     api_key = os.environ.get(key_env)
     # Fall back to OpenRouter when the provider key is missing but its key is available

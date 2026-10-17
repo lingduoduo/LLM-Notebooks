@@ -23,7 +23,7 @@ async function startServer(name) {
   await writeFile(join(dir, '.env'), `TYPESAFE_API_KEY=${DUMMY_KEY}\n`);
   const env = { ...process.env, PORT: String(20000 + Math.floor(Math.random() * 30000)) };
   delete env.TYPESAFE_API_KEY;
-  delete env.DEEPSEEK_API_KEY;
+  delete env.OPENAI_API_KEY;
   const child = spawn(process.execPath, ['server.mjs'], { cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const port = await new Promise((resolve, reject) => {
     let output = '';

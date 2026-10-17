@@ -18,7 +18,7 @@ Business      backend/service.py      Tenant resolution, session ownership, work
 Execution     backend/graph_engine.py LangGraph state machine, thread-safe tenant isolation
     │
 Storage/Model backend/storage.py      JSON-backed session state (PostgreSQL/Redis-ready)
-              backend/model_provider.py Model routing with DashScope + rule-based fallback
+              backend/model_provider.py Model routing with OpenAI (`OPENAI_API_KEY`) + rule-based fallback
 ```
 
 Supporting modules:
@@ -65,7 +65,7 @@ Client
   → MultiTenantPlatformService: resolve session ID
   → DifyWorkflowService.run(context, tenant_config, message)
   → LangGraphExecutor: load_state → run_model → persist_state
-  → ModelRouter: DashScope API or rule-based fallback
+  → ModelRouter: OpenAI Chat Completions API or rule-based fallback
   ← ChatResult
 ```
 
@@ -74,6 +74,8 @@ Client
 ```bash
 pip install fastapi uvicorn langgraph langchain-core pydantic cryptography
 ```
+
+**Optional LLM responses:** all default tenants use `"model": "fallback"` (offline, rule-based). To route a tenant through OpenAI, `pip install openai`, export `OPENAI_API_KEY`, and set that tenant's `"model"` in `tenant_configs.json` to an OpenAI chat model such as `gpt-4.1-mini`. Any API error falls back to the rule-based response.
 
 **CLI demo:**
 ```bash

@@ -55,3 +55,5 @@ Live mode uses the OpenAI Responses API and requires the model to return per-dim
 Production systems should expand the expert calibration set and route low-confidence or high-risk trajectories to a second verifier or human review. The sample `quality_facts` fields explicitly represent LLM judgments for the offline experiment; they do not imply that production systems can obtain these fields in advance.
 
 The files under `validation/` are English translations of historical validation artifacts, including recorded model responses and reasoning text. Their recorded scores, labels, and run metadata are retained; they are not new evaluations of the translated text. Source anchors are URL-encoded to preserve the original reference. The claim matcher retains its existing multilingual support through Unicode escapes.
+
+Note: the recorded `validation/real_*` runs were captured with the ByteDance Ark (Doubao) backend, which has since been removed from this project; current supported backends are `openai` and `openrouter` (`python run_experiment_9_1.py --provider openai`). The recorded results are kept unchanged.

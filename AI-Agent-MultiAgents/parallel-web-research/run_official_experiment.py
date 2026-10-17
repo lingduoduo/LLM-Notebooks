@@ -41,8 +41,6 @@ SOURCE_FILES = [
     "cascade-stress.example.json",
 ]
 SECRET_ENV_NAMES = (
-    "ARK_API_KEY",
-    "MOONSHOT_API_KEY",
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",
 )

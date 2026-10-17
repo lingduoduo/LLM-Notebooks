@@ -35,8 +35,8 @@ PRICE: dict[str, float] = {
 class TTSConfig:
     """One TTS configuration to evaluate; names must be unique in the table.
 
-    ``provider`` selects the synthesis service (openai, elevenlabs, fishaudio,
-    or minimax). Each provider defines the meaning of model, voice, and
+    ``provider`` selects the synthesis service (openai, elevenlabs, or
+    fishaudio). Each provider defines the meaning of model, voice, and
     speed. For example, ElevenLabs voice is a voice_id, while Fish Audio voice
     is a reference_id and may be empty to use the default voice.
     """
@@ -49,14 +49,12 @@ class TTSConfig:
 
     def supports_speed(self) -> bool:
         # Only some provider/model combinations accept a speed parameter.
-        if self.provider == "openai":
-            return self.model in ("tts-1", "tts-1-hd")
-        return self.provider == "minimax"
+        return self.provider == "openai" and self.model in ("tts-1", "tts-1-hd")
 
 
 # ---------------------------------------------------------------------------
 # Multi-provider registry, corresponding to the book's integration of OpenAI,
-# ElevenLabs, Fish Audio, and Minimax. Each provider declares needed
+# ElevenLabs, and Fish Audio. Each provider declares needed
 # environment variables and a representative configuration for comparison.
 # Other providers use their public REST APIs; a missing key marks only that row
 # as failed and does not stop the full table (see demo.py).
@@ -102,10 +100,6 @@ PROVIDERS: dict[str, ProviderInfo] = {
         "fishaudio", "Fish Audio", ("FISH_API_KEY",),
         "voice=reference_id (empty uses the default voice), using /v1/tts; FISHAUDIO_API_KEY is also accepted.",
     ),
-    "minimax": ProviderInfo(
-        "minimax", "Minimax", ("MINIMAX_API_KEY", "MINIMAX_GROUP_ID"),
-        "voice=voice_id; model defaults to speech-01-turbo and requires an additional GroupId.",
-    ),
 }
 
 # Representative configurations selected by --providers, one per provider.
@@ -117,8 +111,6 @@ PROVIDER_CONFIGS: dict[str, TTSConfig] = {
                             model="eleven_multilingual_v2", voice="21m00Tcm4TlvDq8ikWAM"),
     "fishaudio": TTSConfig("fishaudio-default", provider="fishaudio",
                           model="speech-1.5", voice=""),
-    "minimax": TTSConfig("minimax-turbo", provider="minimax",
-                        model="speech-01-turbo", voice="male-qn-qingse"),
 }
 
 

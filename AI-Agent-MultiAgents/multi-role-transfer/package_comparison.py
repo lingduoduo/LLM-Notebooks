@@ -29,7 +29,6 @@ SOURCE_FILES = (
 SECRET_ENV_NAMES = (
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",
-    "MOONSHOT_API_KEY",
     "TAVILY_API_KEY",
 )
 
@@ -266,7 +265,7 @@ cache recorded per-run misses (and no hits across a run), as expected for the fr
 
 ## Interpretation
 
-For `qwen/qwen3.5-flash-02-23` under this bounded OpenRouter campaign, the repaired Skill arm now follows the
+For `{campaign.get('model')}` under this bounded campaign, the repaired Skill arm now follows the
 progressive-disclosure state machine and materially improves deterministic acceptance (50.0% vs 6.7%). The trade-off
 is higher median uncached input (+{paired['uncached_input_token_delta']['median']:.1f} tokens), latency (+{paired['latency_delta_seconds']['median']:.3f}s),
 and repriced cost (+${paired['cost_delta_usd']['median']:.8f}). This is evidence for the documented architecture trade-off,

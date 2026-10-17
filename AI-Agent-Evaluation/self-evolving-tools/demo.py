@@ -192,8 +192,7 @@ def run_online(tasks: list, allow_create: bool, model: str | None, output_path: 
             "Configure the API key for your provider first (OpenAI by default):\n"
             "  cp env.example .env  then fill in OPENAI_API_KEY in .env;\n"
             "  or export OPENAI_API_KEY=your-openai-api-key directly\n"
-            "To switch providers: export LLM_PROVIDER=moonshot|ark and configure "
-            "MOONSHOT_API_KEY / ARK_API_KEY。\n"
+            "Alternatively set OPENROUTER_API_KEY to route the same OpenAI models via OpenRouter.\n"
             "(To check the mechanism without an API key, run: python demo.py --offline)",
             file=sys.stderr,
         )

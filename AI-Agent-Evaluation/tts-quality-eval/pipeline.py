@@ -186,32 +186,10 @@ def _synth_fishaudio(cfg: config.TTSConfig, text: str) -> bytes:
                       {"Authorization": f"Bearer {key}"})
 
 
-def _synth_minimax(cfg: config.TTSConfig, text: str) -> bytes:
-    key = _require_env("MINIMAX_API_KEY")
-    group = _require_env("MINIMAX_GROUP_ID")
-    url = f"https://api.minimax.chat/v1/t2a_v2?GroupId={group}"
-    body = {
-        "model": cfg.model or "speech-01-turbo",
-        "text": text,
-        "stream": False,
-        "voice_setting": {"voice_id": cfg.voice, "speed": cfg.speed},
-        "audio_setting": {"format": "mp3", "sample_rate": 32000},
-    }
-    raw = _http_post(url, body, {"Authorization": f"Bearer {key}"})
-    data = json.loads(raw)
-    # The response is JSON with hex-encoded audio at data.audio.
-    hexstr = (data.get("data") or {}).get("audio")
-    if not hexstr:
-        err = data.get("base_resp", {})
-        raise RuntimeError(f"Minimax returned no audio: {err or data}")
-    return bytes.fromhex(hexstr)
-
-
 _SYNTH_DISPATCH = {
     "openai": _synth_openai,
     "elevenlabs": _synth_elevenlabs,
     "fishaudio": _synth_fishaudio,
-    "minimax": _synth_minimax,
 }
 
 

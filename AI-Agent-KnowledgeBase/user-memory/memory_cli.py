@@ -289,7 +289,7 @@ def build_parser():
     add_common(p_ext)
     p_ext.add_argument("--conversation", required=True, help="Conversation text or path to a conversation file")
     p_ext.add_argument("--provider", default=None,
-                       choices=["openai", "siliconflow", "openrouter"],
+                       choices=["openai", "openrouter"],
                        help="LLM provider (defaults to the PROVIDER env var)")
     p_ext.add_argument("--model", default=None, help="Model name (defaults to the provider's default model)")
     p_ext.set_defaults(func=cmd_extract)

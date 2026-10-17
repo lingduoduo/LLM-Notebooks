@@ -27,8 +27,8 @@ Real training requires a GPU and Hugging Face model downloads. Install the proje
 
 ```bash
 # Optional teacher-generated chosen responses with rejection sampling and receipts
-export ARK_API_KEY=your_api_key_here
-python build_preference_data.py --teacher --provider ark --model doubao-seed-1-6-250615
+export OPENAI_API_KEY=your_api_key_here
+python build_preference_data.py --teacher --provider openai --model gpt-4o-mini
 
 # Single-GPU LoRA DPO; defaults to Qwen/Qwen2.5-7B-Instruct (override with --model)
 python train_dpo.py
@@ -37,7 +37,7 @@ python train_dpo.py
 python evaluate.py --decision-score
 
 # Optional LLM review of classifications, with evidence receipts
-python evaluate.py --judge --provider ark
+python evaluate.py --judge --provider openai
 ```
 
 The source book uses a shared Chapter 7 environment (`uv sync --locked --python 3.12 --extra ch7`). This notebook repository uses the local `requirements.txt` installation shown above.

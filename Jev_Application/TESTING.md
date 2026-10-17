@@ -21,7 +21,7 @@ python3 start.py status # 只看状态
 | Node.js | ≥ 18（本机 24） | jev-games 三个游戏 + React 入口 |
 | Chrome | 任意近期版本 | browser-use 的 Browser Harness（CDP） |
 | `TYPESAFE_API_KEY` | [console.typesafe.ai](https://console.typesafe.ai/keys) 免费注册 | 全部项目的 Jev 调用 |
-| `TEXT_MODEL_API_KEY`（可选） | 任意 OpenAI 兼容端点 | 仅 browser-use 的 TYPE_TEXT |
+| `OPENAI_API_KEY`（可选） | [platform.openai.com](https://platform.openai.com/api-keys)（OpenAI 官方 API） | browser-use 的 TYPE_TEXT、werewolf 自然语言发言、smart-home 语音转写/拆分/问答/LLM 对比 |
 
 **密钥安全**：各项目用自己目录的 `.env`（browser-use / jev-games/games/*），已被仓库 `.gitignore` 覆盖（`main/07_实战应用/app/**/.env`）——**浏览器和 git 都不会接触 key**。
 
@@ -57,6 +57,6 @@ python3 start.py status # 只看状态
 ## 4. 已知边界（诚实清单）
 
 - maze / predict_position 部分测试因**训练侧模块未随应用提取**而不可收集（`predict_toy_decisions`、`train_pipeline_decisions` 等）——不是逻辑回归；
-- browser-use 的 TYPE_TEXT 需要 `TEXT_MODEL_API_KEY`（判断与文本生成分离是硬约束）；
-- werewolf 无 `DEEPSEEK_API_KEY` 时发言走模板（显式标注 template_fallback），判断仍由 Jev 完成；
+- browser-use 的 TYPE_TEXT 需要 `OPENAI_API_KEY`（判断与文本生成分离是硬约束）；
+- werewolf 无 `OPENAI_API_KEY` 时发言走模板（显式标注 template_fallback），判断仍由 Jev 完成；
 - jev-games 端口约定：4173/4174/4175，被占自动 +1。

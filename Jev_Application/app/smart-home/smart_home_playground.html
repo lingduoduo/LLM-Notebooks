@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>智能家居类型安全 API 实践 · Jev + 阶跃 ASR 语音版</title>
+  <title>智能家居类型安全 API 实践 · Jev + OpenAI 语音版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -56,7 +56,7 @@
       <div>
         <h1 class="text-sm font-semibold tracking-wide flex items-center gap-2">
           <span>智能家居类型安全 API 实践</span>
-          <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/60 font-mono">Jev 投机提示 + 阶跃 ASR 语音</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/60 font-mono">Jev 投机提示 + OpenAI 语音转写</span>
         </h1>
         <p class="text-[11px] text-slate-400">真实 Jev 单次调用多重评估 &bull; 投机提示剪枝 &bull; 复合指令拆分 &bull; 语音直接输入</p>
       </div>
@@ -105,7 +105,7 @@
                 placeholder="打字输入，或点右侧麦克风说话：'打开客厅的灯' / 'Get the coffee boiling'"
                 class="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-sm placeholder-slate-500 text-slate-100 outline-none transition font-sans">
             </div>
-            <button id="micBtn" title="点击开始/结束语音输入（阶跃星辰流式 ASR）"
+            <button id="micBtn" title="点击开始/结束语音输入（OpenAI 流式语音转写）"
               class="shrink-0 w-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center transition">
               <svg id="micIcon" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-14 0m7 7v4m0 0H8m4 0h4M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z"/>
@@ -404,7 +404,7 @@ smartHome.executeCommand('打开客厅的灯');
 
       <div class="px-2.5 py-1.5 border-t border-slate-800 bg-slate-950 text-[10px] text-slate-400 flex flex-col gap-0.5 leading-snug">
         <div class="flex items-center justify-between gap-3">
-          <span id="engineFooter" class="truncate">Jev systemone · 阶跃 ASR</span>
+          <span id="engineFooter" class="truncate">Jev systemone · OpenAI ASR</span>
           <span id="sessionFooter" class="shrink-0 text-cyan-500/90 font-mono"></span>
         </div>
         <div id="usageFooter" class="truncate text-slate-500 font-mono">零冗余网络往返架构</div>
@@ -874,12 +874,12 @@ smartHome.executeCommand('打开客厅的灯');
         badge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 whitespace-nowrap';
       }
       document.getElementById('engineFooter').textContent =
-        `Jev · 阶跃 ASR ${ENGINE.asrModel}` +
+        `Jev · OpenAI ASR ${ENGINE.asrModel}` +
         (ENGINE.asrAvailable ? '' : ' (未配置)');
       const micBtn = document.getElementById('micBtn');
       const blocked = micBlockedReason();
       if (!ENGINE.asrAvailable) {
-        micBtn.title = '语音不可用：本地服务未配置 STEPFUN_API_KEY';
+        micBtn.title = '语音不可用：本地服务未配置 OPENAI_API_KEY';
         micBtn.classList.add('opacity-40');
       } else if (blocked) {
         micBtn.title = blocked.short + '：' + blocked.fix;
@@ -905,19 +905,19 @@ smartHome.executeCommand('打开客厅的灯');
     }
 
     /* =========================================================================
-       4b. 成本计算 — 单价来自官方定价页（阶跃 2026-09；Jev 输入 $0.042/M、输出免费）
+       4b. 成本计算 — OpenAI 单价为估算用标价（USD，以 openai.com/api/pricing 为准；Jev 输入 $0.042/M、输出免费）
        ========================================================================= */
     const PRICING = {
       USD_CNY: 7.2,                                        // 汇率假设，仅用于统一成人民币展示
       jev: { inputUsdPerM: 0.042, outputUsdPerM: 0 },      // console.typesafe.ai
-      stepfunPerM: {                                       // platform.stepfun.com/docs/zh/guides/pricing/details
-        'step-5-preview':       { input: 7,   output: 20 },
-        'step-3.5-flash':       { input: 0.7, output: 2.1 },
-        'step-1o-turbo-vision': { input: 2.5, output: 8 }
+      openaiUsdPerM: {                                     // openai.com/api/pricing（USD / 1M tokens）
+        'gpt-4o':      { input: 2.5,  output: 10 },
+        'gpt-4o-mini': { input: 0.15, output: 0.6 }
       },
-      asrYuanPerHour: {                                    // 语音识别按音频时长计费
-        'stepaudio-2.5-asr': 0.15,
-        'stepaudio-3-asr-max': 2.8
+      asrUsdPerMinute: {                                   // 语音转写按音频时长计费（USD / 分钟）
+        'gpt-4o-mini-transcribe': 0.003,
+        'gpt-4o-transcribe': 0.006,
+        'whisper-1': 0.006
       }
     };
 
@@ -926,15 +926,15 @@ smartHome.executeCommand('打开客厅的灯');
       return ((usage.input_tokens || 0) * PRICING.jev.inputUsdPerM +
               (usage.output_tokens || 0) * PRICING.jev.outputUsdPerM) / 1e6 * PRICING.USD_CNY;
     }
-    function stepfunCostYuan(model, usage) {
-      const p = PRICING.stepfunPerM[model];
+    function llmCostYuan(model, usage) {
+      const p = PRICING.openaiUsdPerM[model];
       if (!p || !usage) return 0;
-      // 阶跃计费说明：推理过程与回复的 token 都按输出价计（completion_tokens 已含）
-      return ((usage.prompt_tokens || 0) * p.input + (usage.completion_tokens || 0) * p.output) / 1e6;
+      // 推理过程与回复的 token 都按输出价计（completion_tokens 已含）
+      return ((usage.prompt_tokens || 0) * p.input + (usage.completion_tokens || 0) * p.output) / 1e6 * PRICING.USD_CNY;
     }
     function asrCostYuan(model, durationMs) {
-      const rate = PRICING.asrYuanPerHour[model] || 0;
-      return (durationMs / 3600000) * rate;
+      const rate = PRICING.asrUsdPerMinute[model] || 0;
+      return (durationMs / 60000) * rate * PRICING.USD_CNY;
     }
     function fmtYuan(x) {
       if (!x || x <= 0) return '¥0';
@@ -1259,7 +1259,7 @@ smartHome.executeCommand('打开客厅的灯');
             speculativeBundle: [{ question: '全部智能家居问题', action: 'PRUNED', prob: 100, distribution: {}, pertinent: false }],
             resolution: { scope: 'general_knowledge_bypass', routedTo: ENGINE.answerModel, answer: llm.content, dispatchedActions: {} },
             usage: s1.usage,
-            costYuan: jevCostYuan(s1.usage) + stepfunCostYuan(ENGINE.answerModel, llm.usage),
+            costYuan: jevCostYuan(s1.usage) + llmCostYuan(ENGINE.answerModel, llm.usage),
             note: '投机 bundle 全部剪枝：意图已是信息请求'
           };
         }
@@ -1341,7 +1341,7 @@ smartHome.executeCommand('打开客厅的灯');
             output_tokens: (s1.usage.output_tokens || 0) + (seq.body.usage.output_tokens || 0) +
               subTraces.reduce((a, t) => a + ((t.usage && t.usage.output_tokens) || 0), 0)
           };
-          const splitCost = stepfunCostYuan(ENGINE.chatModel, llm.usage);
+          const splitCost = llmCostYuan(ENGINE.chatModel, llm.usage);
           const modeNote = plan.mode === 'serial'
             ? `检测到 ${plan.deps.length} 组先后依赖 → 串行栈执行（${plan.order.map(i => `#${i + 1}`).join('→')}）`
             : '子指令两两无先后依赖 → 并行执行';
@@ -1451,7 +1451,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
             speculativeBundle: [],
             resolution: { scope: 'llm_json_parse_failed', dispatchedActions: {},
                           note: 'LLM 输出不是合法 JSON（结构化遵从失败）' },
-            usage: llm.usage || {}, costYuan: stepfunCostYuan(ENGINE.compareModel, llm.usage),
+            usage: llm.usage || {}, costYuan: llmCostYuan(ENGINE.compareModel, llm.usage),
             llmRaw: llm.content, answer: ''
           };
         }
@@ -1516,7 +1516,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
             dispatchedActions: merged,
             note: `单次大模型调用包办${cmds.length > 1 ? '拆分+' : ''}意图+定位+动作`
           },
-          usage: llm.usage || {}, costYuan: stepfunCostYuan(ENGINE.compareModel, llm.usage),
+          usage: llm.usage || {}, costYuan: llmCostYuan(ENGINE.compareModel, llm.usage),
           workflow: { plan, subs: cmds.map(c => c.utterance || ''),
                       statuses: Object.fromEntries(plan.order.map(i => [i, 'done'])) },
           llmRaw: parsed
@@ -1884,14 +1884,14 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
       }
       sec.className = 'bg-slate-950/80 rounded-xl p-3 border border-indigo-800/50';
       const u = llmTrace.usage || {};
-      // StepFun 用 prompt/completion_tokens，Jev 用 input/output_tokens
+      // OpenAI 用 prompt/completion_tokens，Jev 用 input/output_tokens
       const tokIn = u.input_tokens ?? u.prompt_tokens ?? '-';
       const tokOut = u.output_tokens ?? u.completion_tokens ?? '-';
       const acts = llmTrace.resolution.dispatchedActions || {};
       const lines = [
         `延迟: ${llmTrace.latency.total}ms（客户端实测）`,
-        `tokens: 入 ${tokIn} / 出 ${tokOut}（输出按阶跃定价计费）`,
-        `本次成本: ${fmtYuan(llmTrace.costYuan || 0)}（${ENGINE.compareModel}: 入 ${PRICING.stepfunPerM[ENGINE.compareModel]?.input ?? '?'} 元/M · 出 ${PRICING.stepfunPerM[ENGINE.compareModel]?.output ?? '?'} 元/M）`,
+        `tokens: 入 ${tokIn} / 出 ${tokOut}（按 OpenAI 标价估算）`,
+        `本次成本: ${fmtYuan(llmTrace.costYuan || 0)}（${ENGINE.compareModel}: 入 $${PRICING.openaiUsdPerM[ENGINE.compareModel]?.input ?? '?'}/M · 出 $${PRICING.openaiUsdPerM[ENGINE.compareModel]?.output ?? '?'}/M）`,
         `意图判定: ${llmTrace.intent.selected}`,
         `派发动作: ${Object.keys(acts).length ? JSON.stringify(acts) : '无'}`
       ];
@@ -2021,7 +2021,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
     }
 
     /* =========================================================================
-       9. VOICE INPUT — 阶跃星辰流式 ASR（SSE）
+       9. VOICE INPUT — OpenAI 流式语音转写（服务端代理后以 SSE 透传）
        ========================================================================= */
     const MicRecorder = {
       recording: false,
@@ -2256,7 +2256,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
       const micBtn = document.getElementById('micBtn');
       if (!MicRecorder.recording) {
         if (!ENGINE.asrAvailable) {
-          showNotificationBanner('语音不可用', '本地服务未配置 STEPFUN_API_KEY，无法调用阶跃 ASR。文字输入仍然可用。', 'ASR 未配置');
+          showNotificationBanner('语音不可用', '本地服务未配置 OPENAI_API_KEY，无法调用 OpenAI 语音转写。文字输入仍然可用。', 'ASR 未配置');
           return;
         }
         const blocked = micBlockedReason();
@@ -2313,7 +2313,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
         const asrYuan = asrCostYuan(ENGINE.asrModel, result.durationMs);
         SESSION.yuan += asrYuan;  // 语音识别按音频时长计费，也计入会话累计
         showNotificationBanner('语音识别完成，正在执行…', text,
-          `阶跃 ASR · 首字 ${firstDeltaMs}ms · 录音 ${(result.durationMs / 1000).toFixed(1)}s · ≈${fmtYuan(asrYuan)}`);
+          `OpenAI ASR · 首字 ${firstDeltaMs ?? '-'}ms · 录音 ${(result.durationMs / 1000).toFixed(1)}s · ≈${fmtYuan(asrYuan)}`);
         setTimeout(() => executeNaturalCommand(text, 'voice'), 300);
       } catch (e) {
         console.error('ASR failed:', e);

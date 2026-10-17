@@ -73,7 +73,7 @@ node --check jev_ultrafast/static/app.js
 ```bash
 # 1) 装依赖并配置凭据（.env 已被 .gitignore 忽略，不要提交）
 uv sync                      # 或 pip install browser-harness==0.1.13
-cp .env.example .env         # 填 TYPESAFE_API_KEY 和 TEXT_MODEL_API_KEY
+cp .env.example .env         # 填 TYPESAFE_API_KEY 和 OPENAI_API_KEY（TYPE_TEXT 文本助手走 OpenAI 官方 API，TEXT_MODEL 默认 gpt-4o-mini）
 
 # 2) 跑一个真实任务（付费 API 调用）
 uv run --env-file .env python examples/run.py \

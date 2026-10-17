@@ -15,17 +15,13 @@ def _backends():
     from openai import AsyncOpenAI
 
     out = []
-    if os.getenv("ARK_API_KEY"):
-        out.append((AsyncOpenAI(api_key=os.environ["ARK_API_KEY"], base_url="https://ark.cn-beijing.volces.com/api/v3"), os.getenv("ARK_MODEL", "doubao-seed-1-6-250615"), "ark"))
-    if os.getenv("MOONSHOT_API_KEY"):
-        out.append((AsyncOpenAI(api_key=os.environ["MOONSHOT_API_KEY"], base_url="https://api.moonshot.cn/v1"), os.getenv("MOONSHOT_MODEL", "kimi-k3"), "moonshot"))
     if os.getenv("OPENAI_API_KEY"):
         out.append((AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.getenv("OPENAI_BASE_URL") or None), os.getenv("OPENAI_MODEL", "gpt-4.1-mini"), "openai"))
     if os.getenv("OPENROUTER_API_KEY"):
         raw = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
         out.append((AsyncOpenAI(api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1"), raw if "/" in raw else f"openai/{raw}", "openrouter"))
     if not out:
-        raise RuntimeError("extracting real page content requires an ARK/MOONSHOT/OPENAI/OPENROUTER API key")
+        raise RuntimeError("extracting real page content requires an OPENAI_API_KEY (or OPENROUTER_API_KEY)")
     return out
 
 
@@ -65,8 +61,6 @@ async def extract_profile(
                 messages=[{"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}],
                 response_format={"type": "json_object"},
             )
-            if "kimi-k3" in model:
-                kwargs.update(temperature=1, max_tokens=2048)
             response = await client.chat.completions.create(**kwargs)
             raw_response = response.model_dump(mode="json")
             if receipt_sink:

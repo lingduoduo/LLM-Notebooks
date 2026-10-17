@@ -33,6 +33,30 @@ ANSWER_SUFFIX = "\n\nReason step by step, and give the final answer on the last 
 
 REQUIRED_FIELDS = ("id", "question", "answer")
 
+# Hosted Chinese-model API backends were removed from this project. Reject them
+# explicitly so a stale command line fails fast instead of silently calling them.
+REMOVED_API_HOSTS = (
+    "moonshot.cn", "moonshot.ai", "api.deepseek.com", "dashscope", "volces.com",
+    "volcengine", "siliconflow", "stepfun", "minimax", "bigmodel.cn", "zhipu",
+    "baidubce.com", "hunyuan", "tencentcloudapi.com",
+)
+REMOVED_MODEL_PREFIXES = (
+    "moonshotai/", "deepseek/", "qwen/", "z-ai/", "thudm/", "minimax/",
+    "stepfun", "baidu/", "tencent/", "bytedance", "kimi", "deepseek", "qwen",
+    "doubao", "glm", "moonshot",
+)
+
+
+def check_teacher_backend(model: str, base_url: str) -> None:
+    """Refuse removed hosted Chinese-model API backends (endpoint or model ID)."""
+    host = (base_url or "").lower()
+    for marker in REMOVED_API_HOSTS:
+        if marker in host:
+            raise SystemExit(f"Unsupported teacher endpoint {base_url!r}: this provider was removed")
+    name = (model or "").lower()
+    if name.startswith(REMOVED_MODEL_PREFIXES):
+        raise SystemExit(f"Unsupported teacher model {model!r}: this provider was removed")
+
 
 def load_problems(path: str) -> list[dict]:
     """Load problems, rejecting malformed rows up front.
@@ -127,7 +151,8 @@ def get_reasoning(message) -> str:
     """Extract the chain of thought from the returned message.
 
     Tries in order: OpenRouter's reasoning / reasoning_details fields, and the
-    reasoning_content field used by native APIs such as Moonshot and DeepSeek.
+    reasoning_content field returned by OpenAI-compatible servers such as a local
+    vLLM server hosting an open-weight reasoning model.
     """
     reasoning = getattr(message, "reasoning", None)
     if reasoning:
@@ -178,7 +203,7 @@ async def distill_one(client: AsyncOpenAI, problem: dict, args, semaphore) -> di
                         messages=[{"role": "user", "content": problem["question"] + args.answer_suffix}],
                         max_tokens=args.max_tokens,
                         # Raise the temperature on retries to get a different trajectory, except for
-                        # models locked to temperature=1 such as Kimi K3
+                        # models locked to temperature=1 (e.g. OpenAI reasoning models)
                         temperature=args.temperature + (0.2 * attempt if args.temperature < 1.0 else 0),
                         **kwargs,
                     ),
@@ -233,7 +258,7 @@ async def main():
                              "such as Claude Opus 4.8")
     parser.add_argument("--reasoning_max_tokens", type=int, default=4096,
                         help="Maximum chain-of-thought tokens (OpenRouter-style reasoning parameter); 0 = do not "
-                             "send the parameter, for native APIs such as Moonshot/DeepSeek that return "
+                             "send the parameter, for endpoints such as a local vLLM server that return "
                              "reasoning_content by default")
     parser.add_argument("--max_problems", type=int, default=0, help="Maximum number of problems to process (0 = all; for debugging)")
     parser.add_argument("--concurrency", type=int, default=8, help="Number of concurrent requests")
@@ -244,6 +269,7 @@ async def main():
     parser.add_argument("--answer_suffix", default=ANSWER_SUFFIX, help="Answer-format instruction appended to each problem")
     args = parser.parse_args()
 
+    check_teacher_backend(args.model, args.base_url)
     api_key = os.environ.get(args.api_key_env)
     if not api_key:
         raise SystemExit(f"Set the {args.api_key_env} environment variable first")

@@ -33,11 +33,10 @@ DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
 # The provider label names the receipt file and the provenance gates, so a run
 # against another OpenAI-compatible endpoint produces a self-describing bundle
-# instead of one labelled "openai".  The retained kimi-k2.5 run was recorded
-# this way against https://api.moonshot.cn/v1.
+# instead of one labelled "openai".  (The retained 20260730-v3 bundle predates
+# the removal of non-OpenAI hosted backends; its receipts are kept unchanged.)
 PROVIDER_LABELS = {
     "api.openai.com": "openai",
-    "api.moonshot.cn": "moonshot",
     "openrouter.ai": "openrouter",
 }
 
@@ -56,7 +55,6 @@ SOURCE_FILES = [
     "tools.py",
 ]
 SECRET_ENV_NAMES = (
-    "MOONSHOT_API_KEY",
     "TAVILY_API_KEY",
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",

@@ -40,7 +40,7 @@ source .venv/bin/activate
 
 python -m pip install -r requirements.txt
 playwright install chromium
-cp env.example .env                 # configure one real text-model endpoint
+cp env.example .env                 # set OPENAI_API_KEY (default model gpt-4.1-mini)
 python demo.py                       # 10 Stanford pages + real serial comparison
 ```
 
@@ -76,6 +76,10 @@ closed contexts. The run retains 24 full browser observations, three raw ARK
 responses with unique response IDs and usage, and 114 bus events. At the time of the run, seven runtime
 source/input hashes and all four artifact hashes recomputed exactly, and the
 credential scan found zero hits. See the Language section for subsequent source changes.
+
+Note: the ARK (Volcengine Doubao) backend used for these recorded runs has since been removed;
+`llm.py` now uses OpenAI (`OPENAI_API_KEY`, default `gpt-4.1-mini`) or OpenRouter. The retained
+ARK receipts and figures above are unchanged records of those runs, not re-measured with OpenAI.
 
 ## Language
 

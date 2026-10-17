@@ -87,6 +87,9 @@ class ReferenceAgent:
         return sum(len(key) + len(entry.value) + 8 for key, entry in self.memory.items())
 
 
+SUPPORTED_PROVIDERS = ("openai", "openrouter")
+
+
 class OpenAILongitudinalAgent:
     """A real LLM policy running one of the three external-memory arms.
 
@@ -105,7 +108,7 @@ class OpenAILongitudinalAgent:
         model: str | None = None,
         *,
         arm: str = "evolving",
-        provider: str = "ark",
+        provider: str = "openai",
         seed: int = 0,
         run_id: str = "run",
     ):
@@ -115,10 +118,9 @@ class OpenAILongitudinalAgent:
             from openai import OpenAI
         except ImportError as error:
             raise RuntimeError("Install dependencies with: pip install -r requirements.txt") from error
-        if provider == "ark":
-            key, base, key_env = os.getenv("ARK_API_KEY"), "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY"
-            default_model = os.getenv("ARK_MODEL", "doubao-seed-1-6-250615")
-        elif provider == "openrouter":
+        if provider not in SUPPORTED_PROVIDERS:
+            raise ValueError(f"unsupported provider: {provider}; choose from {SUPPORTED_PROVIDERS}")
+        if provider == "openrouter":
             key, base, key_env = os.getenv("OPENROUTER_API_KEY"), "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"
             default_model = "openai/gpt-4o-mini"
         else:

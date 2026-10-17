@@ -16,6 +16,7 @@ from config import (
     openrouter_model_id,
     DEFAULT_OPENAI_MODEL,
     PROVIDER_DEFAULT_MODELS,
+    SUPPORTED_PROVIDERS,
     _reasoning_safe_temperature,
     max_tokens_param,
 )
@@ -67,7 +68,7 @@ class UserMemoryAgent:
         Args:
             user_id: Unique user identifier
             api_key: API key (defaults to env based on provider)
-            provider: LLM provider ('openai', 'siliconflow', 'openrouter')
+            provider: LLM provider ('openai' (default) or 'openrouter')
             model: Model name (defaults to provider's default)
             config: Agent configuration
             verbose: Enable verbose logging
@@ -78,6 +79,10 @@ class UserMemoryAgent:
         
         # Determine provider
         self.provider = (provider or Config.PROVIDER).lower()
+        if self.provider not in SUPPORTED_PROVIDERS:
+            raise ValueError(
+                f"Unsupported provider: {self.provider}. Use 'openai' or 'openrouter'"
+            )
 
         # Model precedence: explicit arg > MODEL_NAME in .env > provider default below
         model = model or Config.MODEL_NAME or None
@@ -105,12 +110,6 @@ class UserMemoryAgent:
                 base_url=Config.OPENAI_BASE_URL
             )
             self.model = model or DEFAULT_OPENAI_MODEL
-        elif self.provider == "siliconflow":
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.siliconflow.cn/v1"
-            )
-            self.model = model or "Qwen/Qwen3-235B-A22B-Thinking-2507"
         elif self.provider == "openrouter":
             self.client = OpenAI(
                 api_key=api_key,
@@ -120,7 +119,7 @@ class UserMemoryAgent:
             self.model = model or "google/gemini-3.5-flash"
             # Supported models: google/gemini-3.5-flash, openai/gpt-5, anthropic/claude-sonnet-4
         else:
-            raise ValueError(f"Unsupported provider: {self.provider}. Use 'openai', 'siliconflow', or 'openrouter'")
+            raise ValueError(f"Unsupported provider: {self.provider}. Use 'openai' or 'openrouter'")
         
         # Sampling params from .env (MODEL_TEMPERATURE / MODEL_MAX_TOKENS).
         # Callers may override per instance; reasoning models still get
