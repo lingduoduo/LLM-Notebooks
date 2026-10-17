@@ -21,7 +21,6 @@ RANK_NAMES = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2', 
 SUITS = ['♠', '♥', '♣', '♦']
 SPLITS = {'train', 'dev', 'calibration', 'test', 'ood'}
 MASK64 = (1 << 64) - 1
-SEATS = ('landlord', 'peasant_a', 'peasant_b')
 
 
 def _hash(value):
@@ -212,8 +211,10 @@ def step(state, move):
     if state['done']:
         raise ValueError('Terminal states have no moves')
     legal = gen_moves(state['hands'][state['turn']], state['trick'])
-    key = (move.get('type'), tuple(move.get('cards', [])))
-    if not any((m['type'], tuple(m['cards'])) == key for m in legal):
+    key = (move.get('type'), tuple(sorted(move.get('cards', []))))
+    # Use the engine's own legal move (rank/length), never caller-supplied metadata.
+    move = next((m for m in legal if (m['type'], tuple(m['cards'])) == key), None)
+    if move is None:
         raise ValueError('Illegal move for the current seat')
     state = copy.deepcopy(state)
     seat = state['turn']
@@ -240,6 +241,11 @@ def step(state, move):
     return state
 
 
+def seat_label(state, seat: int) -> str:
+    role = 'landlord' if seat == state['landlord'] else 'peasant'
+    return f'seat {seat} ({role})'
+
+
 def render_request(state):
     """Physical observations for the seat on turn: own hand, counts, trick; no hidden hands."""
     seat = state['turn']
@@ -248,11 +254,11 @@ def render_request(state):
     hand_text = ' '.join(card_name(c) for c in sorted(hand, key=rank_of))
     trick = state['trick']
     trick_text = 'no active play — you lead' if trick is None else (
-        f"{SEATS[trick['owner']]} played {move_name(trick)}")
-    text = (f"Dou Dizhu, seat {seat} ({SEATS[seat]}), landlord is seat {state['landlord']}. "
+        f"{seat_label(state, trick['owner'])} played {move_name(trick)}")
+    text = (f"Dou Dizhu, you are {seat_label(state, seat)}, landlord is seat {state['landlord']}. "
             f"Your hand ({len(hand)} cards): {hand_text}. Other hands: "
-            f"seat {(seat+1)%3} has {len(state['hands'][(seat+1)%3])} cards, "
-            f"seat {(seat+2)%3} has {len(state['hands'][(seat+2)%3])} cards. "
+            f"{seat_label(state, (seat+1)%3)} has {len(state['hands'][(seat+1)%3])} cards, "
+            f"{seat_label(state, (seat+2)%3)} has {len(state['hands'][(seat+2)%3])} cards. "
             f"Table: {trick_text}. Multiplier x{state['multiplier']}. "
             "Rules: beat the table with the same type and a higher rank, or with a bomb/rocket; "
             "two passes return the lead. As a peasant, your partner peasant is an ally — do not "
@@ -262,10 +268,8 @@ def render_request(state):
         if move['type'] == 'pass':
             criteria[f'm{index}'] = 'Pass this turn.'
         else:
-            beats_now = state['trick'] is None or _beats(move, state['trick'])
             left = len(hand) - len(move['cards'])
-            criteria[f'm{index}'] = (f"Play {move_name(move)}; leaves {left} cards in hand."
-                                     + ('' if beats_now or state['trick'] is None else ''))
+            criteria[f'm{index}'] = f"Play {move_name(move)}; leaves {left} cards in hand."
     questions = {'move': {'type': 'choice', 'instructions':
         'Choose the single best play. Lead by unloading large combinations first and saving '
         'singles; follow by beating with the smallest sufficient play. As a peasant, never '

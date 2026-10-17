@@ -23,11 +23,12 @@ import doudizhu_game as D
 
 
 class DoudizhuSession:
-    def __init__(self, judge, pace: float) -> None:
+    def __init__(self, judge, pace: float, seed: int = 1) -> None:
         self.lock = threading.Lock()
         self.judge = judge
         self.pace = pace
-        self.state = D.make_doudizhu(seed=1)
+        self.base_seed = seed
+        self.state = D.make_doudizhu(seed=seed)
         self.last_question: dict | None = None
         self.last_answer: str | None = None
         self.last_probabilities: dict = {}
@@ -42,7 +43,7 @@ class DoudizhuSession:
                 if not self.alive:
                     return
                 self.episode += 1
-                self.state = D.make_doudizhu(seed=1 + self.episode)
+                self.state = D.make_doudizhu(seed=self.base_seed + self.episode)
                 with self.lock:
                     self.last_question = None
                     self.last_answer = None
@@ -55,18 +56,19 @@ class DoudizhuSession:
             time.sleep(self.pace)
             if not self.alive:
                 return
-            answer = self.judge(request)
-            moves = {f"m{i}": m for i, m in enumerate(
-                D.gen_moves(self.state['hands'][self.state['turn']], self.state['trick']))}
-            move = moves.get(answer.get('move'))
-            if move is None:
-                move = {'type': 'pass', 'cards': [], 'rank': -1, 'length': 0}
+            legal = D.gen_moves(self.state['hands'][self.state['turn']], self.state['trick'])
+            try:
+                answer = self.judge(request)
+            except Exception as exc:  # keep the game thread alive on judge failure
+                # m0 is 'pass' when passing is legal, else the first legal lead.
+                print(f"judge error, falling back to m0: {exc!r}", file=sys.stderr)
+                answer = {'move': 'm0'}
+            moves = {f"m{i}": m for i, m in enumerate(legal)}
+            # Unknown ids fall back to m0 (pass, or the first legal lead when passing is illegal).
+            move = moves.get(answer.get('move'), legal[0])
             with self.lock:
                 self.last_answer = answer.get('move')
-            try:
-                self.state = D.step(self.state, move)
-            except ValueError:
-                self.state = D.step(self.state, {'type': 'pass', 'cards': [], 'rank': -1, 'length': 0})
+            self.state = D.step(self.state, move)
             if self.state['done']:
                 with self.lock:
                     self.score[self.state['outcome']] += 1
@@ -326,8 +328,7 @@ def main() -> int:
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    session = DoudizhuSession(make_judge(args.judge), pace=args.pace)
-    session.state = D.make_doudizhu(seed=args.seed)
+    session = DoudizhuSession(make_judge(args.judge), pace=args.pace, seed=args.seed)
     Handler.session = session
     threading.Thread(target=session.run, daemon=True).start()
 
