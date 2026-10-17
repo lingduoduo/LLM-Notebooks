@@ -12,10 +12,13 @@
 """
 from __future__ import annotations
 
+import html
 import json
 import os
+import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import webbrowser
@@ -24,14 +27,25 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LOGS = HERE / "logs"
 MENU_PORT = 4200
+MARIO_PORT = 8770
 
-# 密钥：目录级 .env → 环境变量
-env_file = HERE / ".env"
-if env_file.exists():
-    for line in env_file.read_text().splitlines():
-        if "=" in line and not line.strip().startswith("#"):
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+
+def load_env(path: Path) -> None:
+    """目录级 .env → 环境变量（不覆盖已有值；支持 export 前缀与引号）。"""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.removeprefix("export ").split("=", 1)
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
+            v = v[1:-1]
+        os.environ.setdefault(k.strip(), v)
+
+
+load_env(HERE / ".env")
 
 # 服务清单：名称 → (启动命令, 端口, 入口路径, 观察要点, 报告链接)
 SERVICES = [
@@ -89,7 +103,7 @@ RUNNABLES = {
                "零模型调用的确定性回归",
                "app/browser-use/EXPERIMENT.md"),
     "browser-smoke": ("浏览器 live smoke（真 Jev）",
-               "cd app/browser-use && \"$PY\" -m jev_ultrafast.demo & DPID=$!; sleep 1.5; PYTHONPATH=app/browser-use \"$PY\" app/browser-use/scripts/smoke.py --max-actions 6; kill $DPID 2>/dev/null; true",
+               "(cd app/browser-use && exec \"$PY\" -m jev_ultrafast.demo) >/dev/null 2>&1 & DPID=$!; sleep 1.5; PYTHONPATH=app/browser-use \"$PY\" app/browser-use/scripts/smoke.py --max-actions 6; kill $DPID 2>/dev/null; true",
                "真 Jev 驱动浏览器完成 Lisbon 目标（约 6 决策 5 动作）",
                "app/browser-use/EXPERIMENT.md"),
 }
@@ -97,13 +111,23 @@ RUNNABLES = {
 PROCS: dict[str, subprocess.Popen] = {}
 
 
-def spawn(name: str, cmd: list[str], cwd: Path) -> None:
+def spawn(name: str, cmd: list[str], cwd: Path) -> bool:
+    """启动一个服务；目录或可执行文件缺失时跳过而不是让整个菜单崩掉。"""
+    if not cwd.is_dir():
+        print(f"  ✗ {name} 跳过：目录不存在 {cwd}")
+        return False
+    if shutil.which(cmd[0]) is None:
+        print(f"  ✗ {name} 跳过：找不到命令 {cmd[0]}")
+        return False
     LOGS.mkdir(exist_ok=True)
-    log = open(LOGS / f"{name}.log", "w")
     env = dict(os.environ)
     env.setdefault("TYPESAFE_API_KEY", "")
     env.setdefault("STEPFUN_API_KEY", "")
-    PROCS[name] = subprocess.Popen(cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT, env=env)
+    with open(LOGS / f"{name}.log", "w") as log:
+        # 独立会话：Ctrl+C 退出菜单时不会把 SIGINT 传给后台服务
+        PROCS[name] = subprocess.Popen(cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
+                                       env=env, start_new_session=True)
+    return True
 
 
 def alive(port: int) -> bool:
@@ -131,15 +155,27 @@ def start_all() -> None:
         if alive(next(p for n, _, p, *_ in SERVICES if n == name)):
             print(f"  = {name} 已在运行（复用）")
             continue
-        spawn(name, cmd, cwd)
-        print(f"  ▶ {name} 已启动")
+        if spawn(name, cmd, cwd):
+            print(f"  ▶ {name} 已启动")
+
+
+def mario_python() -> Path | None:
+    """上游 typesafe-mario 的 venv Python（存在才能起 Mario 实况）。"""
+    return next((c for c in (HERE / "app/typesafe-mario/.venv/bin/python",
+                             Path("/Volumes/拓展/workspace/jev cookbook/typesafe-mario/.venv/bin/python"))
+                 if c.exists()), None)
+
+
+def chapter_ports() -> list[int]:
+    return [port for _, _, port, *_ in SERVICES] + [MENU_PORT, MARIO_PORT]
 
 
 def stop_all() -> None:
-    """按端点精确停掉本章服务（不动其他进程）。"""
+    """按本章端口停掉监听进程（端口清单与 SERVICES 同源，含菜单与 Mario）。"""
     killed = 0
+    ports = ",".join(str(p) for p in chapter_ports())
     try:
-        out = subprocess.run(["lsof", "-tiTCP:4173,4174,4175,4180,4200,8801,8802,8812,8766",
+        out = subprocess.run(["lsof", f"-tiTCP:{ports}",
                               "-sTCP:LISTEN"], capture_output=True, text=True).stdout
         pids = {p for p in out.split() if p}
         for pid in pids:
@@ -160,15 +196,38 @@ MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "
         ".jsonl": "text/plain; charset=utf-8"}
 
 RESULTS: dict[str, tuple[float, str]] = {}
+RUN_LOCKS = {slug: threading.Lock() for slug in RUNNABLES}
+APP_ROOT = (HERE / "app").resolve()
+
+
+def safe_app_path(rel: str) -> Path | None:
+    """把 URL 路径映射到 app/ 下的文件；拒绝越界、点文件（.env 等）和非文件。"""
+    target = (HERE / rel).resolve()
+    if not target.is_relative_to(APP_ROOT) or not target.is_file():
+        return None
+    if any(part.startswith(".") for part in target.relative_to(APP_ROOT).parts):
+        return None
+    return target
+
+
+def is_same_origin(headers) -> bool:
+    """只接受菜单自身发起的请求：Host 必须是本机菜单端口，浏览器标记的跨站请求一律拒绝。"""
+    host = headers.get("Host", "")
+    if host not in (f"127.0.0.1:{MENU_PORT}", f"localhost:{MENU_PORT}"):
+        return False
+    return headers.get("Sec-Fetch-Site", "none") in ("same-origin", "none")
+
+
+def _empty(self, code: int) -> None:
+    self.send_response(code)
+    self.send_header("Content-Length", "0")
+    self.end_headers()
 
 
 def _serve_file(self, rel: str) -> None:
-    target = (HERE / rel).resolve()
-    if not str(target).startswith(str(HERE.resolve())) or not target.is_file():
-        self.send_response(404)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-        return
+    target = safe_app_path(rel)
+    if target is None:
+        return _empty(self, 404)
     body = target.read_bytes()
     self.send_response(200)
     self.send_header("Content-Type", MIME.get(target.suffix, "application/octet-stream"))
@@ -177,28 +236,34 @@ def _serve_file(self, rel: str) -> None:
     self.wfile.write(body)
 
 
-def _runnable_page(self, slug: str) -> None:
+def run_command(cmd: str) -> str:
+    try:
+        t0 = time.time()
+        proc = subprocess.run(["bash", "-c", cmd], cwd=HERE, capture_output=True,
+                              text=True, timeout=300,
+                              env={**os.environ, "TERM": "dumb"})
+        out = f"$ {cmd}\n\n" + (proc.stdout or "") + (("\n[stderr]\n" + proc.stderr) if proc.stderr else "")
+        return out + f"\n\n[exit {proc.returncode} · {time.time()-t0:.1f}s]"
+    except subprocess.TimeoutExpired:
+        return f"$ {cmd}\n\n超时（300s）——实验仍在后台意义不大，请回菜单重试并缩小范围。"
+
+
+def _runnable_page(self, slug: str, rerun: bool) -> None:
     if slug not in RUNNABLES:
-        self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+        return _empty(self, 404)
+    # 一键运行会执行命令并可能调用付费 API：拒绝其他网页借浏览器触发（CSRF / DNS rebinding）
+    if not is_same_origin(self.headers):
+        return _empty(self, 403)
     title, cmd_tpl, tip, rep = RUNNABLES[slug]
-    if slug not in RESULTS:
-        cmd = cmd_tpl.replace('\"$PY\"', sys.executable)
-        try:
-            t0 = time.time()
-            proc = subprocess.run(["bash", "-c", cmd], cwd=HERE, capture_output=True,
-                                  text=True, timeout=300,
-                                  env={**os.environ, "TERM": "dumb"})
-            out = f"$ {cmd}\n\n" + (proc.stdout or "") + (("\n[stderr]\n" + proc.stderr) if proc.stderr else "")
-            out += f"\n\n[exit {proc.returncode} · {time.time()-t0:.1f}s]"
-        except subprocess.TimeoutExpired:
-            out = f"$ {cmd}\n\n超时（300s）——实验仍在后台意义不大，请回菜单重试并缩小范围。"
-        RESULTS[slug] = (time.time(), out)
-    _, out = RESULTS[slug]
+    with RUN_LOCKS[slug]:  # 同一实验不并发跑两份
+        if rerun or slug not in RESULTS:
+            RESULTS[slug] = (time.time(), run_command(cmd_tpl.replace('\"$PY\"', sys.executable)))
+        _, out = RESULTS[slug]
     body = (f"<!doctype html><meta charset=\"utf-8\"><title>{title}</title>"
             "<style>body{background:#0d1117;color:#c9d1d9;font:13px/1.6 Menlo,monospace;padding:26px}"
             "h1{font-size:15px;color:#58a6ff}a{color:#7aa2f7}pre{white-space:pre-wrap}</style>"
-            f"<h1>{title}</h1><p>{tip} · <a href='/'>← 返回菜单</a> · <a href='/run/{slug}'>重新运行</a></p>"
-            f"<pre>{out}</pre>").encode()
+            f"<h1>{title}</h1><p>{tip} · <a href='/'>← 返回菜单</a> · <a href='/run/{slug}?rerun=1'>重新运行</a></p>"
+            f"<pre>{html.escape(out)}</pre>").encode()
     self.send_response(200)
     self.send_header("Content-Type", "text/html; charset=utf-8")
     self.send_header("Content-Length", str(len(body)))
@@ -214,13 +279,7 @@ def menu_page() -> str:
     for name, title, path, tip, report in REPLAYS:
         rows.append(_card(title + "（回放）", path, tip, report, True, "本地录制 · 不调 API"))
     # Mario：上游 venv 存在则给实况服务，否则给报告
-    mario_py = None
-    for cand in (HERE / "app/typesafe-mario/.venv/bin/python",
-                 Path("/Volumes/拓展/workspace/jev cookbook/typesafe-mario/.venv/bin/python")):
-        if cand.exists():
-            mario_py = cand
-            break
-    if mario_py and alive(8770):
+    if mario_python() and alive(MARIO_PORT):
         rows.append(_card("马里奥实况（模拟器）", "http://127.0.0.1:8770/",
                           "NES 模拟器实时画面：本地替身驾驶员 + 每步决策遥测（页面自带黄色「非 Jev」横幅）",
                           "app/typesafe-mario-repro/REPORT.md", True, ":8770"))
@@ -279,9 +338,9 @@ def serve_menu() -> None:
 
     class H(BaseHTTPRequestHandler):
         def do_GET(self):
-            path = self.path.split("?")[0]
+            path, _, query = self.path.partition("?")
             if path.startswith("/run/"):
-                return _runnable_page(self, path[len("/run/"):])
+                return _runnable_page(self, path[len("/run/"):], rerun="rerun=1" in query.split("&"))
             if path.startswith("/app/"):
                 return _serve_file(self, path.lstrip("/"))
             if path == "/healthz":
@@ -311,14 +370,12 @@ def main() -> None:
     start_all()
     time.sleep(1.5)
     # Mario 实况（有上游 venv 就拉起）
-    mario_py = next((c for c in (HERE / "app/typesafe-mario/.venv/bin/python",
-                                 Path("/Volumes/拓展/workspace/jev cookbook/typesafe-mario/.venv/bin/python")) if c.exists()), None)
-    if mario_py and not alive(8770):
-        spawn("mario", [str(mario_py), "viz_server.py", "--port", "8770"],
-              HERE / "app/typesafe-mario-repro")
-        print("  ▶ mario 实况已启动（:8770，本地替身驾驶员）")
+    mario_py = mario_python()
+    if mario_py and not alive(MARIO_PORT):
+        if spawn("mario", [str(mario_py), "viz_server.py", "--port", str(MARIO_PORT)],
+                 HERE / "app/typesafe-mario-repro"):
+            print(f"  ▶ mario 实况已启动（:{MARIO_PORT}，本地替身驾驶员）")
     print(f"总控菜单: http://127.0.0.1:{MENU_PORT}")
-    import threading
     threading.Thread(target=serve_menu, daemon=True).start()
     webbrowser.open(f"http://127.0.0.1:{MENU_PORT}")
     print("Ctrl+C 退出本脚本（服务继续在后台运行；python3 start.py stop 可全部停止）")
