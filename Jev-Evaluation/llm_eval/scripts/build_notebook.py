@@ -85,8 +85,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
-print("matplotlib backend:", matplotlib.get_backend())
-'''
+print("matplotlib backend:", matplotlib.get_backend())'''
 
 CELL_1_SRC = '''# Cell 1 — JevBench 入门
 
@@ -202,8 +201,7 @@ for name, desc in required:
 if missing:
     print("\\nFix: re-run cell 0 (it installs llm_eval and matplotlib from this checkout).")
 else:
-    print("\\nAll required packages present.")
-'''
+    print("\\nAll required packages present.")'''
 
 CELL_5_SRC = '''# Cell 5 — 本框架的结构
 
@@ -223,8 +221,8 @@ llm_eval/
 ├── cli.py           run / summarize / multi-run / compare 4 个子命令
 └── adapters/        各家 API 的薄壳
         base.py            AdapterError + HTTP helper
-        openai_compat.py   OpenAI 兼容 API 的通用实现
-        deepseek.py / qwen.py / glm.py / moonshot.py / doubao.py / stepfun.py / xiaomi.py
+        openai_compat.py   OpenAI Chat Completions 实现（含推理模型参数适配）
+        typesafe.py        Jev / TypeSafe native System One
         mock.py            不消耗 API 的伪响应（always right / uniform）
 tasks/
 ├── smoke.jsonl                      6 题（1 paraphrase 对）
@@ -285,8 +283,7 @@ print("\\n=== sample 2 (hard: long policy reasoning) ===")
 hard = next(t for t in tasks if "long_policy" in t.id)
 sample = hard.to_dict()
 sample["state"] = {**sample["state"], "text": sample["state"].get("text", "")[:200] + "...[truncated for display]"}
-print(json.dumps(sample, indent=2, ensure_ascii=False))
-'''
+print(json.dumps(sample, indent=2, ensure_ascii=False))'''
 
 CELL_7_SRC = '''# Cell 7 — 9 个指标
 
@@ -350,8 +347,7 @@ print(f"output:    {OUT_ROOT}")
 print(f"  - results.jsonl   ({len(results)} records)")
 print(f"  - summary.json    (public-safe aggregate)")
 print(f"  - ledger.jsonl    (cost events)")
-print(f"  - raw/*.json      ({len(list((OUT_ROOT/'raw').iterdir()))} raw req/resp bodies)")
-'''
+print(f"  - raw/*.json      ({len(list((OUT_ROOT/'raw').iterdir()))} raw req/resp bodies)")'''
 
 CELL_9_SRC = '''# Cell 9 — 读懂 summary.json
 import json
@@ -402,8 +398,7 @@ for top, v in sorted(summary.get("per_topic", {}).items()):
     print(f"  {top:18s} n={v['n']:3d}  acc={v['accuracy']:.4f}")
 
 print()
-print("paraphrase_consistency:", summary.get("paraphrase_consistency"))
-'''
+print("paraphrase_consistency:", summary.get("paraphrase_consistency"))'''
 
 CELL_10_SRC = '''# Cell 10 — 接真实模型：环境准备
 
@@ -418,13 +413,8 @@ CELL_10_SRC = '''# Cell 10 — 接真实模型：环境准备
 #### B. 用环境变量（**生产 / 共享场景**）
 
 ```bash
-export DEEPSEEK_API_KEY="sk-..."          # DeepSeek
-export DASHSCOPE_API_KEY="sk-..."         # 阿里百炼 / Qwen
-export ZHIPU_API_KEY="..."                # 智谱 GLM
-export MOONSHOT_API_KEY="sk-..."          # Moonshot Kimi
-export ARK_API_KEY="..."                  # 字节豆包 / 火山方舟
-export STEPFUN_API_KEY="..."              # 阶跃星辰
-export XIAOMI_API_KEY="..."               # 小米 MiMo
+export TYPESAFE_API_KEY="tsk_..."        # Jev (TypeSafe)
+export OPENAI_API_KEY="sk-..."           # OpenAI — 一个 key 跑全部 5 个 OpenAI 模型
 ```
 
 Cell 11 自动检测两路来源，**A 优先于 B**。
@@ -458,48 +448,33 @@ CELL_11_SRC = '''# Cell 11 — 检查 & 配置 API key
 # │   菜单 → Edit → Clear All Outputs  (VS Code)                           │
 # └─────────────────────────────────────────────────────────────────────────┘
 
-# 6 个当前可用的 provider（按你给的 key 列表）
+# 2 个 key — Jev (native System One) + OpenAI（一个 key 跑全部 OpenAI 模型，verbalized）
 direct_keys = {
-    "MOONSHOT_API_KEY":  "",   # kimi k3（直连）
-    "DEEPSEEK_API_KEY":  "",   # deepseek-flash（直连）
-    "ZHIPU_API_KEY":     "",   # glm5.3 codeplan
-    "ARK_API_KEY":       "",   # doubao 2.1 pro（直连）
-    "STEPFUN_API_KEY":   "",   # step5 codingplan
-    "XIAOMI_API_KEY":    "",   # mimo（直连）
+    "TYPESAFE_API_KEY": "",   # Jev (TypeSafe System One, native)
+    "OPENAI_API_KEY": "",     # OpenAI — gpt-6.1-sol / gpt-6-luna / gpt-5.6-terra / gpt-5.6-luna / gpt-4.1-mini
 }
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
 # │ ↑ 替换上面的空字符串为你的 key，例如：                                    │
-# │    "MOONSHOT_API_KEY":  "sk-...",                                       │
-# │    "DEEPSEEK_API_KEY":  "sk-...",                                        │
-# │    "ZHIPU_API_KEY":     "...",   # codeplan 的 key 通常和官方 key 同形    │
-# │    "ARK_API_KEY":       "...",   # 火山方舟 key                          │
-# │    "STEPFUN_API_KEY":   "...",   # 阶跃星辰 codingplan key              │
-# │    "XIAOMI_API_KEY":    "...",                                          │
+# │    "TYPESAFE_API_KEY":  "tsk_...",                                       │
+# │    "OPENAI_API_KEY":    "sk-...",                                        │
 # └──────────────────────────────────────────────────────────────────────────┘
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
-# │ base_url 覆盖区（直连 / Coding Plan 任选其一）───                       │
+# │ base_url 覆盖区 ───                                                      │
 # ├──────────────────────────────────────────────────────────────────────────┤
 # │ 留空 = 用 provider 官方默认地址                                          │
-# │ Coding Plan / 中转站用户：在对应 key_env 的位置同时填 base_url          │
-# │                                                                          │
-# │ ⚠️  ZHIPU_API_KEY 和 STEPFUN_API_KEY 走 codingplan 时，                  │
-# │     端点 URL 与"直连"不同。把下面两行取消注释，并填你的 codingplan 端点 │
+# │ Azure OpenAI / 代理 / 兼容网关用户：在 OPENAI_API_KEY 的位置填 base_url  │
 # └──────────────────────────────────────────────────────────────────────────┘
 
 base_url_overrides = {
     # 官方直连 URL（默认值，可不填）：
-    "MOONSHOT_API_KEY": "https://api.moonshot.cn/v1",
-    "DEEPSEEK_API_KEY": "https://api.deepseek.com/v1",
-    "ARK_API_KEY":      "https://ark.cn-beijing.volces.com/api/v3",
-    "XIAOMI_API_KEY":   "https://api.xiaomi.com/v1",  # placeholder
-    # ↓ 如果你的 codingplan 端点和直连不同，把下面这两行的 # 去掉并填：
-    # "ZHIPU_API_KEY":  "https://your-glm-codeplan-endpoint.com/v1",
-    # "STEPFUN_API_KEY": "https://your-step-codeplan-endpoint.com/v1",
+    "TYPESAFE_API_KEY":  "https://api.typesafe.ai",          # Jev (native)
+    "OPENAI_API_KEY":    "https://api.openai.com/v1",        # OpenAI
 }
 
 import os
+from llm_eval.adapters import OPENAI_MODELS
 
 # 合并 key：direct_keys > env var
 effective = {}
@@ -516,38 +491,25 @@ def resolve_base_url(key_env: str, default_url: str) -> str:
         return env_url
     return default_url
 
-# 当前 6 个 provider 配置
+# 当前 6 个 provider 配置 — Jev (native System One) + 5 个 OpenAI 模型 (verbalized)
 PROVIDER_TABLE = [
-    {"name": "deepseek-flash",    "adapter": "deepseek", "model": "deepseek-flash",
-     "key_env": "DEEPSEEK_API_KEY",
-     "default_base_url": "https://api.deepseek.com/v1",
-     "price_in_per_m": 0.27,  "price_out_per_m": 1.10,
-     "notes": "deepseek（直连）"},
-    {"name": "kimi-k3",          "adapter": "moonshot", "model": "kimi-k3",
-     "key_env": "MOONSHOT_API_KEY",
-     "default_base_url": "https://api.moonshot.cn/v1",
-     "price_in_per_m": 0.10,  "price_out_per_m": 0.30,  # K3 价格待官方确认
-     "notes": "kimi k3（直连）"},
-    {"name": "glm-5.3-codeplan", "adapter": "glm",      "model": "glm-5.3",
-     "key_env": "ZHIPU_API_KEY",
-     "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
-     "price_in_per_m": 0.50,  "price_out_per_m": 0.50,  # codeplan 价格待校准
-     "notes": "glm5.3 codeplan"},
-    {"name": "doubao-2.1-pro",    "adapter": "doubao",   "model": "doubao-2.1-pro",
-     "key_env": "ARK_API_KEY",
-     "default_base_url": "https://ark.cn-beijing.volces.com/api/v3",
-     "price_in_per_m": 0.80,  "price_out_per_m": 1.00,  # 20 元 plan 的 token 价，待校准
-     "notes": "doubao 2.1 pro（20 元 plan，直连）"},
-    {"name": "step-5-codeplan",  "adapter": "stepfun",  "model": "step-5",
-     "key_env": "STEPFUN_API_KEY",
-     "default_base_url": "https://api.stepfun.com/v1",
-     "price_in_per_m": 1.00,  "price_out_per_m": 2.00,  # codingplan 价格待校准
-     "notes": "step5 codingplan"},
-    {"name": "mimo",             "adapter": "xiaomi",   "model": "mimo",
-     "key_env": "XIAOMI_API_KEY",
-     "default_base_url": "https://api.xiaomi.com/v1",  # placeholder
-     "price_in_per_m": None,  "price_out_per_m": None,
-     "notes": "mimo（直连）"},
+    # Jev — TypeSafe System One (native)。output tokens free，output 价格 = 0。
+    {"name": "jev",                 "adapter": "jev",      "model": "jev-latest",
+     "key_env": "TYPESAFE_API_KEY",
+     "default_base_url": "https://api.typesafe.ai",
+     "price_in_per_m": 0.042, "price_out_per_m": 0.0,
+     "mode": "native",
+     "notes": "Jev (TypeSafe native System One)"},
+] + [
+    # OpenAI verbalized 模型 — 通用 LLM 用 JSON schema 写出概率分布。
+    # 价格来自 llm_eval.adapters.OPENAI_MODELS（与 runner 记账同源）。
+    {"name": model,                 "adapter": "openai",   "model": model,
+     "key_env": "OPENAI_API_KEY",
+     "default_base_url": "https://api.openai.com/v1",
+     "price_in_per_m": price["price_in_per_m"], "price_out_per_m": price["price_out_per_m"],
+     "mode": "verbalized",
+     "notes": f"OpenAI {model}"}
+    for model, price in OPENAI_MODELS.items()
 ]
 
 # 计算 effective base_url
@@ -598,38 +560,22 @@ from llm_eval.task import load_tasks
 # PROVIDER_TABLE 复用 cell 11 的（含 base_url / price / request_options）。
 # 如果你直接执行本 cell 而跳过了 cell 11，下面有一份简化副本（不会自动用粘贴 key）。
 if "PROVIDER_TABLE" not in globals():
+    from llm_eval.adapters import OPENAI_MODELS
     PROVIDER_TABLE = [
-        {"name": "deepseek-flash",    "adapter": "deepseek", "model": "deepseek-flash",
-         "key_env": "DEEPSEEK_API_KEY",
-         "default_base_url": "https://api.deepseek.com/v1",
-         "price_in_per_m": 0.27, "price_out_per_m": 1.10},
-        {"name": "kimi-k3",          "adapter": "moonshot", "model": "kimi-k3",
-         "key_env": "MOONSHOT_API_KEY",
-         "default_base_url": "https://api.moonshot.cn/v1",
-         "price_in_per_m": 0.10, "price_out_per_m": 0.30,
-         "request_options": {"temperature": 1},  # kimi-k3 only accepts temperature=1
-        },
-        {"name": "glm-5.3-codeplan", "adapter": "glm",      "model": "glm-5.3",
-         "key_env": "ZHIPU_API_KEY",
-         "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
-         "price_in_per_m": 0.50, "price_out_per_m": 0.50},
-        {"name": "doubao-2.1-pro",    "adapter": "doubao",
-         # ARK 模型名是 endpoint id（不是模型名）。自动从 /models 找最大版本号的
-         # doubao-seed-2-1-pro-* endpoint（260915 > 260628 > 260215）。
-         "model": "doubao-seed-2-1-pro-auto",
-         "key_env": "ARK_API_KEY",
-         "default_base_url": "https://ark.cn-beijing.volces.com/api/v3",
-         "price_in_per_m": 0.80, "price_out_per_m": 1.00,  # 20 元 plan token 价
-         "resolve_ark_prefix": "doubao-seed-2-1-pro"},
-        {"name": "step-5-codeplan",  "adapter": "stepfun",  "model": "step-5",
-         "key_env": "STEPFUN_API_KEY",
-         "default_base_url": "https://api.stepfun.com/v1",
-         "price_in_per_m": 1.00, "price_out_per_m": 2.00},
-        {"name": "mimo",             "adapter": "xiaomi",   "model": "mimo",
-         "key_env": "XIAOMI_API_KEY",
-         "default_base_url": "https://api.xiaomi.com/v1",
-         "price_in_per_m": None, "price_out_per_m": None,
-         "skip_reason": "Xiaomi/MiMo URL 是文档化的 placeholder，等公网 endpoint 出再启用"},
+        # Jev — native System One（TypeSafe），output free
+        {"name": "jev",              "adapter": "jev",      "model": "jev-latest",
+         "key_env": "TYPESAFE_API_KEY",
+         "default_base_url": "https://api.typesafe.ai",
+         "price_in_per_m": 0.042, "price_out_per_m": 0.0,
+         "mode": "native"},
+    ] + [
+        # OpenAI — verbalized（让通用 LLM 用 JSON schema 写出概率分布）
+        {"name": model,              "adapter": "openai",   "model": model,
+         "key_env": "OPENAI_API_KEY",
+         "default_base_url": "https://api.openai.com/v1",
+         "price_in_per_m": price["price_in_per_m"], "price_out_per_m": price["price_out_per_m"],
+         "mode": "verbalized"}
+        for model, price in OPENAI_MODELS.items()
     ]
     # fallback base_url & default request_options
     for p in PROVIDER_TABLE:
@@ -679,8 +625,29 @@ def _resolve_base_url(p: dict) -> str:
     return p.get("default_base_url", p.get("base_url", ""))
 
 
-def _chat_probe(key: str, base_url: str, model: str) -> int:
-    """1-shot chat probe 提前检测 401/402/404。返回 HTTP status。"""
+def _chat_probe(key: str, base_url: str, model: str, adapter_name: str = "") -> int:
+    """1-shot probe 提前检测 401/402/404。返回 HTTP status。
+
+    - 默认（OpenAI 兼容）：POST /chat/completions with {model, messages, max_tokens:1}
+    - Jev (native System One)：GET /v1/models（只要 key 正确就 200；systemone 需要合法 state）
+    """
+    if adapter_name in ("jev", "typesafe", "openai"):
+        # Jev has no /chat/completions — auth-check via /v1/models.
+        # OpenAI: GET /models/{model} is free and returns 404 for an unknown
+        # model; a 1-token chat probe would be rejected by reasoning models.
+        if adapter_name == "openai":
+            url = base_url.rstrip("/") + "/models/" + model
+        else:
+            url = base_url.rstrip("/") + "/v1/models"
+        try:
+            req = urllib.request.Request(url, method="GET",
+                headers={"Authorization": f"Bearer {key}"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+        except Exception:
+            return 0
     req = urllib.request.Request(
         base_url.rstrip("/") + "/chat/completions",
         method="POST",
@@ -700,23 +667,6 @@ def _chat_probe(key: str, base_url: str, model: str) -> int:
         return 0
 
 
-def _resolve_ark_endpoint(key: str, base_url: str, hint_prefix: str) -> str | None:
-    """Probe ARK /models，返回最新版的 endpoint id。"""
-    try:
-        req = urllib.request.Request(
-            base_url.rstrip("/") + "/models",
-            headers={"Authorization": f"Bearer {key}"},
-        )
-        with urllib.request.urlopen(req, timeout=15) as r:
-            j = json.loads(r.read())
-        ids = [e["id"] for e in j.get("data", []) if "id" in e]
-    except Exception:
-        return None
-    matches = [i for i in ids if hint_prefix in i]
-    matches.sort(reverse=True)  # "260915" > "260628" > "260215"
-    return matches[0] if matches else None
-
-
 # Step 1 — 扫可用 provider；probe 每家区分 401/402/404/200
 available = []
 skipped = []
@@ -730,18 +680,7 @@ for p in PROVIDER_TABLE:
         continue
     p["base_url"] = _resolve_base_url(p)
 
-    # ARK endpoint auto-discovery（model name ≠ endpoint id，必须自动 discover）
-    if p.get("resolve_ark_prefix") and p["base_url"].rstrip("/").endswith("/api/v3"):
-        old_model = p["model"]
-        discovered = _resolve_ark_endpoint(key, p["base_url"], p["resolve_ark_prefix"])
-        if discovered:
-            p["model"] = discovered
-            print(f"  [ark-discover] {p['name']}: {old_model} → {discovered}")
-        else:
-            skipped.append((p, f"ARK /models 不返回 {p['resolve_ark_prefix']}* 的 endpoint"))
-            continue
-
-    code = _chat_probe(key, p["base_url"], p["model"])
+    code = _chat_probe(key, p["base_url"], p["model"], adapter_name=p["adapter"])
     if code == 200:
         available.append(p)
         print(f"  ✓  {p['name']:18s}  base_url={p['base_url']}  model={p['model']}")
@@ -757,21 +696,21 @@ for p in PROVIDER_TABLE:
         skipped.append((p, f"http {code}: 未知状态"))
 
 if skipped:
-    print(f"\nskipped {len(skipped)} provider(s):")
+    print("\\n" + f"skipped {len(skipped)} provider(s):")
     for p, reason in skipped:
         print(f"  ✗  {p['name']:18s}  {reason}")
 
-print(f"\nrunning {len(available)} provider(s) × {n_tasks} tasks, "
-      f"max parallel={MAX_PARALLEL}, cap=${CAP_USD} per provider\n")
+print(f"\\nrunning {len(available)} provider(s) × {n_tasks} tasks, "
+      f"max parallel={MAX_PARALLEL}, cap=${CAP_USD} per provider")
 
 if not available:
     display(Markdown(
-        "⚠️ **No API keys available** (or all probes failed).\n\n"
-        "Two ways to provide keys:\n\n"
+        "⚠️ **No API keys available** (or all probes failed).\\n\\n"
+        "Two ways to provide keys:\\n\\n"
         "**A. Paste directly in cell 11** (`direct_keys` dict) — convenient for learning, "
-        "but the key is saved into this notebook file.\n\n"
-        "**B. `export DEEPSEEK_API_KEY=...` in your shell** before launching Jupyter — "
-        "safer for production.\n\n"
+        "but the key is saved into this notebook file.\\n\\n"
+        "**B. `export OPENAI_API_KEY=...` in your shell** before launching Jupyter — "
+        "safer for production.\\n\\n"
         "Without working keys, cell 14 has no real data to plot. Re-run this cell after fixing the listed skips."
     ))
 else:
@@ -781,40 +720,34 @@ else:
             yield lst[i:i+n]
     batches = list(chunked(available, MAX_PARALLEL))
 
+    # 所有 OpenAI 模型共用一个 key：在开线程前一次性写入 env，线程里不再增删，
+    # 避免一个线程跑完把 key 删掉、另一个线程读不到。
+    for p in available:
+        os.environ[p["key_env"]] = _effective_keys[p["key_env"]]
+
     all_runs = []
     for batch_idx, batch in enumerate(batches):
-        print(f"\n=== batch {batch_idx+1}/{len(batches)}: {[p['name'] for p in batch]} ===")
+        print("\\n=== batch " + f"{batch_idx+1}/{len(batches)}: {[p['name'] for p in batch]}" + " ===")
 
         def run_one(spec):
             try:
-                os.environ[spec["key_env"]] = _effective_keys[spec["key_env"]]
-                from llm_eval.adapters import PROVIDERS as _PROVIDERS
-                original_url = _PROVIDERS.get(spec["adapter"], {}).get("base_url")
-                if original_url and spec["base_url"] != original_url:
-                    _PROVIDERS.setdefault(spec["adapter"], {})["base_url"] = spec["base_url"]
-                try:
-                    cfg = MultiRunConfig(
-                        run_id=f"cell12-{spec['name']}",
-                        tasks_path=TASKS_PATH,
-                        runners=[RunnerConfig(
-                            name=spec["name"], adapter=spec["adapter"], model=spec["model"],
-                            key_env=spec["key_env"],   # ← 关键修复：之前是 ""，runner 取不到 key
-                            price_in_per_m=spec["price_in_per_m"],
-                            price_out_per_m=spec["price_out_per_m"],
-                            skip_if_done=True,
-                        )],
-                        cap_usd=CAP_USD,
-                        delay_s=0.3,
-                        out_root=str(OUT_ROOT / "_tmp"),
-                        request_options=spec.get("request_options"),
-                    )
-                    manifest = run_multi(cfg)
-                finally:
-                    direct_used = ("direct_keys" in globals() and direct_keys.get(spec["key_env"]))
-                    if not direct_used:
-                        os.environ.pop(spec["key_env"], None)
-                    if original_url and spec["base_url"] != original_url:
-                        _PROVIDERS[spec["adapter"]]["base_url"] = original_url
+                cfg = MultiRunConfig(
+                    run_id=f"cell12-{spec['name']}",
+                    tasks_path=TASKS_PATH,
+                    runners=[RunnerConfig(
+                        name=spec["name"], adapter=spec["adapter"], model=spec["model"],
+                        endpoint=spec["base_url"],
+                        key_env=spec["key_env"],   # ← 关键修复：之前是 ""，runner 取不到 key
+                        price_in_per_m=spec["price_in_per_m"],
+                        price_out_per_m=spec["price_out_per_m"],
+                        skip_if_done=True,
+                    )],
+                    cap_usd=CAP_USD,
+                    delay_s=0.3,
+                    out_root=str(OUT_ROOT / "_tmp"),
+                    request_options=spec.get("request_options"),
+                )
+                manifest = run_multi(cfg)
                 return (spec["name"], "ok", manifest)
             except Exception as e:
                 return (spec["name"], "error", repr(e))
@@ -847,31 +780,31 @@ else:
         if batch_idx + 1 < len(batches):
             remaining = [p["name"] for p in available[batch_idx+1:]]
             display(Markdown(
-                f"⚠️ **还有 {len(remaining)} 个 provider 没跑**：{remaining}。\n\n"
+                f"⚠️ **还有 {len(remaining)} 个 provider 没跑**：{remaining}。\\n\\n"
                 f"再次执行本 cell 跑下一批（当前上限 {MAX_PARALLEL}）。"
                 f"`LBEVAL_MAX_WORKERS` 可调。"
             ))
 
-    print(f"\nbatch summary: {len(all_runs)} provider(s) ran successfully")
+    print(f"\\nbatch summary: {len(all_runs)} provider(s) ran successfully")
     print(f"output root: {OUT_ROOT}")
 
 # === Troubleshooting 子节 ===
 # 常见情况：
 # 1. summary.schema_validity 偏低（< 0.7）：
 #    - 模型返回了概率但某些题没覆盖所有 label → 长 label 集上 schema 漏报
-#    - 模型有时返回空字符串 → rate-limit 或服务端偶发；flash 变体比主入口更明显
+#    - 模型有时返回空字符串 → rate-limit，或推理模型把输出预算全花在推理上
 # 2. summary.accuracy 高但 brier/ece 也高：
 #    - 答对了但置信度没校准——自信错的也自信对。
 # 3. 大量 error 记录 → adapter 没适配该 provider 的 response_format；改 llm_eval/adapters/openai_compat.py
-# 4. cost_usd_total = None → 该 provider 没设 price（米/placeholder），框架拒绝"编"价格
-# 5. 直填 key 后报错"key empty"：cell 11 里 `"DEEPSEEK_API_KEY": ""` 是空字符串就视作未填，
+# 4. cost_usd_total = None → 该 provider 没设 price，框架拒绝"编"价格
+# 5. 直填 key 后报错"key empty"：cell 11 里 `"OPENAI_API_KEY": ""` 是空字符串就视作未填，
 #    填一个真 key 即可（任意非空字符串都能识别为 "set"）。
 # 6. base_url 覆盖不生效：检查 cell 11 的 base_url_overrides 字典 key 是否跟 key_env 一致。
-# 7. ARK 模型报 404：模型名要用 endpoint id（如 `doubao-seed-2-1-pro-260915`）；
-#    本 cell 已自动从 /models 取最新匹配，无需手填。
-# 8. kimi-k3 报 `invalid temperature`：model 只接受 temperature=1，已通过 request_options 注入。
-# 9. 小米/mimo 跳过：endpoint 还是 placeholder；等 MiMo 出公网后改 cell 11 的 base_url 即可启用。
-# 10. StepFun 报 402：plan 额度用尽，去 https://platform.stepfun.com/ 续费 / 换套餐。
+# 7. OpenAI 模型报 404：该 key 所在的 project 没开通这个模型；在 platform.openai.com 的 project 设置里启用。
+# 8. 推理模型（gpt-5* / gpt-6* / o 系列）报 `unsupported parameter`：adapter 已自动改用
+#    max_completion_tokens、去掉 temperature，并设 reasoning_effort="low"；
+#    若某模型不支持该值，在 cell 11 的 PROVIDER_TABLE 里给它加 "request_options": {"reasoning_effort": None}。
+# 9. OpenAI 报 429：rate limit / 额度不足；调小 LBEVAL_MAX_WORKERS 或检查 billing。
 
 '''
 
@@ -1006,10 +939,9 @@ display(Markdown(
     f"- `runs/notebook-demo/multi/compare.md`\\n"
     f"- `runs/notebook-demo/multi/charts/13_full_metrics.png` (3×3 全指标)\\n"
     f"- `runs/notebook-demo/multi/charts/13_mock_compare.png` (4 联简版)"
-))
-'''
+))'''
 
-CELL_14_SRC = '''# Cell 14 — 4 维横评（accuracy / time / token / price），只显示真实数据
+CELL_14_SRC = '''# Cell 14 — Main score + 4 维横评（token / time / cost / accuracy）
 import json
 from pathlib import Path
 
@@ -1018,13 +950,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from IPython.display import display, Markdown
 
-# 这一版严格遵循"只显示真实数据"原则：
-#   * 不估算 token（按字符 / 4、按 prompt 模板长度等所有启发式都禁）
-#   * 不为 cost 列造占位值
-#   * 不为 mock 锚点造 reference 数字
-# 4 维数据全部来自 cell 12 runner 真实写到磁盘的 summary.json / results.jsonl，
-# 再加 cell 13 mock 锚点的真实输出（mock 自带 usage、cost=0）。
-# 缺失数据 → 显示 '—' 与 hatched gray bar，永远不会编造任何数字。
+# 严格只显示真实数据（cell 12 runner 写到磁盘的 summary.json / results.jsonl + cell 13 mock 锚点）。
+# 缺失数据 → 显示 '—'，绝不编造任何数字。
 
 def _fmt(v):
     if v is None: return "—"
@@ -1035,22 +962,13 @@ def _fmt(v):
         return f"{v:,}"
     return str(v)
 
-def _fmt_n(v):
-    if v is None: return "—"
-    if isinstance(v, bool): return str(v)
-    if isinstance(v, int):   return f"{v:,}"
-    if isinstance(v, float): return f"{int(v):,}" if v.is_integer() else f"{v:,.1f}"
-    return str(v)
-
 def _fmt_usd(v):
     if v is None: return "—"
     if isinstance(v, (int, float)): return f"${v:.4f}"
     return str(v)
 
-def _load_real_tokens(results_path: Path) -> tuple:
-    """Walk results.jsonl, sum usage.prompt_tokens / completion_tokens.
-    Returns (token_in_or_None, token_out_or_None). None = API didn't return usage
-    on any record; we never estimate / fabricate values."""
+def _load_real_tokens(results_path: Path):
+    """Sum prompt_tokens / completion_tokens from results.jsonl."""
     if not results_path.exists():
         return None, None
     in_t = out_t = 0
@@ -1072,129 +990,71 @@ def _load_real_tokens(results_path: Path) -> tuple:
         return None, None
     return in_t, out_t
 
-# === Step 1: 扫描真实 runs（cell 12 写出来的 summary.json + results.jsonl）===
-# 真实数据来源：
-#   accuracy / p50_s / cost_usd_total  ← summary.json（runner 直接计算 + 聚合）
-#   token_in / token_out              ← results.jsonl 里每行 usage.prompt_tokens / completion_tokens 求和
-real_rows: dict[str, dict] = {}
-real_dir = Path("runs/notebook-demo/real/_tmp")
-real_top_level = Path("runs/notebook-demo/real")
-real_prefixes = ("cell12-", "real-")
-
-def _ingest_real_row(label: str, sum_path: Path, results_path: Path) -> None:
-    if not sum_path.exists():
-        return
-    try:
-        s = json.loads(sum_path.read_text())
-    except Exception:
-        return
-    in_t, out_t = _load_real_tokens(results_path)
-    real_rows[label] = {
-        "data_source": "real",
-        "accuracy":        s.get("accuracy"),
-        "p50_s":           s.get("p50_s"),
-        "p95_s":           s.get("p95_s"),
-        "token_in":        in_t,
-        "token_out":       out_t,
-        "cost_usd_total":  s.get("cost_usd_total"),
-        "schema_validity": s.get("schema_validity"),
-        "brier":           s.get("brier"),
-        "ece":             s.get("ece"),
-        "ordinal_mae":     s.get("ordinal_mae"),
-    }
-
+# === Step 1: 扫描真实 runs (cell 12 写到磁盘的) ===
+real_dir = Path("runs/notebook-demo/real")
+real_rows = {}
 if real_dir.is_dir():
-    # Source 1: cell 12 / run_one_real in-flight _tmp dirs (cell12-* / real-* prefixes).
-    for cell_dir in sorted(real_dir.iterdir()):
-        if not cell_dir.is_dir() or not cell_dir.name.startswith(real_prefixes):
-            continue
-        # Derive canonical label by stripping the `real-`/`cell12-` prefix
-        # from cell_dir.name. This handles multi_runner slugified subdirs
-        # (e.g. doubao-2.1-pro → doubao-2_1-pro) cleanly.
-        label = None
-        for pre in real_prefixes:
-            if cell_dir.name.startswith(pre):
-                label = cell_dir.name[len(pre):]
-                break
-        if not label:
-            continue
-        # Try the canonical top-level real/<label>/ first (post-run copy).
-        top_sum = real_top_level / label / "summary.json"
-        top_res = real_top_level / label / "results.jsonl"
-        if top_sum.exists():
-            _ingest_real_row(label, top_sum, top_res)
-            continue
-        # Otherwise fall back to the in-flight _tmp dir's summary.
-        for r in sorted(cell_dir.iterdir()):
-            if not r.is_dir():
-                continue
-            sp = r / "summary.json"
-            if sp.exists():
-                _ingest_real_row(label, sp, r / "results.jsonl")
-                break
-
-# Source 2: canonical real/<label>/summary.json (post-run or patched).
-if real_top_level.is_dir():
-    for d in sorted(real_top_level.iterdir()):
+    for d in sorted(real_dir.iterdir()):
         if not d.is_dir() or d.name == "_tmp":
             continue
         sp = d / "summary.json"
         if not sp.exists():
             continue
-        # Only add if not already present (i.e. real rows prefer _tmp source).
-        if d.name not in real_rows:
-            _ingest_real_row(d.name, sp, d / "results.jsonl")
-
-# === Step 2: cell 14 显示真 provider 数据，不混入 mock 锚点 ===
-# 这一版严格遵循「只显示真实数据」原则：mock-perfect / mock-uniform 是 6-task
-# smoke run 的产物，与 231 题的真实 provider 在绝对数值上不可比。
-# 它们仍以 `compare.json` 形式存在（cell 13 跑出来的），但 chart / table 不引用。
-# 没有真 provider 时显示红色横幅（提示需要 set API key + 重跑 cell 12）。
-all_rows: dict[str, dict] = dict(real_rows)
+        try:
+            s = json.loads(sp.read_text())
+        except Exception:
+            continue
+        in_t, out_t = _load_real_tokens(d / "results.jsonl")
+        real_rows[d.name] = {
+            "data_source": "real",
+            "accuracy": s.get("accuracy"),
+            "p50_s": s.get("p50_s"),
+            "p95_s": s.get("p95_s"),
+            "token_in": in_t,
+            "token_out": out_t,
+            "cost_usd_total": s.get("cost_usd_total"),
+            "schema_validity": s.get("schema_validity"),
+            "brier": s.get("brier"),
+            "ece": s.get("ece"),
+            "ordinal_mae": s.get("ordinal_mae"),
+            "jevbench_score": s.get("jevbench_score"),
+        }
 
 n_real = len(real_rows)
-src_label = f"{n_real} real provider(s)"
+src_label = f"{n_real} real runner(s)"
 
-# === 顶部状态提示：有 / 没有真实 provider 时的两种态 ===
 display(Markdown(f"## 4-dim cross-model comparison — {src_label}"))
 if n_real == 0:
     display(Markdown(
         "🔴 **No real provider data available.** "
         "Set at least one `*_API_KEY` env var (or paste into cell 11) and re-run cell 12. "
-        "The chart / table below need real API responses to plot — no synthesis, no estimation."
+        "The charts / tables below need real API responses to plot — no synthesis, no estimation."
     ))
 
-rows = all_rows
-names = list(rows.keys())
-
-# === Step 4: 4 维表格（accuracy / time / token / price）===
-# 列顺序：runner | data_src | accuracy | p50_s (time) | token_in | token_out | cost_usd (price)
+# === Step 2: 4 维表格 (accuracy / time / token / price) ===
 table_cols = [
     ("data_src",   lambda r: r.get("data_source", "—")),
     ("accuracy",   lambda r: _fmt(r.get("accuracy"))),
     ("p50_s (time)", lambda r: _fmt(r.get("p50_s"))),
-    ("token_in",   lambda r: _fmt_n(r.get("token_in"))),
-    ("token_out",  lambda r: _fmt_n(r.get("token_out"))),
+    ("token_in",   lambda r: _fmt(r.get("token_in"))),
+    ("token_out",  lambda r: _fmt(r.get("token_out"))),
     ("cost_usd (price)", lambda r: _fmt_usd(r.get("cost_usd_total"))),
 ]
 header = "| runner | " + " | ".join(c[0] for c in table_cols) + " |"
 sep = "|" + "|".join(["---"] * (len(table_cols) + 1)) + "|"
 table_lines = [header, sep]
-for name, row in rows.items():
+for name, row in sorted(real_rows.items()):
     cells = [name] + [c[1](row) for c in table_cols]
     table_lines.append("| " + " | ".join(cells) + " |")
 display(Markdown("\\n".join(table_lines)))
 
-# === Step 5: 4 维图（2×2）===
+# === Step 3: 4 维横评图 (2x2) — accuracy / time / token / price ===
 charts_dir = Path("runs/notebook-demo/multi/charts")
 charts_dir.mkdir(parents=True, exist_ok=True)
 
-# None → hatched gray；log scale 仅当 ≥2 个真实正数时启用
-def _bar(ax, names, vals, title, ymax=None, force_log=False):
+def _bar(ax, names, vals, title, ymax=None):
     real_pos = [v for v in vals if isinstance(v, (int, float)) and v > 0]
-    has_none = any(v is None for v in vals)
-    # 整体 panel 没有数据
-    if not real_pos and has_none:
+    if not real_pos:
         ax.text(0.5, 0.5, "no real data\\n(set API key + re-run cell 12)",
                 ha="center", va="center", transform=ax.transAxes,
                 color="#aa0000", fontsize=11)
@@ -1202,11 +1062,7 @@ def _bar(ax, names, vals, title, ymax=None, force_log=False):
         ax.set_xticks([])
         ax.set_yticks([])
         return
-    if not real_pos:
-        # 全 0 但实际存在记录（如 runner 跑出来 cost=0）— 仍画 0 柱
-        disp = [0.0 if v is None else float(v) for v in vals]
-    else:
-        disp = [0.0 if v is None else float(v) for v in vals]
+    disp = [0.0 if v is None else float(v) for v in vals]
     colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple",
               "tab:brown", "tab:pink", "tab:olive", "tab:cyan"]
     bar_colors = [colors[i % len(colors)] if (isinstance(vals[i], (int, float)) and vals[i] > 0)
@@ -1218,71 +1074,111 @@ def _bar(ax, names, vals, title, ymax=None, force_log=False):
             bar.set_edgecolor("gray")
     ax.set_title(title, fontsize=11)
     ax.tick_params(axis='x', rotation=30, labelsize=9)
-    if (force_log or title.endswith("(↓)")) and len(real_pos) >= 2:
+    if title.endswith("(↓)") and len(real_pos) >= 2:
         ax.set_yscale("log")
     if ymax is not None and real_pos:
         ax.set_ylim(0, max(ymax, max(real_pos) * 1.1))
 
+names = sorted(real_rows.keys())
 PANELS_4DIM = [
-    ("accuracy",        "Accuracy ↑",            1.05, False),
-    ("p50_s",           "p50 latency (time) ↓",  None, True),
-    ("token_in",        "Token in ↓",            None, True),
-    ("cost_usd_total",  "Cost USD (price) ↓",    None, True),
+    ("accuracy",        "Accuracy ↑",            1.05),
+    ("p50_s",           "p50 latency (time) ↓",  None),
+    ("token_in",        "Token in ↓",            None),
+    ("cost_usd_total",  "Cost USD (price) ↓",    None),
 ]
 
 fig, axes = plt.subplots(2, 2, figsize=(13, 9))
-for idx, (key, title, ymax, log_ok) in enumerate(PANELS_4DIM):
+for idx, (key, title, ymax) in enumerate(PANELS_4DIM):
     r, c = divmod(idx, 2)
     ax = axes[r, c]
-    vals = [rows[n].get(key) for n in names]
-    _bar(ax, names, vals, title, ymax=ymax, force_log=log_ok)
+    vals = [real_rows[n].get(key) for n in names]
+    _bar(ax, names, vals, title, ymax=ymax)
 fig.suptitle(f"JevBench 4-dim comparison (real-only data) — {src_label}", fontsize=13)
 fig.tight_layout()
-chart_path = charts_dir / "14_real_compare.png"
+chart_path = charts_dir / "14_4dim_compare.png"
 fig.savefig(chart_path, dpi=120, bbox_inches='tight')
-display(Markdown(f"**chart saved**: `{chart_path}`\\n\\n"
-                 f"_灰色斜纹 = 该行**无真实数据**（没 key / API 失败 / API 没返回 usage）；实色 = 真实数据_"))
 plt.close(fig)
+display(Markdown(f"**4-dim chart saved**: `{chart_path}`\\n\\n"
+                 f"_灰色斜纹 = 该行**无真实数据**（没 key / API 失败 / API 没返回 usage）；实色 = 真实数据_"))
 
-# 极少量数据时也持久化一张 3×3 全指标图（仅当确实有真实数据时画，否则跳过）
-real_rows_with_data = {n: r for n, r in real_rows.items() if any(
-    isinstance(r.get(k), (int, float)) and r.get(k) is not None
-    for k in ["accuracy", "p50_s", "token_in", "token_out", "cost_usd_total"]
-)}
-if real_rows_with_data and len(real_rows_with_data) >= 1:
-    # 借用合并视图（mock 行也带进来作参考）
-    fig, axes = plt.subplots(3, 3, figsize=(18, 13))
-    metrics_9 = [
-        ("accuracy",           "Accuracy ↑",                1.05, False),
-        ("schema_validity",    "Schema valid ↑",            1.05, False),
-        ("brier",              "Brier ↓",                   None, True),
-        ("ece",                "ECE ↓",                     None, True),
-        ("ordinal_mae",        "Ordinal MAE ↓",             None, False),
-        ("p50_s",              "p50 latency ↓",             None, True),
-        ("p95_s",              "p95 latency ↓",             None, True),
-        ("cost_usd_total",     "Cost USD ↓",                None, True),
-        ("token_in",           "Input tokens ↓",            None, True),
-    ]
-    for idx, (key, title, ymax, log_ok) in enumerate(metrics_9):
-        r, c = divmod(idx, 3)
-        ax = axes[r, c]
-        vals = [rows[n].get(key) for n in names]
-        _bar(ax, names, vals, title, ymax=ymax, force_log=log_ok)
-    fig.suptitle(f"JevBench full-metric (real-only data) — {src_label}", fontsize=14)
-    fig.tight_layout()
-    chart_path_9 = charts_dir / "14_full_metrics.png"
-    fig.savefig(chart_path_9, dpi=120, bbox_inches='tight')
-    display(Markdown(f"**chart saved**: `{chart_path_9}`"))
-    plt.close(fig)
+# === Step 4: JevBench composite score ranking (1 张总排名图) ===
+# JevBench Score = 几何平均 (Intelligence, Calibration, Speed, Cost) in 0-100,
+# with low-Intelligence penalty (I<50 → score * (I/50)²). 见 llm_eval.metrics.jevbench_score.
+score_rows = []
+for name, row in real_rows.items():
+    js = row.get("jevbench_score") or {}
+    composite = js.get("score")
+    axes_dict = js.get("axes") or {}
+    score_rows.append({
+        "runner": name,
+        "composite": composite,
+        "intelligence": axes_dict.get("intelligence"),
+        "calibration": axes_dict.get("calibration"),
+        "speed": axes_dict.get("speed"),
+        "cost": axes_dict.get("cost"),
+        "n_scorable": js.get("n_scorable"),
+        "penalty": js.get("intelligence_penalty_applied", False),
+    })
+
+# Sort by composite descending; None last
+score_rows_sorted = sorted(
+    score_rows,
+    key=lambda r: (r["composite"] is None, -(r["composite"] or 0))
+)
+
+display(Markdown("# JevBench Score ranking (composite + 4 axes)"))
+if not score_rows_sorted:
+    display(Markdown("_No jevbench_score yet — re-run cell 12 after setting keys._"))
 else:
-    display(Markdown("_9 指标全图已跳过：暂无任何真实 provider 数据可画。_"))
+    rank_lines = ["| rank | runner | composite | intelligence | calibration | speed | cost | notes |",
+                   "|---|---|---|---|---|---|---|---|"]
+    for i, r in enumerate(score_rows_sorted):
+        composite = r["composite"]
+        composite_str = f"{composite:.1f}" if composite is not None else "—"
+        note = "⚠️ I<50, penalty applied" if r["penalty"] else ""
+        rank_lines.append(
+            f"| {i+1} | {r['runner']} | {composite_str} | "
+            f"{_fmt(r['intelligence'])} | {_fmt(r['calibration'])} | "
+            f"{_fmt(r['speed'])} | {_fmt(r['cost'])} | {note} |"
+        )
+    display(Markdown("\\n".join(rank_lines)))
 
-# === Step 6: 持久化合并结果（无估算字段）===
+# Bar chart: composite score (sorted)
+fig, ax = plt.subplots(figsize=(11, max(4, 0.5 * len(score_rows_sorted) + 1)))
+rnames = [r["runner"] for r in score_rows_sorted]
+comps = [r["composite"] for r in score_rows_sorted]
+real_pos = [v for v in comps if v is not None]
+if real_pos:
+    colors = ["#2a9d8f" if not r["penalty"] else "#e76f51" for r in score_rows_sorted]
+    bars = ax.barh(rnames, [v if v is not None else 0 for v in comps], color=colors)
+    for i, (bar, v) in enumerate(zip(bars, comps)):
+        width = v if v is not None else 0
+        ax.text(width + 1, bar.get_y() + bar.get_height()/2,
+                f"{width:.1f}" if v is not None else "—",
+                va='center', fontsize=10)
+    ax.set_xlim(0, 110)
+    ax.set_xlabel("JevBench composite score (0-100)")
+    ax.set_title(f"JevBench score ranking (real-only) — {src_label}", fontsize=13)
+    ax.invert_yaxis()
+    fig.tight_layout()
+else:
+    ax.text(0.5, 0.5, "no real jevbench_score data\\n(set API key + re-run cell 12)",
+            ha="center", va="center", transform=ax.transAxes, color="#aa0000", fontsize=12)
+    ax.set_xticks([])
+    ax.set_yticks([])
+rank_chart = charts_dir / "14_main_score.png"
+fig.savefig(rank_chart, dpi=120, bbox_inches='tight')
+plt.close(fig)
+display(Markdown(f"**Main-score chart saved**: `{rank_chart}`\\n\\n"
+                 f"_绿色 = 4-axis 满分；红色 = Intelligence<50 触发了 (I/50)² 折扣_"))
+
+# === Step 5: 持久化合并结果 ===
 merged_path = Path("runs/notebook-demo/multi/compare_merged.json")
 merged_payload = {
-    "rows": all_rows,
+    "rows": real_rows,
     "n_real": n_real,
     "label": src_label,
+    "ranking": score_rows_sorted,
 }
 merged_path.write_text(
     json.dumps(merged_payload, ensure_ascii=False, indent=2),
@@ -1291,13 +1187,86 @@ merged_path.write_text(
 display(Markdown(
     f"\\n所有产物：\\n"
     f"- `{merged_path}`（合并视图，仅真实数据，{n_real} 行）\\n"
-    f"- `runs/notebook-demo/multi/charts/14_real_compare.png`（4 维横评图，real-only）\\n"
-    f"- `runs/notebook-demo/multi/charts/14_full_metrics.png`（3×3 全指标图，real-only）\\n"
-    f"- 各 provider 的 raw output: `runs/notebook-demo/real/_tmp/cell12-*/<name>/`  "
-    f"（注：cell 13 仍然跑 smoke mock 来给 compare.json 留底，但本 cell 已不引用 — "
-    f"mock 6-task smoke 在 231 题 bench 上不可比）"
+    f"- `runs/notebook-demo/multi/charts/14_4dim_compare.png`（4 维横评：accuracy / p50 latency / token_in / cost）\\n"
+    f"- `runs/notebook-demo/multi/charts/14_main_score.png`（JevBench 总分排名图）"
 ))
-'''
+
+# === Step 6: Task coverage — 列出每个 provider 实际跑了哪些题 / 没跑哪些 ===
+# 加载真实 task 集（默认是 tasks/public_all.jsonl = 231 题）
+from llm_eval.task import load_tasks
+TASKS_PATH = globals().get("TASKS_PATH", "tasks/public_all.jsonl")  # cell 12 未在本 session 运行时的回退
+_coverage_tasks = load_tasks(TASKS_PATH)
+_all_task_ids = [t.id for t in _coverage_tasks]
+display(Markdown(f"## Task coverage — 跑了哪些 / 没跑哪些\\n\\n"
+                 f"全集: **{len(_all_task_ids)} tasks** (`{TASKS_PATH}`)"))
+
+if real_rows:
+    coverage_lines = ["| runner | total | ok ✓ | invalid ✗ | error ✗ | unattempted | covered task_ids |",
+                      "|---|---|---|---|---|---|---|"]
+    for name in sorted(real_rows.keys()):
+        # Read this runner's results.jsonl
+        rs_path = Path("runs/notebook-demo/real") / name / "results.jsonl"
+        # if symlink, follow
+        statuses = {"ok": [], "invalid": [], "error": [], "unattempted": []}
+        if rs_path.exists():
+            with rs_path.open() as f:
+                for line in f:
+                    try: r = json.loads(line)
+                    except: continue
+                    s = r.get("status", "?")
+                    if s in statuses:
+                        statuses[s].append(r.get("task_id", "?"))
+        covered = sorted(set(sum(statuses.values(), [])))
+        uncovered = sorted(set(_all_task_ids) - set(covered))
+        covered_str = ", ".join(covered[:8])
+        if len(covered) > 8:
+            covered_str += f" … (+{len(covered)-8} more)"
+        coverage_lines.append(
+            f"| {name} | {sum(len(v) for v in statuses.values())} | "
+            f"{len(statuses['ok'])} | {len(statuses['invalid'])} | "
+            f"{len(statuses['error'])} | {len(statuses['unattempted'])} | "
+            f"{covered_str or '—'} |"
+        )
+    display(Markdown("\\n".join(coverage_lines)))
+
+    # 对每个 runner 单独显示 ok / invalid / error / unattempted 的 task_id
+    display(Markdown("### 哪些跑了 / 没跑 (per runner)"))
+    for name in sorted(real_rows.keys()):
+        rs_path = Path("runs/notebook-demo/real") / name / "results.jsonl"
+        statuses = {"ok": [], "invalid": [], "error": [], "unattempted": []}
+        if rs_path.exists():
+            with rs_path.open() as f:
+                for line in f:
+                    try: r = json.loads(line)
+                    except: continue
+                    s = r.get("status", "?")
+                    if s in statuses:
+                        statuses[s].append(r.get("task_id", "?"))
+        covered = sorted(set(sum(statuses.values(), [])))
+        uncovered = sorted(set(_all_task_ids) - set(covered))
+        ok_n = len(statuses['ok'])
+        err_n = len(statuses['error'])
+        unat_n = len(statuses['unattempted'])
+        inv_n = len(statuses['invalid'])
+
+        md_lines = [f"#### `{name}` — covered **{len(covered)}/{len(_all_task_ids)}**"]
+        md_lines.append(f"- ✅ ok ({ok_n}): {', '.join(statuses['ok'][:5])}{' …' if ok_n > 5 else ''}")
+        if inv_n:
+            md_lines.append(f"- ⚠️ invalid ({inv_n}): {', '.join(statuses['invalid'][:5])}{' …' if inv_n > 5 else ''}")
+        if err_n:
+            md_lines.append(f"- ❌ error ({err_n}): {', '.join(statuses['error'][:5])}{' …' if err_n > 5 else ''}")
+        if unat_n:
+            md_lines.append(f"- ⏸️ unattempted ({unat_n}): {', '.join(statuses['unattempted'][:5])}{' …' if unat_n > 5 else ''}")
+        if uncovered:
+            uncovered_str = ', '.join(uncovered[:5])
+            if len(uncovered) > 5:
+                uncovered_str += f' … (+{len(uncovered)-5} more)'
+            md_lines.append(f"- 🕳️ **没跑** ({len(uncovered)}): {uncovered_str}")
+        if not uncovered:
+            md_lines.append("- ✅ 全部题都跑了")
+        display(Markdown("\\n".join(md_lines)))
+else:
+    display(Markdown("_No real runner data — skip coverage report._"))'''
 
 CELL_15_SRC = '''# Cell 15 — 故障模式与设计纪律
 
@@ -1326,8 +1295,8 @@ CELL_15_SRC = '''# Cell 15 — 故障模式与设计纪律
    `native` 分布（TypeSafe 的 Jev、djev 等）通常校准好；`verbalized`（让通用 LLM 写概率）容易翻车。
 
 3. **大量 error 记录**
-   API 返了非 200 / 空 content。DeepSeek-flash 这种 flash 变体观察到 ~28% 空响应率；
-   主入口（deepseek-chat）通常稳定。
+   API 返了非 200 / 空 content。推理模型（gpt-5* / gpt-6*）若把输出预算全用在推理上会返回空 content；
+   adapter 已把它们的输出上限提到 2048 并设 reasoning_effort="low"，仍空则调大 `max_output_tokens`。
 
 ### 预算 ledger 怎么看
 

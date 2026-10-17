@@ -57,7 +57,7 @@ if [ -f ".env" ]; then
     done < .env
     set +a
     echo "    keys loaded (not echoed):"
-    env | grep -E "^(TYPESAFE|DEEPSEEK|DASHSCOPE|ZHIPU|MOONSHOT|ARK|STEPFUN|XIAOMI)_API_KEY" | sed 's/=.*/=***/' | sed 's/^/      /'
+    env | grep -E "^(TYPESAFE|OPENAI)_API_KEY" | sed 's/=.*/=***/' | sed 's/^/      /'
 else
     echo "=== no .env file, all providers will skip (zero-cost mode) ==="
 fi
@@ -65,8 +65,7 @@ fi
 if [ "$MOCK_ONLY" = "1" ]; then
     echo
     echo "=== --mock: unsetting all *_API_KEY to force skip ==="
-    unset TYPESAFE_API_KEY DEEPSEEK_API_KEY DASHSCOPE_API_KEY ZHIPU_API_KEY
-    unset MOONSHOT_API_KEY ARK_API_KEY STEPFUN_API_KEY XIAOMI_API_KEY
+    unset TYPESAFE_API_KEY OPENAI_API_KEY
 fi
 
 echo

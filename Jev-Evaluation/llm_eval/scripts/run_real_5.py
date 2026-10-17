@@ -1,16 +1,14 @@
 """Real-data runner for the notebook demo.
 
-Runs all confirmed-working providers (those whose key + model name are valid)
-end-to-end on tasks/public_all.jsonl. Writes summary.json / results.jsonl /
+Runs the OpenAI model lineup end-to-end on tasks/public_all.jsonl. Writes summary.json / results.jsonl /
 ledger.jsonl / raw/ under runs/notebook-demo/real/<provider>/ so that
 cell 14's cross-model chart can surface real data without any estimation.
 
 Inputs (env vars, never echoed or logged):
-  DEEPSEEK_API_KEY  MOONSHOT_API_KEY  ZHIPU_API_KEY  ARK_API_KEY
+  OPENAI_API_KEY
 
 Notes:
-- StepFun key auth is fine but plan quota is exhausted → SKIP.
-- Xiaomi/MiMo URL is a documented placeholder → SKIP.
+- Prices come from llm_eval.adapters.OPENAI_MODELS (the same table the runner uses).
 - Cell 12 in the notebook sets key_env='' (broken path that ignores env);
   this script sets key_env explicitly so Runner.effective_key() works.
 """
@@ -27,15 +25,15 @@ PROJ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJ))
 
 from llm_eval.multi_config import MultiRunConfig, RunnerConfig  # noqa: E402
+from llm_eval.adapters import OPENAI_MODELS, PROVIDERS as PRESETS  # noqa: E402
 from llm_eval.multi_runner import run_multi  # noqa: E402
 
 
-# (provider_key_env, base_url, adapter, model, in_price, out_price)
+# (provider_key_env, base_url, adapter, model, in_price, out_price, label)
 PROVIDERS = [
-    ("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1",            "deepseek", "deepseek-flash",                0.27, 1.10, "deepseek-flash"),
-    ("MOONSHOT_API_KEY", "https://api.moonshot.cn/v1",             "moonshot", "kimi-k3",                      0.10, 0.30, "kimi-k3"),
-    ("ZHIPU_API_KEY",    "https://open.bigmodel.cn/api/paas/v4",   "glm",      "glm-5.3",                     0.50, 0.50, "glm-5.3-codeplan"),
-    ("ARK_API_KEY",      "https://ark.cn-beijing.volces.com/api/v3", "doubao", "doubao-seed-2-1-pro-260915",    0.80, 1.00, "doubao-2.1-pro"),
+    ("OPENAI_API_KEY", PRESETS["openai"]["base_url"], "openai", model,
+     p["price_in_per_m"], p["price_out_per_m"], model)
+    for model, p in OPENAI_MODELS.items()
 ]
 
 

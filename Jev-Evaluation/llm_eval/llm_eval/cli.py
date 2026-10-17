@@ -1,9 +1,8 @@
 """CLI: run + summarize.
 
 Usage:
-  python -m llm_eval.cli run --tasks tasks/public.jsonl --adapter deepseek \
-      --model deepseek-chat --key-env DEEPSEEK_API_KEY \
-      --price-in-per-m 0.14 --price-out-per-m 2.8 \
+  python -m llm_eval.cli run --tasks tasks/public.jsonl --adapter openai \
+      --model gpt-6-luna --key-env OPENAI_API_KEY \
       --results runs/ds/results.jsonl --raw-dir runs/ds/raw \
       --ledger runs/ds/ledger.jsonl --cap-usd 5
 
@@ -32,8 +31,10 @@ def cmd_run(a):
     tasks = load_tasks(a.tasks)
     price_in = float(a.price_in_per_m) if a.price_in_per_m is not None else None
     price_out = float(a.price_out_per_m) if a.price_out_per_m is not None else None
-    from .adapters import resolve_prices
-    price_in, price_out = resolve_prices(a.adapter, price_in, price_out)
+    from .adapters import PROVIDERS, effective_max_output_tokens, resolve_prices
+    model = a.model or PROVIDERS.get(a.adapter, {}).get("default_model", "")
+    price_in, price_out = resolve_prices(a.adapter, price_in, price_out, model=model)
+    max_output_tokens = effective_max_output_tokens(model, a.max_output_tokens)
     key = os.environ.get(a.key_env, "") if a.key_env else ""
 
     adapter_factory = _adapters()
@@ -46,7 +47,7 @@ def cmd_run(a):
         price_in_per_m=price_in,
         price_out_per_m=price_out,
         max_input_tokens=a.max_input_tokens,
-        max_output_tokens=a.max_output_tokens,
+        max_output_tokens=max_output_tokens,
     )
 
     results = run(
@@ -60,7 +61,7 @@ def cmd_run(a):
         price_out_per_m=price_out,
         delay_s=a.delay_s,
         max_input_tokens=a.max_input_tokens,
-        max_output_tokens=a.max_output_tokens,
+        max_output_tokens=max_output_tokens,
     )
     print(
         f"completed: {sum(1 for r in results if r.get('status') == 'ok')} ok / "
@@ -144,13 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         choices=[
             "mock",
             "openai_compat",
-            "deepseek",
-            "qwen",
-            "glm",
-            "moonshot",
-            "doubao",
-            "stepfun",
-            "xiaomi",
+            "openai",
         ],
     )
     p_run.add_argument("--model", default="", help="model name (provider-specific)")

@@ -20,6 +20,12 @@ from .base import AdapterError, DecisionResult, build_decision_prompt, http_post
 
 CHAT_COMPLETIONS = "/chat/completions"
 
+
+def is_reasoning_model(model: str) -> bool:
+    """GPT-5+/o-series reject temperature != 1 and `max_tokens`."""
+    m = (model or "").lower().split("/")[-1]
+    return m.startswith(("gpt-5", "gpt-6", "o1", "o3", "o4"))
+
 # JSON-schema fragment forcing a probability map over the exact label set.
 def _probs_schema(labels: list[str]) -> dict:
     return {
@@ -110,11 +116,18 @@ class OpenAICompatAdapter:
                     ),
                 },
             ],
-            "temperature": 0,
-            "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
         }
-        # Provider-specific overrides (DashScope 'qwen3-max' style aliases, etc.)
+        if is_reasoning_model(self.model):
+            # Reasoning models only accept the default temperature and
+            # take `max_completion_tokens`; low effort keeps the hidden
+            # reasoning inside the output budget.
+            body["max_completion_tokens"] = self.max_tokens
+            body["reasoning_effort"] = "low"
+        else:
+            body["temperature"] = 0
+            body["max_tokens"] = self.max_tokens
+        # Per-run overrides; a None value removes the key (e.g. reasoning_effort).
         for k, v in self.request_options.items():
             if v is None:
                 body.pop(k, None)

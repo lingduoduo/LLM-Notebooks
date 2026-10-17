@@ -12,7 +12,7 @@ from typing import Any
 from .base import AdapterError
 from .laya_local import LayaLocalAdapter
 from .mock import MockAdapter
-from .openai_compat import OpenAICompatAdapter
+from .openai_compat import OpenAICompatAdapter, is_reasoning_model
 from .typesafe import TypesafeAdapter
 
 
@@ -43,70 +43,16 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "mode": "native",
         "notes": "Alias of `jev`. See https://docs.typesafe.ai/models",
     },
-    # ── Chinese-model evaluation set (verbalized via JSON schema) ──────
-    "deepseek": {
-        "base_url": "https://api.deepseek.com/v1",
-        "default_model": "deepseek-flash",  # was deepseek-v4.1
-        "price_in_per_m": 0.27,             # V4.1 cache-miss input (placeholder)
-        "price_out_per_m": 1.10,
-        "mode": "verbalized",
-        "notes": "DeepSeek-flash (cache-miss input; cache-hit $0.07/M). Use deepseek-v4-pro for higher quality.",
-    },
-    "qwen": {
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "default_model": "qwen3.8-max",     # was qwen-plus
-        "price_in_per_m": 0.004,
-        "price_out_per_m": 0.012,
-        "mode": "verbalized",
-        "notes": "DashScope OpenAI-compatible mode. qwen3.8-max / qwen3-max / qwen-plus.",
-    },
-    "glm": {
-        "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        "default_model": "glm-5.3",         # was glm-4-plus
-        "price_in_per_m": 0.50,
+    # ── OpenAI evaluation set (verbalized via JSON schema) ──────────────
+    # One preset for every OpenAI model; per-model prices live in
+    # OPENAI_MODELS below and are picked up by resolve_prices(model=...).
+    "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "default_model": "gpt-6-luna",
+        "price_in_per_m": 0.10,
         "price_out_per_m": 0.50,
         "mode": "verbalized",
-        "notes": "Zhipu BigModel. GLM-5.3 codeplan tier — 0.5/0.5 USD per 1M.",
-    },
-    "moonshot": {
-        "base_url": "https://api.moonshot.cn/v1",
-        "default_model": "kimi-k3",         # was moonshot-v1-32k
-        "price_in_per_m": 0.10,
-        "price_out_per_m": 0.30,
-        "mode": "verbalized",
-        "notes": "Moonshot Kimi K3. temperature=1 only — set request_options={'temperature': 1}.",
-    },
-    "doubao": {
-        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-        "default_model": "",                # auto-discover latest doubao-seed-2-1-pro-* endpoint
-        "price_in_per_m": 0.80,
-        "price_out_per_m": 1.00,
-        "mode": "verbalized",
-        "notes": "ByteDance 豆包 via 火山方舟. --model takes the endpoint id (e.g. doubao-seed-2-1-pro-260915); the notebook auto-discovers it.",
-    },
-    "stepfun": {
-        "base_url": "https://api.stepfun.com/v1",
-        "default_model": "step-5",          # was step-1-8k
-        "price_in_per_m": 1.00,
-        "price_out_per_m": 2.00,
-        "mode": "verbalized",
-        "notes": "阶跃星辰 StepFun codingplan tier. step-5 / step-2 / step-1.",
-    },
-    "xiaomi": {
-        "base_url": "https://api.xiaomi.com/v1",
-        "default_model": "mimo-2.6-pro",    # was mimo
-        "price_in_per_m": None,
-        "price_out_per_m": None,
-        "mode": "verbalized",
-        "notes": "小米 MiMo 2.6-pro. base_url is a placeholder until the public API is confirmed — verify before charging.",
-    },
-    "k3": {  # alias of moonshot (kept for back-compat with older configs)
-        "base_url": "https://api.moonshot.cn/v1",
-        "default_model": "kimi-k3",
-        "price_in_per_m": 0.10,
-        "price_out_per_m": 0.30,
-        "mode": "verbalized",
-        "notes": "Alias of `moonshot` with default_model=kimi-k3.",
+        "notes": "OpenAI Chat Completions. Pick the model with --model; see OPENAI_MODELS for the evaluated lineup.",
     },
     # ── Laya local serve ──────────────────────────────────────────────────
     # Native Laya typed-decision endpoint, exposed by `python -m laya.serve`
@@ -123,15 +69,43 @@ PROVIDERS: dict[str, dict[str, Any]] = {
 }
 
 
+# OpenAI models evaluated by the notebook. Standard-tier USD per 1M tokens
+# (short context), from https://developers.openai.com/api/docs/pricing
+# (checked 2026-10-17). Unlisted models fall back to the `openai` preset price.
+OPENAI_MODELS: dict[str, dict[str, float]] = {
+    "gpt-6.1-sol":   {"price_in_per_m": 2.00, "price_out_per_m": 10.00},
+    "gpt-6-luna":    {"price_in_per_m": 0.10, "price_out_per_m": 0.50},
+    "gpt-5.6-terra": {"price_in_per_m": 2.00, "price_out_per_m": 12.00},
+    "gpt-5.6-luna":  {"price_in_per_m": 0.20, "price_out_per_m": 1.20},
+    "gpt-4.1-mini":  {"price_in_per_m": 0.40, "price_out_per_m": 1.60},
+}
+
+# Reasoning models spend output tokens on hidden reasoning before the answer,
+# so a 200-token cap leaves them with an empty reply. Both the adapter and the
+# runner's budget reservation use effective_max_output_tokens() so they agree.
+REASONING_MIN_OUTPUT_TOKENS = 2048
+
+
+def effective_max_output_tokens(model: str, requested: int) -> int:
+    if is_reasoning_model(model):
+        return max(int(requested), REASONING_MIN_OUTPUT_TOKENS)
+    return int(requested)
+
+
 def resolve_prices(
-    name: str, price_in_per_m: float | None, price_out_per_m: float | None
+    name: str,
+    price_in_per_m: float | None,
+    price_out_per_m: float | None,
+    model: str = "",
 ) -> tuple[float | None, float | None]:
-    """Fill unspecified prices from the provider preset.
+    """Fill unspecified prices from the model table, then the provider preset.
 
     Without this, a preset adapter run without explicit prices records $0
     and reserves $0, so the budget cap never engages.
     """
-    spec = PROVIDERS.get(name, {})
+    spec = dict(PROVIDERS.get(name, {}))
+    if name == "openai":
+        spec.update(OPENAI_MODELS.get(model or spec.get("default_model", ""), {}))
     if price_in_per_m is None:
         price_in_per_m = spec.get("price_in_per_m")
     if price_out_per_m is None:
@@ -165,7 +139,7 @@ def get_adapter(
             model=model,
             key=key,
             request_options=request_options,
-            max_tokens=max_output_tokens,
+            max_tokens=effective_max_output_tokens(model, max_output_tokens),
         )
     if name in PROVIDERS:
         spec = PROVIDERS[name]
@@ -194,6 +168,6 @@ def get_adapter(
             model=mdl,
             key=key,
             request_options=request_options,
-            max_tokens=max_output_tokens,
+            max_tokens=effective_max_output_tokens(mdl, max_output_tokens),
         )
     raise ValueError(f"unknown adapter: {name!r}")
