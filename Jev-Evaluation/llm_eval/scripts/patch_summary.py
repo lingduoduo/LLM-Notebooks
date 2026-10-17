@@ -40,17 +40,15 @@ def main():
 
     # Same aggregation as llm_eval.summarize, so partial and final summaries agree.
     sys.path.insert(0, str(PROJ))
-    from llm_eval.adapters import PROVIDERS
+    from llm_eval.adapters import OPENAI_MODELS
     from llm_eval.summarize import load_results, public_export
     from llm_eval.task import load_tasks
     tasks = load_tasks(str(PROJ / "tasks" / "public_all.jsonl"))
 
     # Map label → (price_in_per_m, price_out_per_m) — same source the runner uses.
     PRICE_BY_LABEL = {
-        "deepseek-flash":     (PROVIDERS["deepseek"]["price_in_per_m"], PROVIDERS["deepseek"]["price_out_per_m"]),
-        "kimi-k3":            (PROVIDERS.get("moonshot", {}).get("price_in_per_m"), PROVIDERS.get("moonshot", {}).get("price_out_per_m")),
-        "glm-5.3-codeplan":   (PROVIDERS.get("glm", {}).get("price_in_per_m"), PROVIDERS.get("glm", {}).get("price_out_per_m")),
-        "doubao-2.1-pro":     (0.80, 1.00),  # 20-yuan plan: user-confirmed price tier
+        model: (p["price_in_per_m"], p["price_out_per_m"])
+        for model, p in OPENAI_MODELS.items()
     }
     price_in, price_out = PRICE_BY_LABEL.get(label, (None, None))
 

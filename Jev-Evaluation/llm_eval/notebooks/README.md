@@ -31,16 +31,12 @@ Cell 0 自动检测当前平台并选用合适的 `pip install` 入口。
 
 ### A. 直接粘贴到 cell 11（**学习用，最方便**）
 
-打开 cell 11，把你的 key 填进 `direct_keys` 字典。Notebook 已经按你列出的 6 个 provider 配置好：
+打开 cell 11，把你的 key 填进 `direct_keys` 字典。Notebook 配置了 6 个 provider：Jev（native）+ 5 个 OpenAI 模型（verbalized，共用一个 key）：
 
 ```python
 direct_keys = {
-    "MOONSHOT_API_KEY":  "",   # kimi k3（直连）
-    "DEEPSEEK_API_KEY":  "",   # deepseek-flash（直连）
-    "ZHIPU_API_KEY":     "",   # glm5.3 codeplan
-    "ARK_API_KEY":       "",   # doubao 2.1 pro（直连）
-    "STEPFUN_API_KEY":   "",   # step5 codingplan
-    "XIAOMI_API_KEY":    "",   # mimo（直连）
+    "TYPESAFE_API_KEY": "",   # Jev (TypeSafe System One, native)
+    "OPENAI_API_KEY":   "",   # OpenAI — gpt-6.1-sol / gpt-6-luna / gpt-5.6-terra / gpt-5.6-luna / gpt-4.1-mini
 }
 ```
 
@@ -56,55 +52,50 @@ direct_keys = {
 ### B. 环境变量（**生产 / 共享场景**）
 
 ```bash
-export MOONSHOT_API_KEY="sk-..."     # kimi k3
-export DEEPSEEK_API_KEY="sk-..."     # deepseek-flash
-export ZHIPU_API_KEY="..."           # glm 5.3 codeplan
-export ARK_API_KEY="..."             # doubao 2.1 pro
-export STEPFUN_API_KEY="..."         # step5 codingplan
-export XIAOMI_API_KEY="..."          # mimo
+export TYPESAFE_API_KEY="tsk_..."    # Jev
+export OPENAI_API_KEY="sk-..."       # 全部 OpenAI 模型
 ```
 
 Cell 11 / 12 自动检测两路来源，**A 优先于 B**。
 Cell 11 的"source"列会显示每个 key 来自 `pasted` 还是 `env`。
 
-### 改 base_url（直连 / Coding Plan / 中转站）
+### 改 base_url（Azure OpenAI / 代理 / 兼容网关）
 
-每个 provider 默认走官方端点。Notebook 里 4 个走"直连"，2 个走 codeplan 默认；如果你的 codeplan 端点和官方端点不同：
+每个 provider 默认走官方端点。如需改走 Azure OpenAI、代理或 OpenAI 兼容网关：
 
-**Cell 11 内置粘贴区**（已预填直连默认值）：
+**Cell 11 内置粘贴区**（已预填官方默认值）：
 ```python
 base_url_overrides = {
-    "MOONSHOT_API_KEY": "https://api.moonshot.cn/v1",     # kimi k3 直连
-    "DEEPSEEK_API_KEY": "https://api.deepseek.com/v1",     # deepseek 直连
-    "ARK_API_KEY":      "https://ark.cn-beijing.volces.com/api/v3",  # doubao 直连
-    "XIAOMI_API_KEY":   "https://api.xiaomi.com/v1",       # mimo 直连
-    # ↓ 如果你的 codeplan 端点和直连不同，把下面这两行的 # 去掉并填：
-    # "ZHIPU_API_KEY":  "https://your-glm-codeplan-endpoint.com/v1",
-    # "STEPFUN_API_KEY": "https://your-step-codeplan-endpoint.com/v1",
+    "TYPESAFE_API_KEY":  "https://api.typesafe.ai",     # Jev (native)
+    "OPENAI_API_KEY":    "https://api.openai.com/v1",   # OpenAI
 }
 ```
 
-**或用 env var**（同样优先级低于 base_url_overrides）：
+**或用 env var**（优先级低于 base_url_overrides）：
 
 ```bash
-export ZHIPU_API_KEY_BASE_URL="https://your-glm-codeplan-endpoint.com/v1"
-export STEPFUN_API_KEY_BASE_URL="https://your-step-codeplan-endpoint.com/v1"
+export OPENAI_API_KEY_BASE_URL="https://your-gateway.example.com/v1"
 ```
 
 Cell 11 的检测表会显示**当前生效的 base_url**（如果是覆盖值，会显示覆盖后的，不是默认）。
 
-### 当前 6 个 provider 的价格假设
+### 当前 6 个 provider 的价格
+
+价格来自 [OpenAI 官方价目](https://developers.openai.com/api/docs/pricing)（standard tier，短上下文，2026-10-17 核对），
+定义在 `llm_eval/adapters/__init__.py` 的 `OPENAI_MODELS`，notebook 与 runner 记账同源。
 
 | provider | input $/M | output $/M | 备注 |
 |---|---|---|---|
-| deepseek-flash | 0.27 | 1.10 | V3.x cache miss，官方价 |
-| kimi-k3 | 0.10 | 0.30 | 估算（K3 比 v1-32k 便宜，请按实际校准） |
-| glm-5.3-codeplan | 0.50 | 0.50 | 估算（codeplan 通常按 token 计价） |
-| doubao-2.1-pro | 0.80 | 1.00 | 估算（20 元 plan 的 token 价） |
-| step-5-codeplan | 1.00 | 2.00 | 估算（codingplan） |
-| mimo | — | — | 暂无公开价 |
+| jev | 0.042 | 0 | native System One，output 免费 |
+| gpt-6.1-sol | 2.00 | 10.00 | 推理模型 |
+| gpt-6-luna | 0.10 | 0.50 | 推理模型，`openai` preset 默认 |
+| gpt-5.6-terra | 2.00 | 12.00 | 推理模型 |
+| gpt-5.6-luna | 0.20 | 1.20 | 推理模型 |
+| gpt-4.1-mini | 0.40 | 1.60 | 非推理模型（temperature=0 基线） |
 
-如果实际价格不同，编辑 cell 11 / 12 的 PROVIDER_TABLE 调整。
+推理模型（gpt-5* / gpt-6* / o 系列）由 adapter 自动改用 `max_completion_tokens`、去掉 `temperature`、
+设 `reasoning_effort="low"`，并把输出上限提到 2048（预算 ledger 按同一上限预留）。
+如果实际价格变化，编辑 `OPENAI_MODELS` 即可。
 
 ## 调参
 

@@ -23,11 +23,8 @@ def main():
         print(f"missing env var {env_name!r}; export it before running", flush=True)
         return 1
 
-    # Provider-specific request_options overrides
+    # Reasoning-model parameters are handled by the adapter; nothing to override.
     request_options = None
-    if label == "kimi-k3":
-        # kimi-k3 only accepts temperature=1
-        request_options = {"temperature": 1}
 
     run_id = f"cell12-{label}"
     tmp_out = out_root / "_tmp" / run_id

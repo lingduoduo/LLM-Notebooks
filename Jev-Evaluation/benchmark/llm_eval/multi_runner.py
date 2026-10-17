@@ -26,7 +26,7 @@ from pathlib import Path
 
 from .adapters import get_adapter
 from .multi_config import MultiRunConfig, RunnerConfig
-from .adapters import resolve_prices
+from .adapters import PROVIDERS, effective_max_output_tokens, resolve_prices
 from .runner import _FINAL_STATUSES, run
 from .summarize import load_results, public_export
 from .task import dataset_hash, load_tasks
@@ -100,9 +100,11 @@ def run_multi(cfg: MultiRunConfig) -> dict:
             print(f"[skip] {runner.name}: already complete in {out_dir}", flush=True)
             continue
 
+        model = runner.model or PROVIDERS.get(runner.adapter, {}).get("default_model", "")
         price_in, price_out = resolve_prices(
-            runner.adapter, runner.price_in_per_m, runner.price_out_per_m
+            runner.adapter, runner.price_in_per_m, runner.price_out_per_m, model=model
         )
+        max_output_tokens = effective_max_output_tokens(model, cfg.max_output_tokens)
         try:
             adapter = get_adapter(
                 name=runner.adapter,
@@ -113,7 +115,7 @@ def run_multi(cfg: MultiRunConfig) -> dict:
                 price_in_per_m=price_in,
                 price_out_per_m=price_out,
                 max_input_tokens=cfg.max_input_tokens,
-                max_output_tokens=cfg.max_output_tokens,
+                max_output_tokens=max_output_tokens,
             )
         except Exception as e:
             entry["status"] = "config_error"
@@ -160,7 +162,7 @@ def run_multi(cfg: MultiRunConfig) -> dict:
                 price_out_per_m=price_out,
                 delay_s=cfg.delay_s,
                 max_input_tokens=cfg.max_input_tokens,
-                max_output_tokens=cfg.max_output_tokens,
+                max_output_tokens=max_output_tokens,
                 runner_name=runner.name,
                 verbose=True,
             )
