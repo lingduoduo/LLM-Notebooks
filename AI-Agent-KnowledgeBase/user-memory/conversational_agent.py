@@ -56,7 +56,7 @@ class ConversationalAgent:
         Args:
             user_id: Unique user identifier
             api_key: API key (defaults to env based on provider)
-            provider: LLM provider ('openai', 'siliconflow', 'doubao', 'openrouter')
+            provider: LLM provider ('openai', 'siliconflow', 'openrouter')
             model: Model name (defaults to provider's default)
             config: Agent configuration
             memory_mode: Memory storage mode
@@ -102,12 +102,6 @@ class ConversationalAgent:
                 base_url="https://api.siliconflow.cn/v1"
             )
             self.model = model or "Qwen/Qwen3-235B-A22B-Thinking-2507"
-        elif self.provider == "doubao":
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url="https://ark.cn-beijing.volces.com/api/v3"
-            )
-            self.model = model or "doubao-seed-1-6-thinking-250715"
         elif self.provider == "openrouter":
             self.client = OpenAI(
                 api_key=api_key,
@@ -117,7 +111,7 @@ class ConversationalAgent:
             self.model = model or "google/gemini-3.5-flash"
             # Supported models: google/gemini-3.5-flash, openai/gpt-5, anthropic/claude-sonnet-4
         else:
-            raise ValueError(f"Unsupported provider: {self.provider}. Use 'openai', 'siliconflow', 'doubao', or 'openrouter'")
+            raise ValueError(f"Unsupported provider: {self.provider}. Use 'openai', 'siliconflow', or 'openrouter'")
         
         # Initialize memory manager (read-only access)
         self.memory_manager = create_memory_manager(user_id, memory_mode)

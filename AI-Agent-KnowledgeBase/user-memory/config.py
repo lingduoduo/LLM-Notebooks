@@ -30,7 +30,7 @@ def _is_reasoning_model(model) -> bool:
 def _reasoning_safe_temperature(model, requested=1.0):
     """Reasoning models (GPT-5, o-series, ...) only accept temperature=1.
     Return 1 for those; otherwise the requested value so non-reasoning
-    providers (Doubao, DeepSeek, Qwen) are unchanged."""
+    providers (DeepSeek, Qwen) are unchanged."""
     return 1 if _is_reasoning_model(model) else requested
 
 
@@ -60,7 +60,7 @@ def openrouter_model_id(model) -> str:
         return "openai/" + m
     if ml.startswith("claude-"):
         return "anthropic/claude-opus-4.8"
-    # Provider-native ids (doubao-*/qwen/deepseek-*) not hosted on OpenRouter
+    # Provider-native ids (qwen/deepseek-*) not hosted on OpenRouter
     # under the same name -> a widely-available OpenAI chat model.
     return "openai/" + DEFAULT_OPENAI_MODEL
 
@@ -70,7 +70,6 @@ def openrouter_model_id(model) -> str:
 PROVIDER_DEFAULT_MODELS = {
     "openai": DEFAULT_OPENAI_MODEL,
     "siliconflow": "Qwen/Qwen3-235B-A22B-Thinking-2507",
-    "doubao": "doubao-seed-1-6-thinking-250715",
 }
 
 
@@ -91,14 +90,12 @@ class Config:
     # API Keys for different providers
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     SILICONFLOW_API_KEY: str = os.getenv("SILICONFLOW_API_KEY", "")
-    DOUBAO_API_KEY: str = os.getenv("DOUBAO_API_KEY", "")
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 
     # Base URLs for different providers
     # OPENAI_BASE_URL lets you point at Azure/proxy/compatible gateways
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     SILICONFLOW_BASE_URL: str = "https://api.siliconflow.cn/v1"
-    DOUBAO_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     
     # Model Configuration
@@ -151,8 +148,6 @@ class Config:
             return cls.OPENAI_API_KEY
         elif provider == "siliconflow":
             return cls.SILICONFLOW_API_KEY
-        elif provider == "doubao":
-            return cls.DOUBAO_API_KEY
         elif provider == "openrouter":
             return cls.OPENROUTER_API_KEY
         else:
@@ -178,8 +173,6 @@ class Config:
                 print("Please set OPENAI_API_KEY in .env file or as environment variable")
             elif provider == "siliconflow":
                 print("Please set SILICONFLOW_API_KEY in .env file or as environment variable")
-            elif provider == "doubao":
-                print("Please set DOUBAO_API_KEY in .env file or as environment variable")
             elif provider == "openrouter":
                 print("Please set OPENROUTER_API_KEY in .env file or as environment variable")
             else:
@@ -254,7 +247,6 @@ class Config:
         print("\nAPI Keys:")
         print(f"  OpenAI: {'✓ Set' if cls.OPENAI_API_KEY else '✗ Not set'}")
         print(f"  SiliconFlow: {'✓ Set' if cls.SILICONFLOW_API_KEY else '✗ Not set'}")
-        print(f"  Doubao: {'✓ Set' if cls.DOUBAO_API_KEY else '✗ Not set'}")
         print(f"  OpenRouter: {'✓ Set' if cls.OPENROUTER_API_KEY else '✗ Not set'}")
         print(f"  Dify: {'✓ Set' if cls.DIFY_API_KEY else '✗ Not set'}")
         
