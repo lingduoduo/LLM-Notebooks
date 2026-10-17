@@ -205,7 +205,7 @@ Environment configuration:
 
 All live model calls require `OPENAI_API_KEY` (or `--api-key` for the comparison runner).
 The default endpoint is OpenAI directly; there is no automatic OpenRouter fallback.
-If an existing `.env` sets `OPENAI_BASE_URL` to Moonshot or another provider, change it to
+If an existing `.env` sets `OPENAI_BASE_URL` to another provider, change it to
 `https://api.openai.com/v1`. The official experiment runner always uses the direct OpenAI endpoint.
 Choose a different OpenAI model with `OPENAI_MODEL` or `--model`.
 
@@ -243,9 +243,9 @@ python run_official_experiment.py --model gpt-5.6-luna --run-id exp10-1-openai-t
 This path requires `OPENAI_API_KEY` and `TAVILY_API_KEY`. It defaults to
 `https://api.openai.com/v1` and accepts `--base-url` (or `OPENAI_BASE_URL`) for any
 OpenAI-compatible endpoint. The receipt file and the provenance gate names carry the
-provider label derived from that URL, so the default writes `openai_receipts.json`
-while `--base-url https://api.moonshot.cn/v1` writes `moonshot_receipts.json` -- which
-is how the retained `kimi-k2.5` bundle below was produced.
+provider label derived from that URL, so the default writes `openai_receipts.json`.
+The retained `kimi-k2.5` bundle below was produced with a Moonshot backend that has
+since been removed; its `moonshot_receipts.json` is kept unchanged as a record of that run.
 It retains credential-free raw OpenAI requests/responses, response IDs
 and usage, raw Tavily HTTP response bodies with the API key removed from the
 stored request, current runtime source hashes, artifact hashes, and a combined
@@ -436,7 +436,7 @@ According to public data from CAAM, China's new energy vehicle sales grew from 3
 
 ## Interpretation and Limitations
 
-- The default model is `gpt-5.6-luna`; whether the handoff follows the expected chain depends heavily on the selected model's instruction-following ability. Switching models may yield different results. Note that no retained bundle was produced with this default: the official run used Moonshot `kimi-k2.5` and the comparison campaign used `qwen/qwen3.5-flash-02-23` via OpenRouter, so the default is unvalidated here.
+- The default model is `gpt-5.6-luna`; whether the handoff follows the expected chain depends heavily on the selected model's instruction-following ability. Switching models may yield different results. Note that no retained bundle was produced with this default: the official run used Moonshot `kimi-k2.5` and the comparison campaign used `qwen/qwen3.5-flash-02-23` via OpenRouter, so the default is unvalidated here. Those hosted backends (Moonshot, and Qwen via OpenRouter) have since been removed from the code; OpenAI is the only configured provider, and their retained bundles are historical records, not re-measured.
 - Prefix-cache reuse is provider dependent. Use the provider-reported `cached_tokens` field when available; otherwise
   label any prefix-hash comparison as a mechanism proxy rather than measured cache savings.
 - The Skill arm intentionally keeps all tool schemas stable and visible. A Skill is a soft behavioral boundary, not a
