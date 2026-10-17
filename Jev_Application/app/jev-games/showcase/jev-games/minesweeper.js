@@ -55,8 +55,8 @@ function render() {
   document.getElementById('oldConf').textContent = `confidence ${Math.round((oldAnswer.confidence || 0) * 100)}%`;
   document.getElementById('newConf').textContent = `confidence ${Math.round((newAnswer.confidence || 0) * 100)}%`;
   document.getElementById('oldAction').textContent = base.selected ? `Jev → ${base.selected.split('_').slice(1).join(',')}` : '等待动作';
-  document.getElementById('newAction').textContent = improved.selected ? `Jev → ${improved.selected.split('_').slice(0, 2).join(',')}` : '等待动作';
-  document.getElementById('oldText').textContent = base.status === 'game_over' ? 'Jev 翻开的格子是雷，标准规则结束本局。' : '只根据当前可见棋盘选择下一格。';
+  document.getElementById('newAction').textContent = improved.selected ? `Jev → ${improved.selected.split('_').slice(1).join(',')}` : '等待动作';
+  document.getElementById('oldText').textContent = base.after?.status === 'lost' ? 'Jev 翻开的格子是雷，标准规则结束本局。' : '只根据当前可见棋盘选择下一格。';
   document.getElementById('newText').textContent = improved.selected?.startsWith('flag') ? '确定雷优先插旗，再继续推理。' : '先处理确定安全格，再比较风险。';
   document.getElementById('oldChips').innerHTML = ['visible board only', `reveal candidates: ${base.state?.actions?.length || 0}`].map(value => `<span class="chip">${value}</span>`).join('');
   document.getElementById('newChips').innerHTML = [`safe: ${improved.state?.safeReveals?.length || 0}`, `suspected: ${improved.state?.suspectedMines?.length || 0}`, `risk candidates: ${improved.state?.riskCandidates?.length || 0}`].map(value => `<span class="chip">${value}</span>`).join('');
@@ -66,7 +66,7 @@ function render() {
   document.getElementById('stepActionText').textContent = '左边把未知格都交给 Jev；右边按确定雷、确定安全格和风险候选缩小范围。';
   document.getElementById('stepAnswerTitle').textContent = `原始 ${base.selected || '等待'} · 约束 ${improved.selected || '等待'}`;
   document.getElementById('stepAnswerText').textContent = `confidence：${Math.round((oldAnswer.confidence || 0) * 100)}% → ${Math.round((newAnswer.confidence || 0) * 100)}%。`;
-  document.getElementById('stepFeedbackTitle').textContent = `原始 ${base.status || 'playing'} · 约束 ${improved.after?.status || 'playing'}`;
+  document.getElementById('stepFeedbackTitle').textContent = `原始 ${base.after?.status || 'playing'} · 约束 ${improved.after?.status || 'playing'}`;
   document.getElementById('stepFeedbackText').textContent = '动作执行后的棋盘状态会成为下一步输入。';
   document.getElementById('baselineJson').textContent = JSON.stringify({board: base.request?.state, answer: base.answer, action: base.action}, null, 2);
   document.getElementById('shapedJson').textContent = JSON.stringify({board: improved.request?.state, answer: improved.answer, action: improved.action}, null, 2);

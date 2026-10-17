@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { makeBoard, initialGame, applyAction, makeRequest, parseCell, cellName } from './mines-comparison-core.mjs';
+import { makeBoard, initialGame, applyAction, makeRequest, parseCell } from './mines-comparison-core.mjs';
 
 const root = new URL('../', import.meta.url);
 const seed = Number(process.argv[2] || 20260922);
@@ -41,12 +41,6 @@ async function run(variant) {
   result[variant].final = structuredClone(game);
 }
 // Independent runs share immutable board and opening; neither can see the other run.
-function baselineRequest(game) {
-  const covered = game.visible.flatMap((v,i) => v === '#' ? [i] : []);
-  const state = {size:14, totalMines:20, board:Array.from({length:14},(_,r)=>game.visible.slice(r*14,(r+1)*14)), covered, actions:covered.map(i=>`reveal_${Math.floor(i/14)}_${i%14}`), moves:game.moves};
-  const criteria = Object.fromEntries(covered.map(cell => [cellName(cell), 'Reveal this covered cell using only the visible board.']));
-  return {payload:{model:'jev-latest',state,questions:{action:{type:'choice',instructions:'Choose one covered cell to reveal using only the currently visible board. Do not assume hidden history or hidden mine locations.',criteria}}},phase:'baseline',kinds:['reveal'],targets:covered};
-}
 if (mode === 'baseline') await run('baseline'); else if (mode === 'shaped') await run('shaped'); else await Promise.all([run('baseline'),run('shaped')]);
 await save();
 if (!targetOutput) await writeFile(new URL('showcase/jev-games/traces/minesweeper-pair.js', root), 'window.MINESWEEPER_PAIR = ' + JSON.stringify(result) + ';\n');

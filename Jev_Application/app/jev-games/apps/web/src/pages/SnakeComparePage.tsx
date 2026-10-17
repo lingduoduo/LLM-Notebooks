@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
-import type { TraceEvent } from '../lib/trace';
+import { clampTraceStep, type TraceEvent } from '../lib/trace';
 
 type Point = { x: number; y: number };
 type SnakeState = { grid: number; snake: Point[]; food: Point; legalMoves?: string[]; plannedDirection?: string; loopDetected?: boolean; recentHeads?: Point[]; score?: number; direction?: Point | string };
@@ -16,7 +16,7 @@ function drawBoard(canvas: HTMLCanvasElement | null, event: SnakeEvent | undefin
 export default function SnakeComparePage() {
   const [oldTrace, setOldTrace] = useState<SnakeEvent[]>([]); const [newTrace, setNewTrace] = useState<SnakeEvent[]>([]); const [step, setStep] = useState(0); const [playing, setPlaying] = useState(false); const oldCanvas = useRef<HTMLCanvasElement>(null); const newCanvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => { Promise.all([fetch('/traces/snake-baseline-live.json').then(response => response.json()), fetch('/traces/snake-live.json').then(response => response.json())]).then(([oldData, newData]) => { setOldTrace(eventsFrom(oldData)); setNewTrace(eventsFrom(newData)); }); }, []);
-  const total = Math.min(oldTrace.length, newTrace.length); const index = total ? Math.min(step, total - 1) : 0; const oldEvent = oldTrace[index]; const newEvent = newTrace[index];
+  const total = Math.max(oldTrace.length, newTrace.length); const index = total ? Math.min(step, total - 1) : 0; const oldEvent = oldTrace[clampTraceStep(index, { events: oldTrace })]; const newEvent = newTrace[clampTraceStep(index, { events: newTrace })];
   useEffect(() => { drawBoard(oldCanvas.current, oldEvent, accents.old); drawBoard(newCanvas.current, newEvent, accents.shaped); }, [oldEvent, newEvent]);
   useEffect(() => { if (!playing || !total) return; const timer = window.setInterval(() => setStep(value => value >= total - 1 ? (setPlaying(false), value) : value + 1), 650); return () => window.clearInterval(timer); }, [playing, total]);
   return <section className="react-compare"><div className="compare-head"><div><p className="eyebrow">REACT TRACE VIEWER / SNAKE</p><h1>同一条蛇，两种交互</h1><p>先看本轮输入，再看 Jev 的选择，最后核对实际执行动作。</p></div><span className="compare-status">{total ? (playing ? '两边同步播放' : '可以逐步查看') : '正在加载记录'}</span></div><div className="compare-toolbar"><button className="primary-button" onClick={() => setPlaying(value => !value)}>{playing ? '暂停' : '播放'}</button><button onClick={() => setStep(value => Math.max(0, value - 1))}>←</button><button onClick={() => setStep(value => Math.min(Math.max(0, total - 1), value + 1))}>→</button><button onClick={() => { setPlaying(false); setStep(0); }}>重置</button><span>STEP {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</span></div><div className="react-boards"><SnakeCard title="原始 Jev" subtitle="只传当前棋盘" accent={accents.old} canvasRef={oldCanvas} event={oldEvent} /><SnakeCard title="约束后 Jev" subtitle="状态 + 反馈" accent={accents.shaped} canvasRef={newCanvas} event={newEvent} /></div></section>;

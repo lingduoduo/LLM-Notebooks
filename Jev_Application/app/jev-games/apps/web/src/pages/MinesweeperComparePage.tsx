@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import type { TraceEvent } from '../lib/trace';
+import { clampTraceStep, traceLength, type TraceEvent } from '../lib/trace';
 
 type MineEvent = TraceEvent & { before?: { visible: string[] }; after?: { visible: string[] }; action?: { kind?: string; cell?: number }; request?: { state?: { size?: number } }; answer?: { answers?: Record<string, { choice?: string; confidence?: number }> } };
 type Pair = { board: { size: number; mineCount: number }; baseline: { events: MineEvent[] }; shaped: { events: MineEvent[] } };
@@ -9,10 +9,11 @@ export default function MinesweeperComparePage() {
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
   useEffect(() => { fetch('/traces/minesweeper-pair.json').then(r => r.json()).then(setPair); }, []);
-  const total = Math.min(pair?.baseline.events.length ?? 0, pair?.shaped.events.length ?? 0);
+  // Play to the end of the longer run; the shorter side stays on its final event.
+  const total = Math.max(traceLength(pair?.baseline), traceLength(pair?.shaped));
   const index = total ? Math.min(step, total - 1) : 0;
-  const oldEvent = pair?.baseline.events[index];
-  const newEvent = pair?.shaped.events[index];
+  const oldEvent = pair?.baseline.events[clampTraceStep(index, pair?.baseline)];
+  const newEvent = pair?.shaped.events[clampTraceStep(index, pair?.shaped)];
   useEffect(() => { if (!playing || !total) return; const timer = window.setInterval(() => setStep(v => { if (v >= total - 1) { setPlaying(false); return v; } return v + 1; }), 900); return () => window.clearInterval(timer); }, [playing, total]);
   const status = !pair ? '正在加载记录' : playing ? '两边同步播放' : '可以逐步查看';
   return <section className="react-compare">

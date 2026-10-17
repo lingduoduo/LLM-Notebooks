@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, extname, join, normalize } from 'node:path';
+import { basename, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   PLAYER_IDS,
@@ -33,8 +33,12 @@ const mime = {
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml'
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png'
 };
+const MAX_BODY_BYTES = 100_000;
+// Only these files are served; .env, server code and saved traces stay private.
+const isPublicPath = pathname => pathname === '/index.html' || /^\/figures\/[\w-]+\.png$/.test(pathname);
 const games = new Map();
 
 try {
@@ -50,11 +54,47 @@ function send(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-async function readBody(req) {
-  let body = '';
-  for await (const chunk of req) body += chunk;
-  if (body.length > 100_000) throw new Error('Request body too large');
-  return JSON.parse(body || '{}');
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    if (Number(req.headers['content-length']) > MAX_BODY_BYTES) {
+      req.resume();
+      return reject(new HttpError(413, 'Request body too large'));
+    }
+    const chunks = [];
+    let size = 0;
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size <= MAX_BODY_BYTES) return chunks.push(chunk);
+      req.removeAllListeners('data');
+      req.resume();
+      reject(new HttpError(413, 'Request body too large'));
+    });
+    req.on('end', () => {
+      if (size > MAX_BODY_BYTES) return;
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
+      } catch {
+        reject(new HttpError(400, 'Invalid JSON body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// Block cross-site form/fetch POSTs: require JSON and a same-origin, loopback request.
+function checkPost(req) {
+  const host = req.headers.host || '';
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) throw new HttpError(403, 'Forbidden host');
+  if (req.headers.origin && req.headers.origin !== `http://${host}`) throw new HttpError(403, 'Cross-origin request rejected');
+  const type = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (type !== 'application/json') throw new HttpError(415, 'Content-Type must be application/json');
 }
 
 function publicResponse(game) {
@@ -258,6 +298,7 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     const parts = url.pathname.split('/').filter(Boolean);
+    if (req.method === 'POST') checkPost(req);
     if (req.method === 'POST' && url.pathname === '/api/game/new') return await newGame(req, res);
     if (parts[0] === 'api' && parts[1] === 'game' && parts[2]) {
       const id = parts[2];
@@ -271,14 +312,14 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/status') return send(res, 200, { configured: hasApiKey(), defaultPort: 4175 });
     if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed' });
     const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
-    if (pathname.startsWith('/trace/') || pathname === '/.env' || pathname.includes('/.env')) return send(res, 403, { error: 'Forbidden' });
-    const file = normalize(join(root, pathname));
-    if (!file.startsWith(root)) return send(res, 403, { error: 'Forbidden' });
+    if (!isPublicPath(pathname)) return send(res, 404, { error: 'Not found' });
+    const file = join(root, pathname);
     const content = await readFile(file);
     res.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream' });
     res.end(content);
   } catch (error) {
-    const status = /not found/i.test(error?.message || '') ? 404 : 400;
+    if (res.headersSent) return res.end();
+    const status = error instanceof HttpError ? error.status : /not found/i.test(error?.message || '') ? 404 : 400;
     send(res, status, { error: error instanceof Error ? error.message : String(error) });
   }
 });
@@ -292,7 +333,7 @@ function listenOn(port) {
     }
     throw error;
   });
-  server.listen(port, () => console.log(`Werewolf running at http://localhost:${port}`));
+  server.listen(port, '127.0.0.1', () => console.log(`Werewolf running at http://localhost:${port}`));
 }
 
 listenOn(preferredPort);

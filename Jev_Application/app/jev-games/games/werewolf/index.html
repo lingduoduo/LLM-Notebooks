@@ -62,13 +62,6 @@
     const $ = id => document.getElementById(id);
     async function api(path, body) {
       const buttons = ['newGame', 'advance', 'sendMessage', 'sendVote'];
-    let autoT = null;
-    document.getElementById('autoAdvance').onclick = () => {
-      if (autoT) { clearInterval(autoT); autoT = null; document.getElementById('autoAdvance').textContent = '自动推进'; return; }
-      const ms = Number(document.getElementById('advSpeed').value);
-      autoT = setInterval(() => document.getElementById('advance').click(), ms);
-      document.getElementById('autoAdvance').textContent = '停止自动';
-    };
       buttons.forEach(id => { $(id).disabled = true; });
       if (path.endsWith('/human-message')) setStatus('发言已提交，其他玩家正依次用 DeepSeek 分析并发言，请稍候……');
       if (path.endsWith('/vote')) setStatus('正在分析投票，由 Jev 选择目标……');
@@ -113,6 +106,13 @@
     $('newGame').onclick = async () => { try { setStatus('正在创建新局……'); const data = await api('/api/game/new', { seed: $('seed').value }); await refresh(data); await advance(); } catch (error) { setStatus(error.message, 'bad'); } };
     async function advance() { if (!gameId) return; try { const data = await api(`/api/game/${gameId}/advance`, {}); await refresh(data); } catch (error) { setStatus(error.message, 'bad'); } }
     $('advance').onclick = advance;
+    let autoT = null;
+    document.getElementById('autoAdvance').onclick = () => {
+      if (autoT) { clearInterval(autoT); autoT = null; document.getElementById('autoAdvance').textContent = '自动推进'; return; }
+      const ms = Number(document.getElementById('advSpeed').value);
+      autoT = setInterval(() => document.getElementById('advance').click(), ms);
+      document.getElementById('autoAdvance').textContent = '停止自动';
+    };
     $('sendMessage').onclick = async () => { try { const text = $('message').value; const data = await api(`/api/game/${gameId}/human-message`, { text }); $('message').value = ''; await refresh(data); } catch (error) { setStatus(error.message, 'bad'); } };
     $('sendVote').onclick = async () => { try { const data = await api(`/api/game/${gameId}/vote`, { target: $('voteTarget').value }); await refresh(data); } catch (error) { setStatus(error.message, 'bad'); } };
     $('revealDebug').onclick = async () => { if (!gameId) return; try { const data = await api(`/api/game/${gameId}/reveal-debug`, {}); $('debug').hidden = false; $('debug').textContent = JSON.stringify(data, null, 2); } catch (error) { setStatus(error.message, 'bad'); } };
