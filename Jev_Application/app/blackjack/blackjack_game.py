@@ -4,7 +4,8 @@ NanoJev-style engine: complete JSON state, SplitMix64 shoe, rendered requests th
 hidden information (the shoe order and the dealer's hole card) while publishing derived
 facts the judge may use (hand values, bust probability from the shoe composition).
 
-Rules: single deck reshuffled below 15 cards, blackjack pays 3:2, dealer stands on all
+Rules: single deck reshuffled between rounds when fewer than 20 cards remain (never
+mid-hand), blackjack pays 3:2 (a natural vs a dealer natural pushes), dealer stands on all
 17s, double allowed on the first action only, no splits.  Per-action gold is the
 table's basic strategy (hard/soft totals, double vs dealer upcard) — a fixed, published
 policy reference, labelled as a policy.
@@ -19,7 +20,9 @@ ACTIONS = ('hit', 'stand', 'double')
 MASK64 = (1 << 64) - 1
 START_BANK = 100
 BET = 10
-RESHUFFLE_BELOW = 15
+# A single round can consume at most 19 cards (player hard sum <= 31, dealer <= 26, and
+# the 19 lowest cards already sum to 55), so 20 guarantees no mid-hand reshuffle.
+RESHUFFLE_BELOW = 20
 
 
 def _hash(value):
@@ -58,9 +61,8 @@ def hand_value(cards):
     while total > 21 and aces:
         total -= 10
         aces -= 1
-    soft = any(c % 13 == 0 for c in cards) and total <= 21 and any(
-        total - v + 11 <= 21 for v in [sum(_card_value(c) for c in cards if not (c % 13 == 0))])
-    return total, bool(soft and aces and sum(_card_value(c) for c in cards) != total)
+    # Soft: at least one ace is still counted as 11 after reduction.
+    return total, aces > 0
 
 
 def _new_shoe(rng_state):
@@ -86,10 +88,8 @@ def make_blackjack(seed: int):
 
 
 def _draw(state):
-    if state['shoe_index'] >= len(state['shoe']) - RESHUFFLE_BELOW:
-        state['shoe'] = _new_shoe((state['seed'] * 7919 + state['round'] * 31) & MASK64)
-        state['shoe_index'] = 0
-        state['reshuffled'] = True
+    if state['shoe_index'] >= len(state['shoe']):
+        raise RuntimeError('Shoe exhausted mid-hand')  # unreachable: see RESHUFFLE_BELOW
     card = state['shoe'][state['shoe_index']]
     state['shoe_index'] += 1
     return card
@@ -98,6 +98,11 @@ def _draw(state):
 def _deal_round(state):
     state = copy.deepcopy(state)
     state['round'] += 1
+    # Reshuffle only between rounds, never mid-hand (no duplicate physical cards).
+    state['reshuffled'] = len(state['shoe']) - state['shoe_index'] < RESHUFFLE_BELOW
+    if state['reshuffled']:
+        state['shoe'] = _new_shoe((state['seed'] * 7919 + state['round'] * 31) & MASK64)
+        state['shoe_index'] = 0
     state['player'], state['dealer'] = [], []
     state['doubled'] = False
     state['natural'] = False
@@ -108,16 +113,11 @@ def _deal_round(state):
         state['dealer'].append(_draw(state))
     player_total, _ = hand_value(state['player'])
     dealer_total, _ = hand_value(state['dealer'])
-    if player_total == 21:
-        state['natural'] = True
+    state['natural'] = player_total == 21
+    state['dealer_natural'] = dealer_total == 21
+    if state['natural'] or state['dealer_natural']:
         state['phase'] = 'settle'
         state = _settle(state)
-    elif dealer_total == 21:
-        state['phase'] = 'settle'
-        state['dealer_natural'] = True
-        state = _settle(state)
-    else:
-        state['dealer_natural'] = False
     return state
 
 
@@ -126,7 +126,9 @@ def _settle(state):
     player_total, _ = hand_value(state['player'])
     dealer_total, _ = hand_value(state['dealer'])
     bet = state['bet'] * (2 if state['doubled'] else 1)
-    if state['natural']:
+    if state['natural'] and state['dealer_natural']:
+        outcome, delta = 'push', 0
+    elif state['natural']:
         outcome, delta = 'player_blackjack', int(bet * 1.5)
     elif player_total > 21:
         outcome, delta = 'bust', -bet
@@ -170,24 +172,35 @@ def legal_actions(state):
     return actions
 
 
+def unseen_cards(state):
+    """Cards the player cannot see: the undealt shoe plus, while it is face down, the
+    dealer's hole card.  Published composition/probabilities use this multiset so they
+    never narrow down the hole card."""
+    unseen = list(state['shoe'][state['shoe_index']:])
+    if state['phase'] == 'player' and state['dealer']:
+        unseen.append(state['dealer'][0])
+    return unseen
+
+
 def bust_probability(state):
-    """P(next card busts the player), computed from the published shoe composition."""
-    total, _ = hand_value(state['player'])
-    remaining = state['shoe'][state['shoe_index']:len(state['shoe']) - 1]
-    if not remaining:
+    """P(next card busts the player), over the cards unseen from the player's view."""
+    unseen = unseen_cards(state)
+    if not unseen:
         return 0.0
-    bust = sum(1 for c in remaining if total + _card_value(c) > 21)
-    return round(bust / len(remaining), 3)
+    bust = sum(1 for c in unseen if hand_value(state['player'] + [c])[0] > 21)
+    return round(bust / len(unseen), 3)
 
 
 def basic_strategy(state) -> str:
     """The published reference policy (hard/soft totals, double on first two cards)."""
     total, soft = hand_value(state['player'])
-    upcard = min(_card_value(state['dealer'][1]), 11) if state['dealer'][1] % 13 == 0 else \
-        _card_value(state['dealer'][1])
-    if _card_value(state['dealer'][1]) == 11:
-        upcard = 11
+    upcard = _card_value(state['dealer'][1])  # ace = 11
     can_double = len(state['player']) == 2 and state['bank'] >= state['bet'] * 2
+    return basic_strategy_action(total, soft, upcard, can_double)
+
+
+def basic_strategy_action(total: int, soft: bool, upcard: int, can_double: bool) -> str:
+    """Basic strategy from published facts: hand total, softness, upcard value (A = 11)."""
     if soft:
         if total >= 19:
             return 'stand'
@@ -252,11 +265,12 @@ def step(state, action):
 
 def render_request(state):
     """Player-visible observations: both player cards, dealer upcard, shoe composition.
-    Omits the shoe order and the dealer's hole card."""
+    Omits the shoe order and the dealer's hole card (the composition counts the hole card
+    as unseen)."""
     total, soft = hand_value(state['player'])
     upcard = state['dealer'][1]
     up_val = 11 if upcard % 13 == 0 else _card_value(upcard)
-    remaining = state['shoe'][state['shoe_index']:len(state['shoe']) - 1]
+    remaining = unseen_cards(state)
     bust_p = bust_probability(state)
     hand_text = ' '.join(card_name(c) for c in state['player'])
     composition = {}
@@ -264,7 +278,7 @@ def render_request(state):
         composition[RANKS[c % 13]] = composition.get(RANKS[c % 13], 0) + 1
     text = (f"Blackjack round {state['round']}. Your hand: {hand_text} = {total}"
             f"{' (soft)' if soft else ''}. Dealer shows {card_name(upcard)} (value {up_val}). "
-            f"Shoe composition remaining: {json.dumps(composition, sort_keys=True)}. "
+            f"Unseen cards (shoe + dealer hole card): {json.dumps(composition, sort_keys=True)}. "
             f"Probability the next card busts you: {bust_p:.1%}. "
             "House rules: dealer stands on all 17s, blackjack pays 3:2, double on the first "
             "action only. Follow basic strategy: stand on hard 17+, stand on 13-16 vs a "

@@ -31,28 +31,9 @@ ROUND_CAP = 400
 
 
 def basic_judge(request: dict) -> dict:
-    return {'action': B.basic_strategy({'player': _cards_of(request),
-                                        'dealer': [0, _upcard_id(request)],
-                                        'bank': 10 ** 6, 'bet': B.BET})}
-
-
-def _cards_of(request):
-    """Rebuild card ids from the published names (rank + suit text)."""
-    text = request['state']
-    hand = text.split('Your hand: ')[1].split(' = ')[0]
-    out = []
-    for token in hand.split():
-        rank = B.RANKS.index(token[:-1])
-        suit = B.SUITS.index(token[-1])
-        out.append(suit * 13 + rank)
-    return out
-
-
-def _upcard_id(request):
-    import re
-    match = re.search(r'Dealer shows (\S+)', request['state'])
-    token = match.group(1)
-    return B.SUITS.index(token[-1]) * 13 + B.RANKS.index(token[:-1])
+    return {'action': B.basic_strategy_action(request['hand_value'], request['soft'],
+                                              request['upcard_value'],
+                                              'double' in request['legal'])}
 
 
 def dealer_mimic_judge(request: dict) -> dict:
@@ -65,12 +46,14 @@ def dealer_mimic_judge(request: dict) -> dict:
 
 def play(seed: int, judge) -> dict:
     state = B.make_blackjack(seed=seed)
-    rounds = 0
     peak = state['bank']
     counts = {'win': 0, 'lose': 0, 'push': 0, 'bust': 0, 'player_blackjack': 0,
               'dealer_bust': 0}
+    for entry in state['history']:  # rounds settled at the deal (naturals)
+        counts[entry['outcome']] += 1
     doubles = 0
-    while not state['done'] and rounds < ROUND_CAP:
+    while not state['done'] and len(state['history']) < ROUND_CAP:
+        seen = len(state['history'])
         request = B.render_request(state)
         answer = judge(request)
         action = answer.get('action')
@@ -79,11 +62,11 @@ def play(seed: int, judge) -> dict:
         if action == 'double':
             doubles += 1
         state = B.step(state, action)
-        rounds += 1
         peak = max(peak, state['bank'])
-        outcome = state['history'][-1]['outcome'] if state['history'] else 'push'
-        key = outcome if outcome in counts else ('bust' if outcome == 'bust' else 'push')
-        counts[key] = counts.get(key, 0) + 1
+        # One step settles the current round and may also settle freshly dealt naturals.
+        for entry in state['history'][seen:]:
+            counts[entry['outcome']] += 1
+    rounds = len(state['history'])
     return {
         'seed': seed, 'rounds': rounds, 'final_bank': state['bank'], 'peak_bank': peak,
         'doubles': doubles,

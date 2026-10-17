@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import threading
 import time
@@ -56,7 +55,11 @@ class BlackjackSession:
             time.sleep(self.pace)
             if not self.alive:
                 return
-            answer = self.judge(request)
+            try:
+                answer = self.judge(request)
+            except Exception as exc:  # keep the game thread alive on judge failure
+                print(f"judge error, falling back to 'stand': {exc!r}", file=sys.stderr)
+                answer = {'action': 'stand'}
             action = answer.get('action')
             if action not in B.legal_actions(self.state):
                 action = 'stand'
@@ -67,12 +70,16 @@ class BlackjackSession:
     def snapshot(self) -> dict:
         with self.lock:
             state = self.state
+            hole_hidden = state['phase'] == 'player' and len(state['dealer']) >= 2
+            dealer = [B.card_name(c) for c in state['dealer']]
+            if hole_hidden:  # never send the face-down card or a total that reveals it
+                dealer[0] = '??'
             return {
                 'player': [B.card_name(c) for c in state['player']],
-                'dealer': [B.card_name(c) for c in state['dealer']],
+                'dealer': dealer,
                 'player_value': B.hand_value(state['player'])[0],
-                'dealer_value': B.hand_value(state['dealer'])[0],
-                'hole_hidden': state['phase'] == 'player' and len(state['dealer']) >= 2,
+                'dealer_value': None if hole_hidden else B.hand_value(state['dealer'])[0],
+                'hole_hidden': hole_hidden,
                 'phase': state['phase'],
                 'outcome': state['outcome'],
                 'bank': state['bank'],
@@ -91,40 +98,10 @@ class BlackjackSession:
 
 
 def local_judge(request: dict) -> dict:
-    """Basic strategy, parsed back out of the published facts (hand value, upcard)."""
-    match = re.search(r'Your hand: .* = (\d+)', request['state'])
-    soft = ' (soft)' in request['state']
-    up_match = re.search(r'Dealer shows .* \(value (\d+)\)', request['state'])
-    total = int(match.group(1))
-    upcard = int(up_match.group(1))
-    can_double = 'double' in request['legal']
-    if soft:
-        if total >= 19:
-            return {'action': 'stand'}
-        if total == 18:
-            if 3 <= upcard <= 6 and can_double:
-                return {'action': 'double'}
-            return {'action': 'stand' if upcard <= 8 else 'hit'}
-        if total == 17 and 3 <= upcard <= 6 and can_double:
-            return {'action': 'double'}
-        if total in (15, 16) and 4 <= upcard <= 6 and can_double:
-            return {'action': 'double'}
-        if total in (13, 14) and 5 <= upcard <= 6 and can_double:
-            return {'action': 'double'}
-        return {'action': 'hit'}
-    if total >= 17:
-        return {'action': 'stand'}
-    if total >= 13:
-        return {'action': 'stand' if upcard <= 6 else 'hit'}
-    if total == 12:
-        return {'action': 'stand' if 4 <= upcard <= 6 else 'hit'}
-    if total == 11:
-        return {'action': 'double' if (upcard <= 10 and can_double) else 'hit'}
-    if total == 10:
-        return {'action': 'double' if (upcard <= 9 and can_double) else 'hit'}
-    if total == 9:
-        return {'action': 'double' if (3 <= upcard <= 6 and can_double) else 'hit'}
-    return {'action': 'hit'}
+    """Basic strategy from the published facts (hand value, softness, upcard, legality)."""
+    return {'action': B.basic_strategy_action(request['hand_value'], request['soft'],
+                                              request['upcard_value'],
+                                              'double' in request['legal'])}
 
 
 def make_judge(kind: str):
@@ -200,7 +177,7 @@ PAGE = """<!doctype html>
 <body>
 <header><div class="brand">🎯 21点 — Jev 牌桌</div>
   <div style="flex:1"></div><div class="hint">裁判：基本策略替身（非真实 Jev）</div></header>
-<div class="banner">模型应答来自本地基本策略替身。单副牌低于 15 张自动重洗（SplitMix64 确定性）；BJ 赔 3:2，庄家全 17 停；模型看到手牌价值、庄家明牌、鞋组成与爆牌概率，看不到暗牌与鞋序。</div>
+<div class="banner">模型应答来自本地基本策略替身。单副牌在两局之间、剩余不足 20 张时重洗（SplitMix64 确定性，绝不在一局中途重洗）；BJ 赔 3:2，庄家全 17 停；模型看到手牌价值、庄家明牌、鞋组成与爆牌概率，看不到暗牌与鞋序。</div>
 <main><section class="table" id="table"></section><aside id="side"></aside></main>
 <script>
 const suitClass = n => (n.includes('♥') || n.includes('♦')) ? 'card red' : 'card';
