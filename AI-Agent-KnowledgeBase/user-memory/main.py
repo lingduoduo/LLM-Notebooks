@@ -99,8 +99,6 @@ def interactive_mode(user_id: str, memory_mode: MemoryMode = MemoryMode.NOTES,
         print(f"❌ Error: Please set API key for provider '{provider}'")
         if provider == "openai":
             print("   export OPENAI_API_KEY='your-api-key-here'")
-        elif provider == "siliconflow":
-            print("   export SILICONFLOW_API_KEY='your-api-key-here'")
         elif provider == "openrouter":
             print("   export OPENROUTER_API_KEY='your-api-key-here'")
         return
@@ -864,7 +862,7 @@ def main():
     
     parser.add_argument(
         "--provider",
-        choices=["openai", "siliconflow", "openrouter"],
+        choices=["openai", "openrouter"],
         default=None,
         help="LLM provider (defaults to env PROVIDER or 'openai')"
     )

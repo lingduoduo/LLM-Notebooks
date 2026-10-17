@@ -62,7 +62,7 @@ class BackgroundMemoryProcessor:
         Args:
             user_id: Unique user identifier
             api_key: API key (defaults to env based on provider)
-            provider: LLM provider ('openai', 'siliconflow', 'openrouter')
+            provider: LLM provider ('openai' (default) or 'openrouter')
             model: Model name (defaults to provider's default)
             config: Processor configuration
             memory_mode: Memory storage mode

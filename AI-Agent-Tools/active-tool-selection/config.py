@@ -4,20 +4,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# LLM Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
-LLM_PROVIDER = {"qwen": "dashscope", "bailian": "dashscope"}.get(LLM_PROVIDER, LLM_PROVIDER)
-if LLM_PROVIDER == "dashscope":
-    OPENAI_API_KEY = os.getenv("DASHSCOPE_API_KEY")
-    OPENAI_BASE_URL = os.getenv(
-        "DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# LLM Configuration (official OpenAI API; OpenRouter is an optional fallback below)
+SUPPORTED_LLM_PROVIDERS = ("openai",)
+LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
+if LLM_PROVIDER not in SUPPORTED_LLM_PROVIDERS:
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER: {LLM_PROVIDER!r}. Only 'openai' is supported "
+        "(set OPENAI_API_KEY)."
     )
-    OPENAI_MODEL = os.getenv("DASHSCOPE_MODEL", "qwen3.7-plus")
-else:
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
-
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
 
 def _map_model_for_openrouter(model: str) -> str:
     """Map a plain model id onto OpenRouter's `provider/model` form.
