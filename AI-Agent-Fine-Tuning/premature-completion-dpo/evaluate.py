@@ -314,7 +314,7 @@ def main() -> None:
     parser.add_argument("--base-only", action="store_true", help="Evaluate only the base model (use when no adapter is available)")
     parser.add_argument("--mock", action="store_true", help="Demonstrate evaluation with preset outputs without loading a model")
     parser.add_argument("--judge", action="store_true", help="Review classifications with an LLM judge (requires an API key)")
-    parser.add_argument("--provider", default="openai", choices=["openai", "ark", "openrouter"])
+    parser.add_argument("--provider", default="openai", choices=["openai", "openrouter"])
     parser.add_argument("--judge-model", default=None)
     parser.add_argument("--decision-score", action="store_true",
                         help="Compare completion and verification candidates with the model (requires a GPU)")

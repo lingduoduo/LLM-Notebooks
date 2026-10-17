@@ -21,7 +21,6 @@ ROOT = Path(__file__).resolve().parent
 
 PROVIDER_DEFAULTS = {
     "openai": ("OPENAI_API_KEY", None, "gpt-4o-mini"),
-    "ark": ("ARK_API_KEY", "https://ark.cn-beijing.volces.com/api/v3", None),
     "openrouter": ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
 }
 
@@ -29,7 +28,7 @@ PROVIDER_DEFAULTS = {
 def make_client(provider: str) -> tuple[OpenAI, dict[str, Any]]:
     """Return an OpenAI-compatible client and backend metadata without credentials."""
     if provider not in PROVIDER_DEFAULTS:
-        raise ValueError(f"Unsupported provider: {provider} (choose openai/ark/openrouter)")
+        raise ValueError(f"Unsupported provider: {provider} (choose openai/openrouter)")
     env_name, base_url, _ = PROVIDER_DEFAULTS[provider]
     key = os.getenv(env_name)
     if not key:
@@ -45,8 +44,8 @@ def make_client(provider: str) -> tuple[OpenAI, dict[str, Any]]:
 
 
 def default_model(provider: str) -> str:
-    if provider == "ark":
-        return os.getenv("ARK_MODEL", "doubao-seed-1-6-250615")
+    if provider not in PROVIDER_DEFAULTS:
+        raise ValueError(f"Unsupported provider: {provider} (choose openai/openrouter)")
     return PROVIDER_DEFAULTS[provider][2] or "gpt-4o-mini"
 
 

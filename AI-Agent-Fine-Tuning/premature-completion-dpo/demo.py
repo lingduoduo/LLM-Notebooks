@@ -50,7 +50,7 @@ def main() -> None:
     print("\n[4] Pipeline summary:")
     print("  Demonstrated offline: failure cases -> preference pairs -> evaluation metrics")
     print("  Real pipeline still to run (requires a GPU / API key):")
-    print("    python build_preference_data.py --teacher --provider ark   # Generate chosen responses with a teacher model")
+    print("    python build_preference_data.py --teacher --provider openai  # Generate chosen responses with a teacher model")
     print("    python train_dpo.py                                         # Single-GPU LoRA DPO training")
     print("    python evaluate.py --base-only                              # Baseline evaluation")
     print("    python evaluate.py                                          # Compare base vs base+adapter")

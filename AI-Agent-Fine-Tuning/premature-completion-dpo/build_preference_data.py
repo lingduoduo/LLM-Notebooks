@@ -153,7 +153,7 @@ def build_pairs(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--teacher", action="store_true", help="Generate chosen responses with a teacher model (requires an API key)")
-    parser.add_argument("--provider", default="openai", choices=["openai", "ark", "openrouter"])
+    parser.add_argument("--provider", default="openai", choices=["openai", "openrouter"])
     parser.add_argument("--model", default=None, help="Teacher model name (defaults depend on provider)")
     parser.add_argument("--limit", type=int, default=None, help="Process only the first N cases for debugging")
     parser.add_argument("--output", default=str(OUTPUT_PATH))
