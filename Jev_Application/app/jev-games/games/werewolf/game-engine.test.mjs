@@ -123,6 +123,6 @@ test('day speech uses cognition directly instead of a Jev action request', async
   game.phase = 'day_discussion';
   const decision = await decideForAgent(game, 'jev_3', 'day_speech');
   assert.equal(decision.mode, 'heuristic');
-  assert.equal(game.trace.decisions.at(-1).question.source, 'deepseek_cognition');
+  assert.equal(game.trace.decisions.at(-1).question.source, 'llm_cognition');
   assert.equal(game.trace.decisions.at(-1).cognitionFallbackReason, 'offline_mode');
 });

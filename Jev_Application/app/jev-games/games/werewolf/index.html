@@ -63,7 +63,7 @@
     async function api(path, body) {
       const buttons = ['newGame', 'advance', 'sendMessage', 'sendVote'];
       buttons.forEach(id => { $(id).disabled = true; });
-      if (path.endsWith('/human-message')) setStatus('发言已提交，其他玩家正依次用 DeepSeek 分析并发言，请稍候……');
+      if (path.endsWith('/human-message')) setStatus('发言已提交，其他玩家正依次用 OpenAI 分析并发言，请稍候……');
       if (path.endsWith('/vote')) setStatus('正在分析投票，由 Jev 选择目标……');
       try {
         const response = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -73,7 +73,7 @@
     function setStatus(text, kind = '') { $('status').textContent = text; $('status').className = `status ${kind}`; }
     function nameOf(id) { return game?.humanId === id ? '你' : id.replace('jev_', 'Jev-'); }
     const intentLabels = { accuse_player: '指控', defend_self: '自辩', support_player: '支持', claim_role: '声明身份', question_claim: '质疑身份', share_result: '分享查验', change_vote: '解释改票', remain_silent: '保留意见' };
-    function decisionSource(decision) { return decision.mode === 'jev' ? 'Jev 判断' : decision.mode === 'deepseek' ? 'DeepSeek 分析' : 'fallback'; }
+    function decisionSource(decision) { return decision.mode === 'jev' ? 'Jev 判断' : decision.mode === 'openai' ? 'OpenAI 分析' : 'fallback'; }
     function decisionTarget(decision) { return decision.choice?.target ? nameOf(decision.choice.target) : '—'; }
     function appendDecisionDetails(parent, decision) {
       if (!decision) return;
@@ -89,7 +89,7 @@
     function render() {
       if (!game) return;
       const phase = phaseLabels[game.phase] || game.phase;
-      $('round').textContent = `第 ${game.round} 轮 · ${phase} · ${game.ruleset === 'demo' ? '演示节奏：平票线继续' : '标准规则'} · ${game.mode === 'auto' ? '白天 DeepSeek 分析 / 技能与投票 Jev 判断' : '离线回放'}`;
+      $('round').textContent = `第 ${game.round} 轮 · ${phase} · ${game.ruleset === 'demo' ? '演示节奏：平票线继续' : '标准规则'} · ${game.mode === 'auto' ? '白天 OpenAI 分析 / 技能与投票 Jev 判断' : '离线回放'}`;
       $('players').replaceChildren(...game.players.map(player => { const row = document.createElement('div'); row.className = `player ${player.alive ? '' : 'dead'} ${game.awaitingHuman === player.id ? 'active' : ''}`; const head = document.createElement('div'); head.className = 'player-head'; const left = document.createElement('span'); left.textContent = nameOf(player.id); if (player.claim) { const claim = document.createElement('span'); claim.className = 'claim'; claim.textContent = `声称${labels[player.claim] || player.claim}`; left.append(claim); } const right = document.createElement('span'); right.className = `pill ${player.alive ? 'alive' : ''}`; right.textContent = player.alive ? '存活' : '出局'; head.append(left, right); row.append(head); if (player.lastDecision) { const recent = document.createElement('div'); recent.className = 'last-decision'; recent.textContent = `${decisionSource(player.lastDecision)} · ${intentLabels[player.lastDecision.choice?.intent] || (player.lastDecision.choice?.target ? `目标 ${nameOf(player.lastDecision.choice.target)}` : '暂无选择')} · ${(Number(player.lastDecision.confidence || 0) * 100).toFixed(0)}%`; row.append(recent); } return row; }));
       const publicDecisions = game.publicDecisions || [];
       $('transcript').replaceChildren(...(game.publicTranscript || []).map(item => { const el = document.createElement('div'); el.className = `message ${item.speaker === 'system' ? 'system' : ''} ${item.type === 'round_start' ? 'round' : ''}`; const speaker = document.createElement('span'); speaker.className = 'speaker'; speaker.textContent = item.type === 'round_start' ? '☀' : item.speaker === 'system' ? '系统' : nameOf(item.speaker); const body = document.createElement('span'); body.textContent = item.text || ''; el.append(speaker, body); if (item.intent || item.evidence) { const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = [item.intent, item.evidence, item.source].filter(Boolean).join(' · '); el.append(meta); } appendDecisionDetails(el, publicDecisions.find(decision => decision.seq === item.decisionSeq)); return el; }));

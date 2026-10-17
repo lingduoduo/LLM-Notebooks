@@ -32,4 +32,6 @@
 
 ## 8. 结论与后续
 
+> 注：本实验记录时 TYPE_TEXT 文本助手用的是另一家托管模型；代码现已改为 OpenAI 官方 API（`OPENAI_API_KEY`，默认 gpt-4o-mini），以下数字为当时实测，未重测。
+
 两层验证全绿：确定性守卫（不发请求）+ 真 Jev 端到端（含文本模型协作）。TYPE_TEXT 依赖 `TEXT_MODEL_API_KEY`（OpenAI 兼容即可，本机用 StepFun turbo）——**判断与文本生成各用各的模型**在这套代码里是硬约束，不是建议。后续可跑 `measure_flights.py` 复现 7.1s 官方数字。

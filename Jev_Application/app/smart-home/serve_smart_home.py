@@ -1,13 +1,15 @@
 """智能家居 3D 演练场本地服务：静态页面 + 三个上游 API 代理。
 
 浏览器页面为什么要经过这层本地代理，而不是直连：
-1. api.typesafe.ai 与 api.stepfun.com 都不保证给浏览器 CORS 头，直连会被拦；
+1. api.typesafe.ai 与 api.openai.com 都不保证给浏览器 CORS 头，直连会被拦；
 2. API key 不能暴露在页面里——放在这台本地服务的环境变量中。
 
 代理端点：
 - POST /api/jev   → https://api.typesafe.ai/v1/systemone   （单次投机提示调用）
-- POST /api/asr   → https://api.stepfun.com/v1/audio/asr/sse（阶跃星辰流式语音识别，SSE 原样透传）
-- POST /api/chat  → https://api.stepfun.com/v1/chat/completions（复合指令拆分 / 常识问答）
+- POST /api/asr   → https://api.openai.com/v1/audio/transcriptions（OpenAI 语音转写；
+                     浏览器上传的 16k PCM 在服务端封成 WAV，流式模型的 SSE 原样透传，
+                     不支持流式的模型（whisper-1）由服务端转成同格式的单条 done 事件）
+- POST /api/chat  → https://api.openai.com/v1/chat/completions（复合指令拆分 / 常识问答）
 - GET  /api/health→ 报告哪些 key 已配置，页面据此决定「真实 Jev / 本地模拟」模式
 
 运行：  python3 serve_smart_home.py --port 8810
@@ -15,18 +17,24 @@
 
 环境变量：
 - TYPESAFE_API_KEY   console.typesafe.ai 获取。不设则页面自动降级为本地模拟引擎。
-- STEPFUN_API_KEY    platform.stepfun.com 获取。不设则用文件内 DEFAULT_STEPFUN_KEY。
-- STEPFUN_ASR_MODEL  默认 stepaudio-2.5-asr（实测比 stepaudio-3-asr-max 快约 0.1s）。
-- STEPFUN_CHAT_MODEL 默认 step-1o-turbo-vision（无推理开销，拆指令最快）。
+- OPENAI_API_KEY        platform.openai.com 获取。不设则语音输入、复合指令拆分、常识问答与传统 LLM 对比不可用。
+- OPENAI_ASR_MODEL      默认 gpt-4o-mini-transcribe（支持 stream=true 流式转写）；也可设 whisper-1。
+- OPENAI_CHAT_MODEL     默认 gpt-4o-mini（拆指令：求快）。
+- OPENAI_ANSWER_MODEL   默认 gpt-4o-mini（知识问答）。
+- OPENAI_COMPARE_MODEL  默认 gpt-4o（传统 LLM 对比场景）。
 """
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import http.client
 import json
 import os
 import ssl
+import struct
 import time
+import uuid
 import urllib.error
 import urllib.request
 import webbrowser
@@ -37,18 +45,20 @@ HTML_PATH = Path(__file__).resolve().parent / "smart_home_playground.html"
 
 JEV_HOST = "api.typesafe.ai"
 JEV_PATH = "/v1/systemone"
-STEP_HOST = "api.stepfun.com"
-ASR_PATH = "/v1/audio/asr/sse"
+OPENAI_HOST = "api.openai.com"  # 官方 OpenAI API
+ASR_PATH = "/v1/audio/transcriptions"
 CHAT_PATH = "/v1/chat/completions"
 
-stepfun_key = os.environ.get("STEPFUN_API_KEY", "")  # platform.stepfun.com 获取，语音/拆分/问答需要
+openai_key = os.environ.get("OPENAI_API_KEY", "")  # platform.openai.com 获取，语音/拆分/问答需要
 jev_key = os.environ.get("TYPESAFE_API_KEY", "")
 # 与官方 SDK 同名约定：指向自建/代理上游（默认官方端点），用于联调与离线测试
 jev_base = os.environ.get("TYPESAFE_BASE_URL", "https://api.typesafe.ai").rstrip("/")
-asr_model = os.environ.get("STEPFUN_ASR_MODEL", "stepaudio-2.5-asr")
-chat_model = os.environ.get("STEPFUN_CHAT_MODEL", "step-1o-turbo-vision")        # 拆指令：求快
-answer_model = os.environ.get("STEPFUN_ANSWER_MODEL", "step-3.5-flash")          # 知识问答：求准
-compare_model = os.environ.get("STEPFUN_COMPARE_MODEL", "step-5-preview")        # 传统 LLM 对比场景
+asr_model = os.environ.get("OPENAI_ASR_MODEL", "gpt-4o-mini-transcribe")
+chat_model = os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini")        # 拆指令：求快
+answer_model = os.environ.get("OPENAI_ANSWER_MODEL", "gpt-4o-mini")    # 知识问答
+compare_model = os.environ.get("OPENAI_COMPARE_MODEL", "gpt-4o")       # 传统 LLM 对比场景
+# whisper-1 不支持 stream=true；其余转写模型（gpt-4o-*-transcribe）流式返回 transcript.text.delta/done
+NON_STREAMING_ASR_MODELS = {"whisper-1"}
 
 _SSL = ssl.create_default_context()
 MAX_CHAT_TOKENS = 2048  # /api/chat 的 max_tokens 上限，防止客户端任意放大付费调用
@@ -104,8 +114,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/health":
             self._send_json({
                 "jev": bool(jev_key),
-                "asr": bool(stepfun_key),
-                "chat": bool(stepfun_key),
+                "asr": bool(openai_key),
+                "chat": bool(openai_key),
                 "asr_model": asr_model,
                 "chat_model": chat_model,
                 "answer_model": answer_model,
@@ -170,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"ok": 200 <= status < 300, "status": status,
                          "upstream_ms": upstream_ms, "body": parsed})
 
-    # ---------- /api/asr：阶跃星辰 ASR SSE 透传 ----------
+    # ---------- /api/asr：OpenAI 语音转写（SSE 透传给前端） ----------
 
     def _proxy_asr(self) -> None:
         payload = self._read_json_body()
@@ -178,23 +188,40 @@ class Handler(BaseHTTPRequestHandler):
         if not audio_b64:
             self._send_json({"error": "audio_b64 缺失"}, 400)
             return
-        fmt = payload.get("format") or {"type": "pcm", "codec": "pcm_s16le",
-                                        "rate": 16000, "bits": 16, "channel": 1}
-        transcription = {"model": asr_model, "enable_itn": True}
-        # language 传 null 会被上游 400；整个字段省略 = 自动检测中英文
-        if payload.get("language"):
-            transcription["language"] = payload["language"]
-        if payload.get("hotwords"):
-            transcription["hotwords"] = payload["hotwords"]
-        upstream = {"audio": {"data": audio_b64, "input": {"transcription": transcription, "format": fmt}}}
-        data = json.dumps(upstream).encode()
+        if not openai_key:
+            self._send_json({"error": "未设置 OPENAI_API_KEY，语音识别不可用"}, 503)
+            return
+        try:
+            audio = base64.b64decode(audio_b64, validate=True)
+        except (binascii.Error, ValueError):
+            self._send_json({"error": "audio_b64 不是合法 base64"}, 400)
+            return
+        fmt = payload.get("format") or {}
+        if not isinstance(fmt, dict):
+            fmt = {}
+        filename, mime = "audio.wav", "audio/wav"
+        if (fmt.get("type") or "pcm") == "pcm":
+            # OpenAI 只收文件格式：把裸 PCM s16le 封成 WAV
+            audio = _pcm_to_wav(audio, int(fmt.get("rate") or 16000),
+                                int(fmt.get("channel") or 1), int(fmt.get("bits") or 16))
+        streaming = asr_model not in NON_STREAMING_ASR_MODELS
+        fields = {"model": asr_model, "response_format": "json"}
+        if streaming:
+            fields["stream"] = "true"
+        if isinstance(payload.get("language"), str) and payload["language"]:
+            fields["language"] = payload["language"]
+        hotwords = payload.get("hotwords")
+        if isinstance(hotwords, list) and hotwords:
+            # OpenAI 无热词参数，用 prompt 提示领域词汇
+            fields["prompt"] = "、".join(str(w) for w in hotwords[:50])
+        body, content_type = _multipart(fields, ("file", filename, mime, audio))
 
         try:
-            conn = http.client.HTTPSConnection(STEP_HOST, timeout=60, context=_SSL)
-            conn.request("POST", ASR_PATH, body=data, headers={
-                "Content-Type": "application/json",
-                "Accept": "text/event-stream",
-                "Authorization": f"Bearer {stepfun_key}",
+            conn = _openai_connection(timeout=60)
+            conn.request("POST", ASR_PATH, body=body, headers={
+                "Content-Type": content_type,
+                "Accept": "text/event-stream" if streaming else "application/json",
+                "Authorization": f"Bearer {openai_key}",
             })
             resp = conn.getresponse()
         except Exception as e:
@@ -207,23 +234,34 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": f"ASR 上游 HTTP {resp.status}", "detail": err}, 502)
                 return
 
-            # SSE 逐块透传给浏览器，前端边收边把增量文字填进输入框
+            # 前端按 SSE 解析 transcript.text.delta / transcript.text.done
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Transfer-Encoding", "chunked")
             self.end_headers()
-            while True:
-                chunk = resp.read(512)
-                if not chunk:
-                    break
-                self.wfile.write(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n")
-                self.wfile.flush()
+            if streaming:
+                while True:
+                    chunk = resp.read(512)
+                    if not chunk:
+                        break
+                    self._write_chunk(chunk)
+            else:
+                try:
+                    text = json.loads(resp.read()).get("text") or ""
+                except (json.JSONDecodeError, AttributeError):
+                    text = ""
+                event = {"type": "transcript.text.done", "text": text}
+                self._write_chunk(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
             self.wfile.write(b"0\r\n\r\n")
         except (BrokenPipeError, ConnectionResetError):
             pass  # 浏览器提前断开（如用户取消）
         finally:
             conn.close()
+
+    def _write_chunk(self, chunk: bytes) -> None:
+        self.wfile.write(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n")
+        self.wfile.flush()
 
     # ---------- /api/chat：复合指令拆分 / 常识问答 ----------
 
@@ -233,6 +271,9 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(messages, list) or not messages:
             self._send_json({"error": "messages 缺失"}, 400)
             return
+        if not openai_key:
+            self._send_json({"ok": False, "status": 0, "error": "未设置 OPENAI_API_KEY"}, 503)
+            return
         purpose_model = {"answer": answer_model, "compare": compare_model}
         body = json.dumps({
             "model": purpose_model.get(payload.get("purpose"), chat_model),
@@ -241,9 +282,9 @@ class Handler(BaseHTTPRequestHandler):
             "max_tokens": _clamp_max_tokens(payload.get("max_tokens", 500)),
         }).encode()
         req = urllib.request.Request(
-            f"https://{STEP_HOST}{CHAT_PATH}", data=body, method="POST",
+            f"https://{OPENAI_HOST}{CHAT_PATH}", data=body, method="POST",
             headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {stepfun_key}"})
+                     "Authorization": f"Bearer {openai_key}"})
         t0 = time.monotonic()
         try:
             with urllib.request.urlopen(req, timeout=90) as resp:
@@ -268,6 +309,33 @@ class Handler(BaseHTTPRequestHandler):
                          "upstream_ms": round((time.monotonic() - t0) * 1000),
                          "model": purpose_model.get(payload.get("purpose"), chat_model),
                          "usage": parsed.get("usage")})
+
+
+def _openai_connection(timeout: float) -> http.client.HTTPConnection:
+    """到官方 OpenAI API 的 HTTPS 连接（测试里替换成本地桩，不走网络）。"""
+    return http.client.HTTPSConnection(OPENAI_HOST, timeout=timeout, context=_SSL)
+
+
+def _pcm_to_wav(pcm: bytes, rate: int = 16000, channels: int = 1, bits: int = 16) -> bytes:
+    """裸 PCM（little-endian）加 44 字节 RIFF/WAVE 头。"""
+    block_align = channels * bits // 8
+    header = b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVE"
+    header += b"fmt " + struct.pack("<IHHIIHH", 16, 1, channels, rate, rate * block_align, block_align, bits)
+    header += b"data" + struct.pack("<I", len(pcm))
+    return header + pcm
+
+
+def _multipart(fields: dict, file: tuple[str, str, str, bytes]) -> tuple[bytes, str]:
+    """构造 multipart/form-data 请求体：普通字段 + 一个文件。"""
+    boundary = f"----smarthome{uuid.uuid4().hex}"
+    parts = []
+    for name, value in fields.items():
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    field, filename, mime, data = file
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
+                 f"Content-Type: {mime}\r\n\r\n".encode() + data + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
 
 def _clamp_max_tokens(value) -> int:
@@ -322,8 +390,8 @@ def main() -> None:
         if lan:
             print(f"  局域网: {scheme}://{lan}:{args.port}")
     print(f"  Jev   真实调用: {'✅ 已配置 TYPESAFE_API_KEY' if jev_key else '⚠️ 未配置 → 页面自动用本地模拟引擎'}")
-    print(f"  ASR   语音识别: {'✅ ' + asr_model if stepfun_key else '❌ 未配置 STEPFUN_API_KEY'}")
-    print(f"  Chat  拆分/问答: {'✅ ' + chat_model if stepfun_key else '❌ 未配置 STEPFUN_API_KEY'}")
+    print(f"  ASR   语音识别: {'✅ ' + asr_model if openai_key else '❌ 未配置 OPENAI_API_KEY'}")
+    print(f"  Chat  拆分/问答: {'✅ ' + chat_model if openai_key else '❌ 未配置 OPENAI_API_KEY'}")
     if not args.no_open:
         webbrowser.open(url)
     try:

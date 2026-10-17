@@ -21,7 +21,7 @@ import {
   appendTranscript
 } from './game-engine.mjs';
 import { decideForAgent, hasApiKey, humanFallbackDecision, speechFromDecision } from './jev-agent.mjs';
-import { hasDeepSeekKey } from './cognition.mjs';
+import { hasOpenAIKey } from './cognition.mjs';
 import { renderSpeech } from './dialogue.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -255,7 +255,7 @@ async function newGame(req, res) {
   if (body.debug && body.fixedRoles) options.fixedRoles = body.fixedRoles;
   const game = createGame(options);
   games.set(game.id, game);
-  recordEvent(game, { type: 'mode_selected', mode: game.mode, ruleset: game.ruleset, apiConfigured: hasApiKey(), deepseekConfigured: hasDeepSeekKey() });
+  recordEvent(game, { type: 'mode_selected', mode: game.mode, ruleset: game.ruleset, apiConfigured: hasApiKey(), openaiConfigured: hasOpenAIKey() });
   return send(res, 200, publicResponse(game));
 }
 

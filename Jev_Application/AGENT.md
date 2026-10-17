@@ -81,8 +81,8 @@ jev-cookbook/
 | macOS 无 `timeout` 命令 | GNU coreutils 不是 macOS 自带 | 用 nbconvert 的 `--ExecutePreprocessor.timeout` 或 Python subprocess timeout |
 | 推理型模型正文在 `reasoning_content` | `content` 为空 | 服务端做了回退读取 |
 | doudizhu/blackjack 无 `--no-open` | 参数名不同 | start.py 用 `--judge local` 代替 |
-| werewolf 发言走模板 | 无 DeepSeek key | 发言显式标 `template_fallback`，判断仍由 Jev 完成 |
-| browser-use TYPE_TEXT 需要文本模型 | 判断与生成分离是硬约束 | 配 `TEXT_MODEL_API_KEY`（任意 OpenAI 兼容端点） |
+| werewolf 发言走模板 | 无 `OPENAI_API_KEY` | 发言显式标 `template_fallback`，判断仍由 Jev 完成 |
+| browser-use TYPE_TEXT 需要文本模型 | 判断与生成分离是硬约束 | 配 `OPENAI_API_KEY`（OpenAI 官方 API，`TEXT_MODEL` 默认 gpt-4o-mini） |
 | maze/predict_position 部分测试不可收集 | 训练侧模块未随应用提取收录 | 已归因，不是逻辑回归 |
 | 并行会话覆写 | 同仓库多会话同时写 | 提交前 `git status` 复核；只 add 自己改的文件 |
 
@@ -117,7 +117,7 @@ python3 start.py stop     # 结束
 
 ### 3.4 密钥轮换
 
-1. 在上游平台轮换（console.typesafe.ai / platform.stepfun.com）
+1. 在上游平台轮换（console.typesafe.ai / platform.openai.com）
 2. 更新所有本地 `.env`（`grep -rl "旧key前缀" main/07_实战应用/app/ --include=".env"`）
 3. 验证新 key：`curl -s https://api.typesafe.ai/v1/systemone -H "Authorization: Bearer $NEW_KEY" ...`
 4. 重启受影响的服务

@@ -176,7 +176,7 @@ export async function decideForAgent(game, agentId, phase) {
     result = cognition.cognition.speechPlan || fallback;
     mode = cognition.mode;
     fallbackReason = cognition.fallbackReason;
-    if (cognition.mode === 'deepseek') {
+    if (cognition.mode === 'openai') {
       const publicSpeech = await writePublicSpeech(game, agentId, result);
       result = { ...result, publicSpeech };
       fallbackReason = publicSpeech.fallbackReason;
@@ -198,7 +198,7 @@ export async function decideForAgent(game, agentId, phase) {
     phase,
     agentId,
     role: roleOf(game, agentId),
-    question: phase === 'day_speech' ? { source: 'deepseek_cognition', output: 'speechPlan' } : questionFor(phase, game, agentId),
+    question: phase === 'day_speech' ? { source: 'llm_cognition', output: 'speechPlan' } : questionFor(phase, game, agentId),
     choice: result,
     score: result.score ?? result.confidence ?? 0,
     noul: result.noul ?? (result.shouldSpeak === undefined ? null : (result.shouldSpeak ? 1 : 0)),

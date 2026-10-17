@@ -122,7 +122,7 @@ def spawn(name: str, cmd: list[str], cwd: Path) -> bool:
     LOGS.mkdir(exist_ok=True)
     env = dict(os.environ)
     env.setdefault("TYPESAFE_API_KEY", "")
-    env.setdefault("STEPFUN_API_KEY", "")
+    env.setdefault("OPENAI_API_KEY", "")
     with open(LOGS / f"{name}.log", "w") as log:
         # 独立会话：Ctrl+C 退出菜单时不会把 SIGINT 传给后台服务
         PROCS[name] = subprocess.Popen(cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,

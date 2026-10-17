@@ -1,4 +1,4 @@
-"""TypeSafe makes choices; an optional small OpenAI-compatible model writes field values."""
+"""TypeSafe makes choices; an optional small OpenAI model (official API) writes field values."""
 
 import json
 import math
@@ -10,6 +10,11 @@ import httpx
 from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 
 CLIENT = httpx.Client(http2=True, timeout=25)
+
+
+# TYPE_TEXT helper: official OpenAI Chat Completions API (OPENAI_API_KEY).
+OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_TEXT_MODEL = "gpt-4o-mini"
 
 
 def post_json(url, key, body):
@@ -161,23 +166,18 @@ def field_context(goal, action, page, history):
 
 
 def field_text(context):
-    key = os.environ.get("TEXT_MODEL_API_KEY")
+    key = os.environ.get("OPENAI_API_KEY")
     if not key:
-        raise ValueError("TYPE_TEXT needs TEXT_MODEL_API_KEY; no text is hardcoded or guessed by the executor.")
-    base = os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
-    model = os.environ.get("TEXT_MODEL", "deepseek-chat")
-    reasoning = {"thinking": {"type": "disabled"}} if "api.deepseek.com/" in base else {"reasoning": {"effort": "low"}}
-    if os.environ.get("TEXT_MODEL_REASONING") == "none":
-        reasoning = {"reasoning": {"enabled": False}}
+        raise ValueError("TYPE_TEXT needs OPENAI_API_KEY; no text is hardcoded or guessed by the executor.")
+    model = os.environ.get("TEXT_MODEL", DEFAULT_TEXT_MODEL)
     started = time.perf_counter()
     result = post_json(
-        base + "/chat/completions",
+        OPENAI_CHAT_URL,
         key,
         {
             "model": model,
             "max_tokens": 1024,
             "response_format": {"type": "json_object"},
-            **reasoning,
             "messages": [
                 {"role": "system", "content": TEXT_VALUE},
                 {
