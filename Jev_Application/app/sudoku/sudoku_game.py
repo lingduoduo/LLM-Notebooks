@@ -146,8 +146,9 @@ def make_sudoku(seed: int, holes: int = 40):
         else:
             grid[r][c] = saved
     givens = [[cell != 0 for cell in row] for row in grid]
+    # 唯一解约束下可能挖不满 holes 个；记录实际挖出的数量
     return {
-        'game': 'sudoku', 'seed': seed, 'holes': holes, 'rng_state': rng_state,
+        'game': 'sudoku', 'seed': seed, 'holes': removed, 'rng_state': rng_state,
         'grid': grid, 'givens': givens, 'solution': solution,
         'done': False, 'outcome': None, 'score': 0, 'mistakes': 0, 'steps': 0,
     }
@@ -260,6 +261,7 @@ def render_request(state):
     if cell is None:
         raise ValueError('Terminal states have no question')
     row, col, cands = cell
+    constraints = _constraints_text(state, row, col)
     board = '\n'.join(
         ' '.join(str(v) if v else '.' for v in state['grid'][r]) +
         ('   <- next cell (row %d, column %d)' % (row, col) if r == row else '')
@@ -267,7 +269,7 @@ def render_request(state):
     )
     text = (f"Sudoku 9x9, zero-based (row,column). Dots are empty cells.\n{board}\n"
             f"The next cell to fill is (row {row}, column {col}). "
-            f"{_constraints_text(state, row, col)[0].upper() + _constraints_text(state, row, col)[1:]}. "
+            f"{constraints[0].upper() + constraints[1:]}. "
             "A digit already present in the row, column, or box is impossible. Among the digits "
             "that survive all three constraints, exactly one matches the puzzle's unique solution; "
             "the puzzle is solvable by constraint reasoning alone when a cell has a single candidate, "

@@ -31,29 +31,16 @@ ARTIFACTS = HERE / "artifacts" / "sudoku"
 
 
 # --------------------------------------------------------------------- local judge
-def _peer_cells(row: int, col: int):
-    box_r, box_c = 3 * (row // 3), 3 * (col // 3)
-    cells = [(row, c) for c in range(9) if c != col]
-    cells += [(r, col) for r in range(9) if r != row]
-    cells += [(r, c) for r in range(box_r, box_r + 3) for c in range(box_c, box_c + 3)
-              if (r, c) != (row, col)]
-    return cells
-
-
 def local_judge(request: dict) -> dict:
     """Naked single first, then hidden single; otherwise the lowest surviving candidate.
 
     Deterministic and solution-blind.  When neither rule fires the guess can be wrong —
     exactly where a stronger judge (Jev) could do better with the same published facts.
     """
-    grid = S.make_record  # noqa: F841  (documentation anchor: gold lives only in records)
     row, col = request['cell']
     candidates = list(request['candidates'])
     if not candidates:
         return {'digit': '1'}
-
-    def other_candidates(r, c):
-        return S._candidates
 
     # hidden single: a candidate that fits nowhere else in its row, column, or box
     for digit in candidates:
@@ -123,16 +110,17 @@ def run_episode(seed: int, holes: int, judge, split: str = 'dev',
                     + ', '.join(str(d) for d in sorted(here))
                     + '. Do not repeat them.'
                 )
-        record = S.make_record(state, split)
         answer = judge(request)
         digit = int(answer['digit'])
         row, col = request['cell']
-        correct = digit == record['gold']['digit']
+        # 真值直接取自 solution（int）；gold 在 make_record 里是 str，与 int 比较恒为 False
+        truth = state['solution'][row][col]
+        correct = digit == truth
         steps.append({
             'cell': [row, col],
             'candidates': request['candidates'],
             'answered': digit,
-            'gold': record['gold']['digit'],
+            'gold': truth,
             'correct': correct,
         })
         state = S.step(state, digit)
@@ -140,7 +128,8 @@ def run_episode(seed: int, holes: int, judge, split: str = 'dev',
             wrong.setdefault((row, col), []).append(digit)
     return {
         'seed': seed,
-        'holes': holes,
+        'holes': state['holes'],  # 实际挖出的空格数（可能少于请求值）
+        'holes_requested': holes,
         'outcome': state['outcome'],
         'score': state['score'],
         'mistakes': state['mistakes'],

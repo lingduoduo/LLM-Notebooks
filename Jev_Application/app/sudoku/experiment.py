@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import sudoku_game as S
-from jev_sudoku import run_episode
+from jev_sudoku import local_judge, run_episode
 
 ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 HOLES = (40, 45, 50, 55)
@@ -43,32 +43,6 @@ def random_judge_factory():
         return {'digit': str(rng.choice(survivors)) if survivors else '1'}
 
     return judge
-
-
-def local_judge(request: dict) -> dict:
-    row, col = request['cell']
-    cands = list(request['candidates'])
-
-    def unit_cells():
-        box_r, box_c = 3 * (row // 3), 3 * (col // 3)
-        return (
-            [(row, c) for c in range(9)],
-            [(r, col) for r in range(9)],
-            [(r, c) for r in range(box_r, box_r + 3) for c in range(box_c, box_c + 3)],
-        )
-
-    # hidden single: a candidate that fits no other empty cell in its row/column/box
-    for digit in cands:
-        for unit in unit_cells():
-            others = [cell for cell in unit if cell != (row, col)]
-            if all(
-                digit not in S._candidates(request['_grid'], r, c) for r, c in others
-            ):
-                return {'digit': str(digit)}
-    # guess fallback: never repeat a digit already proven wrong at this cell
-    tried = set(request.get('wrong_digits', {}).get(f'{row},{col}', []))
-    survivors = [c for c in cands if c not in tried] or cands
-    return {'digit': str(survivors[0])}
 
 
 # ------------------------------------------------------- switch-cell variant
@@ -143,18 +117,15 @@ def disp(name: str) -> str:
 
 def main() -> int:
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    judges = {
-        'local_constraint': local_judge,
-        'random_candidate': random_judge_factory(),
-    }
+    random_judge = random_judge_factory()
     report = {'holes_grid': list(HOLES), 'episodes_per_cell': EPISODES, 'cells': {}}
 
     # 四组对照：(名称, 裁判函数, 是否开试错记忆)
     arms = [
         ("约束推理", local_judge, False),
         ("约束推理 + 试错记忆", local_judge, True),
-        ('随机', judges['random_candidate'], False),
-        ('随机 + 试错记忆', judges['random_candidate'], True),
+        ('随机', random_judge, False),
+        ('随机 + 试错记忆', random_judge, True),
     ]
     print(f"{'空格':>6}  组别{'':<20} 胜     平均填对   平均失误")
     for holes in HOLES:
