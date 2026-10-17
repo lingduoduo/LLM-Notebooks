@@ -206,10 +206,12 @@ def main():
                             return -1 if food is None else abs(head[0]-food[0])+abs(head[1]-food[1])
                         _, snake = min(survivors, key=distance)
                 for tick, snapshot in enumerate(snapshots):
-                    add(snapshot, split, snake_record, seed * 1000 + tick * 100)
-                if snapshots:
-                    episodes.append({"id": f"snake:{split}:{size}:{seed}", "split": split,
-                                     "game": "snake", "size": size, "initial_state": snapshots[0]})
+                    accepted = add(snapshot, split, snake_record, seed * 1000 + tick * 100)
+                    # Like maze: a held-out episode is only valid if its initial
+                    # state was accepted into this split (not a cross-split duplicate).
+                    if tick == 0 and accepted:
+                        episodes.append({"id": f"snake:{split}:{size}:{seed}", "split": split,
+                                         "game": "snake", "size": size, "initial_state": snapshot})
     for folder, rows in (("policy", policies), ("events", events)):
         target = out / folder
         target.mkdir()

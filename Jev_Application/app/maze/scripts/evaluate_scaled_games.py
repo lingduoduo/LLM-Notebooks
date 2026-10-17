@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run frozen held-out maze/Snake episodes with a local model, Jev, or controls."""
 import argparse
-from collections import defaultdict
+from collections import Counter, defaultdict
 import copy
 import hashlib
 import json
@@ -10,6 +10,18 @@ from pathlib import Path
 import random
 import subprocess
 import time
+
+
+def select_episodes(all_episodes, splits_arg, limit_per_cell):
+    """First episodes per split/game/size/topology; split names are whitespace-stripped."""
+    splits = {part.strip() for part in splits_arg.split(",") if part.strip()}
+    selected, counts = [], defaultdict(int)
+    for episode in all_episodes:
+        cell = (episode["split"], episode["game"], episode["size"], episode["initial_state"].get("topology", "snake"))
+        if episode["split"] in splits and counts[cell] < limit_per_cell:
+            selected.append(copy.deepcopy(episode))
+            counts[cell] += 1
+    return selected
 
 
 class LiveJev:
@@ -65,16 +77,13 @@ def main():
     out = Path(args.output)
     if out.exists():
         raise ValueError("Use a new output file")
-    from scaled_maze import step as maze_step, solve as maze_solve, render_request as maze_render
-    from snake_game import step as snake_step, render_request as snake_render, make_record as snake_record
+    from scaled_maze import (step as maze_step, solve as maze_solve, render_request as maze_render,
+                             valid_actions as maze_valid_actions)
+    from snake_game import (step as snake_step, render_request as snake_render, make_record as snake_record,
+                            valid_actions as snake_valid_actions)
     source = Path(args.episodes)
     all_episodes = [json.loads(line) for line in source.read_text().splitlines() if line]
-    selected, counts = [], defaultdict(int)
-    for episode in all_episodes:
-        cell = (episode["split"], episode["game"], episode["size"], episode["initial_state"].get("topology", "snake"))
-        if episode["split"] in args.splits.split(",") and counts[cell] < args.limit_per_cell:
-            selected.append(copy.deepcopy(episode))
-            counts[cell] += 1
+    selected = select_episodes(all_episodes, args.splits, args.limit_per_cell)
     if not selected:
         raise ValueError("No selected held-out episodes")
     engine = None
@@ -109,8 +118,7 @@ def main():
                 render = maze_render if episode["game"] == "scaled_maze" else snake_render
                 public = render(state)
                 if "action" not in public["questions"]:
-                    from scaled_maze import valid_actions
-                    actions = valid_actions(state)
+                    actions = maze_valid_actions(state)
                     if len(actions) != 1:
                         episode["active"] = False
                         episode["stop_reason"] = "no_legal_actions"
@@ -143,10 +151,7 @@ def main():
                     choices[lookup[row["id"]]] = (row["answers"]["action"]["probabilities"], args.engine)
             for i, (probabilities, actor) in choices.items():
                 episode = selected[i]
-                if episode["game"] == "scaled_maze":
-                    from scaled_maze import valid_actions as offered_actions
-                else:
-                    from snake_game import valid_actions as offered_actions
+                offered_actions = maze_valid_actions if episode["game"] == "scaled_maze" else snake_valid_actions
                 if set(probabilities) != set(offered_actions(episode["state"])):
                     raise ValueError("Returned probabilities must cover exactly the offered actions")
                 total = sum(probabilities.values())
@@ -184,7 +189,7 @@ def main():
         summary = {key: {"episodes": len(rows), "mean_score": sum(r["score"] for r in rows)/len(rows),
                          "mean_steps": sum(r["steps_count"] for r in rows)/len(rows),
                          "goal_or_full_board_rate": sum(r["success"] for r in rows)/len(rows),
-                         "outcomes": dict(__import__('collections').Counter(r["outcome"] for r in rows))}
+                         "outcomes": dict(Counter(r["outcome"] for r in rows))}
                    for key, rows in cells.items()}
         result = {"schema": "nanojev-scaled-game-rollout-v1", "engine": args.engine, "controller": args.controller,
                   "checkpoint": args.checkpoint, "max_steps": args.max_steps, "episodes_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),

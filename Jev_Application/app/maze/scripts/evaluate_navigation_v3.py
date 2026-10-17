@@ -433,6 +433,8 @@ def main():
         return
     if args.output is None:
         parser.error('--output is required for actual evaluation')
+    if args.output.exists():
+        raise ValueError('Use a new output file')
     episodes, train_groups, cohort = select_episodes(args.data_dir, args.per_split)
     engine, renderer = None, None
     if args.policy in {'greedy', 'sample'}:

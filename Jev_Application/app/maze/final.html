@@ -126,6 +126,7 @@ button,select{font:inherit;cursor:pointer}button:disabled{opacity:.35;cursor:def
     if (state.anim !== null) cancelAnimationFrame(state.anim);
     state.anim = null;
     $('play').textContent = '▶ 播放';
+    draw();
   }
   function draw() {
     const rect = canvas.getBoundingClientRect();
@@ -187,6 +188,8 @@ button,select{font:inherit;cursor:pointer}button:disabled{opacity:.35;cursor:def
     const advance = (now) => {
       if (!state.playing) return;
       const interval = 1000 / state.speed;
+      // Cap catch-up (e.g. returning from a background tab) instead of jumping to the end.
+      if (now - state.tick > 100) state.tick = now - 100;
       const n = Math.floor((now - state.tick) / interval);
       if (n > 0) {
         state.tick += n * interval;
