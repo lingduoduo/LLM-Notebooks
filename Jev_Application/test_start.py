@@ -140,3 +140,32 @@ def test_background_server_pattern_does_not_hang_capture(tmp_path):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+def test_menu_checks_services_concurrently_and_preserves_order(monkeypatch):
+    # A barrier makes serial probing fail deterministically, without timing assertions.
+    barrier = threading.Barrier(len(start.SERVICES))
+
+    def probe(port):
+        barrier.wait(timeout=2)
+        return port == start.SERVICES[0][2]
+
+    monkeypatch.setattr(start, "alive", probe)
+    monkeypatch.setattr(start, "mario_python", lambda: None)
+    page = start.menu_page()
+    positions = [page.index(title) for _, title, *_ in start.SERVICES]
+    assert positions == sorted(positions)
+    assert page.count('class="dot on"') == 4  # first service + three replays
+    assert page.count('class="dot off"') == len(start.SERVICES) - 1
+
+
+def test_runnable_supports_python_path_with_spaces(menu, tmp_path, monkeypatch):
+    executable = tmp_path / "python executable"
+    executable.symlink_to(sys.executable)
+    monkeypatch.setattr(start.sys, "executable", str(executable))
+    monkeypatch.setitem(start.RUNNABLES, "echo", (
+        "Python", '\"$PY\" -c \'print("python-path-ok")\'', "tip", "app/demo/index.html"))
+    status, body = get(menu, "/run/echo")
+    assert status == 200
+    assert "[exit 0" in body
+    assert "python-path-ok" in body

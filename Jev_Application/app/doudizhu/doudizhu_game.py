@@ -148,13 +148,13 @@ def _reference_move(state, moves, trick):
     if not moves:
         return {'type': 'pass', 'cards': [], 'rank': -1, 'length': 0}
     non_pass = [m for m in moves if m['type'] != 'pass']
+    empties = [m for m in non_pass if len(m['cards']) == len(state['hands'][state['turn']])]
+    if empties:
+        return empties[0]
     if trick is None:
         unloading = [m for m in non_pass if m['type'] != 'bomb' and m['type'] != 'rocket']
-        empties = [m for m in non_pass if len(m['cards']) == len(state['hands'][state['turn']])]
-        if empties:
-            return empties[0]
         pool = unloading or non_pass
-        return min(pool, key=lambda m: (len(m['cards']) * 4 + m['rank']))
+        return min(pool, key=lambda m: (-len(m['cards']), m['rank']))
     owner = trick['owner']
     is_landlord = state['landlord']
     same_team = (state['turn'] != is_landlord and owner != is_landlord)
@@ -248,8 +248,13 @@ def seat_label(state, seat: int) -> str:
 
 def render_request(state):
     """Physical observations for the seat on turn: own hand, counts, trick; no hidden hands."""
+    moves = gen_moves(state['hands'][state['turn']], state['trick'])
+    return _render_request(state, moves)
+
+
+def _render_request(state, moves):
+    """Render an already generated legal move list without regenerating it."""
     seat = state['turn']
-    moves = gen_moves(state['hands'][seat], state['trick'])
     hand = state['hands'][seat]
     hand_text = ' '.join(card_name(c) for c in sorted(hand, key=rank_of))
     trick = state['trick']
@@ -286,9 +291,9 @@ def render_request(state):
 def make_record(state, split):
     if not isinstance(split, str) or split not in SPLITS:
         raise ValueError('Unknown split')
-    public = render_request(state)
     seat = state['turn']
     moves = gen_moves(state['hands'][seat], state['trick'])
+    public = _render_request(state, moves)
     trick = state['trick']
     reference = _reference_move(state, moves, trick)
     key = (reference['type'], tuple(reference['cards']))

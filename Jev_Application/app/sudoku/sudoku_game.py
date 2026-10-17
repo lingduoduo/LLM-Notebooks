@@ -64,7 +64,8 @@ def _peers(grid, row, col):
 
 
 def _candidates(grid, row, col):
-    return [d for d in DIGITS if d not in _peers(grid, row, col)]
+    seen = _peers(grid, row, col)
+    return [d for d in DIGITS if d not in seen]
 
 
 def _count_solutions(grid, limit=2):
@@ -100,6 +101,7 @@ def _fill_complete(rng_state):
     grid = [[0] * 9 for _ in range(9)]
 
     def backtrack():
+        nonlocal rng_state
         best = None
         for r in range(9):
             for c in range(9):
@@ -112,8 +114,7 @@ def _fill_complete(rng_state):
         if best is None:
             return True
         r, c, cands = best
-        cands, rng_state_local = _shuffle(cands, _fill_complete.rng)
-        _fill_complete.rng = rng_state_local
+        cands, rng_state = _shuffle(cands, rng_state)
         for digit in cands:
             grid[r][c] = digit
             if backtrack():
@@ -121,9 +122,8 @@ def _fill_complete(rng_state):
             grid[r][c] = 0
         return False
 
-    _fill_complete.rng = rng_state
     backtrack()
-    return grid, _fill_complete.rng
+    return grid, rng_state
 
 
 def make_sudoku(seed: int, holes: int = 40):
@@ -150,7 +150,8 @@ def make_sudoku(seed: int, holes: int = 40):
     return {
         'game': 'sudoku', 'seed': seed, 'holes': removed, 'rng_state': rng_state,
         'grid': grid, 'givens': givens, 'solution': solution,
-        'done': False, 'outcome': None, 'score': 0, 'mistakes': 0, 'steps': 0,
+        'done': removed == 0, 'outcome': 'win' if removed == 0 else None,
+        'score': 0, 'mistakes': 0, 'steps': 0,
     }
 
 
@@ -181,7 +182,7 @@ def validate_state(state):
                 raise ValueError('A live non-given cell can only hold the solution digit')
     for units in ([state['grid'][r][:] for r in range(9)],
                   [[state['grid'][r][c] for r in range(9)] for c in range(9)],
-                  [[state['grid'][3 * (r // 3) + dr][3 * (c // 3) + dc] for dr in range(3) for dc in range(3)]
+                  [[state['grid'][3 * r + dr][3 * c + dc] for dr in range(3) for dc in range(3)]
                    for r in range(3) for c in range(3)]):
         for line in units:
             values = [v for v in line if v]
@@ -282,7 +283,7 @@ def render_request(state):
         'criteria': {str(d): (
             f'Write {d} at (row {row}, column {col}). '
             + ('IMPOSSIBLE: it already appears in ' + _conflict_unit(state, row, col, d) + '.'
-               if d in _peers(state['grid'], row, col) else
+               if d not in cands else
                'survives all three row/column/box checks.')) for d in DIGITS}}}
     for d in DIGITS:
         questions[f'fits_{d}'] = {'type': 'boolean', 'instructions':

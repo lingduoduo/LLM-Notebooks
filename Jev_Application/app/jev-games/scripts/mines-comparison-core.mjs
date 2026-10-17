@@ -49,7 +49,10 @@ export function applyAction(game, board, action) {
 export const cellName = i => `r${Math.floor(i / SIZE) + 1}c${i % SIZE + 1}`;
 export function parseCell(name) {
   const m = /^r(\d+)c(\d+)$/.exec(name || '');
-  return m ? (Number(m[1]) - 1) * SIZE + Number(m[2]) - 1 : -1;
+  if (!m) return -1;
+  const row = Number(m[1]), col = Number(m[2]);
+  if (row < 1 || row > SIZE || col < 1 || col > SIZE) return -1;
+  return (row - 1) * SIZE + col - 1;
 }
 // This function receives only visible cells. Hidden mine positions are never consulted.
 export function deduce(visible) {

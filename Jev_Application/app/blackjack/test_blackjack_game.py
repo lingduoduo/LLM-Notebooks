@@ -1,13 +1,17 @@
 """Offline tests for the Blackjack engine, experiment and server (local judges only)."""
 import json
 import sys
+import importlib.util
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import blackjack_game as B
-import experiment
+# Different apps ship a module named experiment; load this app explicitly.
+_spec = importlib.util.spec_from_file_location("blackjack_experiment", Path(__file__).with_name("experiment.py"))
+experiment = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(experiment)
 import serve_blackjack
 
 # card id = suit * 13 + rank index (0 = A, 5 = '6', 4 = '5', 9 = '10', 12 = 'K')
@@ -162,3 +166,19 @@ def test_judge_exception_falls_back_to_stand():
         B.step = original_step
     assert session.last_answer == 'stand'
     assert session.state['round'] > rounds
+
+
+def test_malformed_judge_answers_fall_back_to_stand(monkeypatch):
+    for answer in (None, [], {'action': []}, {'action': 'unknown'}):
+        session = serve_blackjack.BlackjackSession(lambda request: answer, pace=0, seed=1)
+        original_step = B.step
+
+        def stop_after(state, action):
+            session.alive = False
+            assert action == 'stand'
+            return original_step(state, action)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(B, 'step', stop_after)
+            session.run()
+        assert session.last_answer == 'stand'

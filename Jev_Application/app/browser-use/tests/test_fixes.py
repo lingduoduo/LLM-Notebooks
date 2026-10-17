@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 harness = types.ModuleType("browser_harness")
 harness.admin = types.ModuleType("browser_harness.admin")
 harness.admin.ensure_daemon = lambda: None
@@ -240,3 +242,18 @@ def test_fixture_escape_function_covers_html_metacharacters():
     assert match
     for char, entity in {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}.items():
         assert f'"{char}": "{entity}"' in match.group(0) or f"'{char}': \"{entity}\"" in match.group(0)
+
+
+@pytest.mark.parametrize('result', [
+    {'choices': []},
+    {'choices': [{'message': {'content': '[]'}}]},
+    {'choices': [{'message': {'content': '{"text": ""}'}}]},
+    {'choices': [{'message': {'content': '{"text": 5}'}}]},
+])
+def test_field_text_rejects_malformed_response_consistently(monkeypatch, result):
+    from jev_ultrafast import model
+
+    monkeypatch.setenv('OPENAI_API_KEY', 'offline-test')
+    monkeypatch.setattr(model, 'post_json', lambda *args: result)
+    with pytest.raises(ValueError, match='no valid field value'):
+        model.field_text({})
