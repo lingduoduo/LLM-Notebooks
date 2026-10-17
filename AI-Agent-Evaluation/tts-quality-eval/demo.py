@@ -1,7 +1,7 @@
 """Experiment 6-5: a fully automated TTS quality evaluation pipeline.
 
     python demo.py                         # Four default OpenAI configurations x four samples
-    python demo.py --providers openai,minimax  # Compare providers side by side
+    python demo.py --providers openai,elevenlabs  # Compare providers side by side
     python demo.py --text 'A custom sentence'  # Evaluate custom text
     python demo.py --gemini                # Have Gemini listen to audio directly (GEMINI_API_KEY required)
     python demo.py --quick                 # Use the first two samples for a quick smoke test
@@ -139,13 +139,13 @@ def print_table(rows):
 
 def print_providers() -> None:
     """Print all TTS providers and their configuration state without network access."""
-    print("Available TTS providers (OpenAI / ElevenLabs / Fish Audio / Minimax):\n")
+    print("Available TTS providers (OpenAI / ElevenLabs / Fish Audio):\n")
     for key, p in config.PROVIDERS.items():
         state = "configured" if p.configured() else "not configured"
         env = " + ".join(p.env)
         print(f"  [{key}]  {p.label}   ({state}; requires {env})")
         print(f"      {p.note}")
-    print("\nUse --providers openai,minimax to compare providers (the default is OpenAI only).")
+    print("\nUse --providers openai,elevenlabs to compare providers (the default is OpenAI only).")
     print("Non-OpenAI providers require their own keys (see env.example); a missing key fails only that row.")
 
 
@@ -166,7 +166,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Examples:\n"
                "  python demo.py                              Four OpenAI configurations × four samples\n"
-               "  python demo.py --providers openai,minimax   Compare providers side by side\n"
+               "  python demo.py --providers openai,elevenlabs   Compare providers side by side\n"
                "  python demo.py --text 'The weather is pleasant today.' --gemini   Custom text + Gemini audio judge\n"
                "  python demo.py --list-providers             View offline provider configuration state\n"
                "  python demo.py --dump-rubric                View offline rubric dimensions",
@@ -174,7 +174,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--text", metavar="TEXT",
                     help="Replace the evaluation corpus with one custom sentence")
     ap.add_argument("--providers", metavar="LIST",
-                    help="Comma-separated providers (openai,elevenlabs,fishaudio,minimax); "
+                    help="Comma-separated providers (openai,elevenlabs,fishaudio); "
                          "each uses one representative configuration; default: multiple OpenAI configurations")
     ap.add_argument("--judge-model", metavar="MODEL", dest="judge_model",
                     help=f"Override the LLM judge model (default: {config.JUDGE_MODEL}); ignored with --gemini")

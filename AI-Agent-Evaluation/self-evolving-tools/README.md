@@ -111,7 +111,7 @@ Did the pre-save validation gate block the broken tool: Yes ✅
 1. **NVDA** (demonstrates evolution): Starting from zero base tools, search → read documentation → sandbox test → package `get_stock_price` tool → provide NVIDIA's real stock price and weekly change.
 2. **AAPL** (demonstrates reuse): `search_tools` hits the just-created `get_stock_price`, **directly reuses** it, no re-searching/creating.
 
-> You can also switch to other OpenAI-compatible providers: `LLM_PROVIDER=moonshot|ark` (with corresponding `MOONSHOT_API_KEY` / `ARK_API_KEY`), or use `LLM_MODEL` to override the model name. Search uses DuckDuckGo, no search key required.
+> The LLM backend is the official OpenAI API (with OpenRouter as a fallback route for the same OpenAI models); use `LLM_MODEL` to override the model name. Search uses DuckDuckGo, no search key required.
 
 ## A Real Run Trace (Excerpt, Real Internet + Real OpenAI Calls)
 

@@ -14,7 +14,7 @@ import shutil
 import statistics
 from typing import Any, Callable
 
-from agent import OpenAILongitudinalAgent
+from agent import SUPPORTED_PROVIDERS, OpenAILongitudinalAgent
 from harness import LongitudinalEvaluator
 
 
@@ -78,8 +78,8 @@ def _no_answer_leak(receipt: dict[str, Any]) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("ark", "openrouter", "openai"), default="ark")
-    parser.add_argument("--model", default="doubao-seed-1-6-250615")
+    parser.add_argument("--provider", choices=SUPPORTED_PROVIDERS, default="openai")
+    parser.add_argument("--model", default="gpt-4o-mini")
     parser.add_argument("--seeds", default="8601,8602,8603")
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--output-dir", type=Path)

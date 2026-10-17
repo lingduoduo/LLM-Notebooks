@@ -9,7 +9,7 @@ python demo.py --profile all --output output/reference-report.json
 
 # Live acceptance: 3 real-model arms x 3 seeds x 14 sequential tasks = 126 API calls.
 python run_experiment_9_9.py \
-  --provider ark --model doubao-seed-1-6-250615 \
+  --provider openai --model gpt-4o-mini \
   --seeds 8601,8602,8603 --workers 6
 ```
 
@@ -56,6 +56,8 @@ The harness exposes the learning signal only after the model returns and its cur
 These are reference implementations, not real models. They check whether the evaluation framework can distinguish three long-term behaviors. To replace `ReferenceAgent` with your own agent, implement `act(task)`, `observe(task)`, `profile`, and `storage_bytes`.
 
 ## Results from Repeated Real-Model Experiments
+
+> Note: the recorded run below was captured with the ByteDance Ark (Doubao) backend, which has since been removed from this project; new campaigns default to OpenAI `gpt-4o-mini`. The recorded numbers are kept unchanged and have not been re-measured on OpenAI.
 
 The canonical run stored in the repository used Ark `doubao-seed-1-6-250615` with seeds 8601, 8602, and 8603. The core rates were identical across all three repetitions:
 

@@ -11,8 +11,6 @@ from openai import OpenAI
 
 BACKENDS = {
     "openrouter": ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
-    "moonshot": ("MOONSHOT_API_KEY", "https://api.moonshot.cn/v1", "kimi-k3"),
-    "ark": ("ARK_API_KEY", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1-6-250615"),
     "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4o-mini"),
 }
 

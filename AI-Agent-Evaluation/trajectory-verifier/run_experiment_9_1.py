@@ -117,7 +117,7 @@ def build_evidence(cases, trajectories, reports, client, command) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("openrouter", "moonshot", "ark", "openai"), default="openrouter")
+    parser.add_argument("--provider", choices=("openrouter", "openai"), default="openrouter")
     parser.add_argument("--model")
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
