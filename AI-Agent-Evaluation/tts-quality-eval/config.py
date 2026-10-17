@@ -36,7 +36,7 @@ class TTSConfig:
     """One TTS configuration to evaluate; names must be unique in the table.
 
     ``provider`` selects the synthesis service (openai, elevenlabs, fishaudio,
-    minimax, or doubao). Each provider defines the meaning of model, voice, and
+    or minimax). Each provider defines the meaning of model, voice, and
     speed. For example, ElevenLabs voice is a voice_id, while Fish Audio voice
     is a reference_id and may be empty to use the default voice.
     """
@@ -51,12 +51,12 @@ class TTSConfig:
         # Only some provider/model combinations accept a speed parameter.
         if self.provider == "openai":
             return self.model in ("tts-1", "tts-1-hd")
-        return self.provider in ("minimax", "doubao")
+        return self.provider == "minimax"
 
 
 # ---------------------------------------------------------------------------
 # Multi-provider registry, corresponding to the book's integration of OpenAI,
-# ElevenLabs, Fish Audio, Minimax, and Doubao. Each provider declares needed
+# ElevenLabs, Fish Audio, and Minimax. Each provider declares needed
 # environment variables and a representative configuration for comparison.
 # Other providers use their public REST APIs; a missing key marks only that row
 # as failed and does not stop the full table (see demo.py).
@@ -106,10 +106,6 @@ PROVIDERS: dict[str, ProviderInfo] = {
         "minimax", "Minimax", ("MINIMAX_API_KEY", "MINIMAX_GROUP_ID"),
         "voice=voice_id; model defaults to speech-01-turbo and requires an additional GroupId.",
     ),
-    "doubao": ProviderInfo(
-        "doubao", "Doubao (Volcengine)", ("DOUBAO_APP_ID", "DOUBAO_ACCESS_TOKEN"),
-        "voice=voice_type, using openspeech.bytedance.com; the authorization header is 'Bearer;{token}'.",
-    ),
 }
 
 # Representative configurations selected by --providers, one per provider.
@@ -123,8 +119,6 @@ PROVIDER_CONFIGS: dict[str, TTSConfig] = {
                           model="speech-1.5", voice=""),
     "minimax": TTSConfig("minimax-turbo", provider="minimax",
                         model="speech-01-turbo", voice="male-qn-qingse"),
-    "doubao": TTSConfig("doubao-tts", provider="doubao",
-                       model="volcano_tts", voice="zh_female_qingxin"),
 }
 
 

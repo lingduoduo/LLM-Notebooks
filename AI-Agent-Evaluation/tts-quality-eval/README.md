@@ -3,7 +3,7 @@
 This project implements an end-to-end benchmark pipeline for TTS quality across multiple providers and configurations. The same source scripts are synthesized, then evaluated with an LLM-as-a-Judge rubric.
 
 It compares:
-- provider differences (OpenAI, ElevenLabs, Fish Audio, Minimax, Doubao)
+- provider differences (OpenAI, ElevenLabs, Fish Audio, Minimax)
 - model / voice / speed settings
 - objective speech metrics and rubric-based subjective dimensions
 

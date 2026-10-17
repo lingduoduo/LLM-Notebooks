@@ -139,7 +139,7 @@ def print_table(rows):
 
 def print_providers() -> None:
     """Print all TTS providers and their configuration state without network access."""
-    print("Available TTS providers (OpenAI / ElevenLabs / Fish Audio / Minimax / Doubao):\n")
+    print("Available TTS providers (OpenAI / ElevenLabs / Fish Audio / Minimax):\n")
     for key, p in config.PROVIDERS.items():
         state = "configured" if p.configured() else "not configured"
         env = " + ".join(p.env)
@@ -174,7 +174,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--text", metavar="TEXT",
                     help="Replace the evaluation corpus with one custom sentence")
     ap.add_argument("--providers", metavar="LIST",
-                    help="Comma-separated providers (openai,elevenlabs,fishaudio,minimax,doubao); "
+                    help="Comma-separated providers (openai,elevenlabs,fishaudio,minimax); "
                          "each uses one representative configuration; default: multiple OpenAI configurations")
     ap.add_argument("--judge-model", metavar="MODEL", dest="judge_model",
                     help=f"Override the LLM judge model (default: {config.JUDGE_MODEL}); ignored with --gemini")
