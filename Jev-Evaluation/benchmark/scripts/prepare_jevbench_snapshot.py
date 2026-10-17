@@ -8,21 +8,22 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime
 import json
+import sys
 import zipfile
 from pathlib import Path
 
 
 CHAPTER = Path(__file__).resolve().parents[2]
-OUTPUT_PATH = CHAPTER / "figures" / "jevbench-2026-09-26" / "snapshot.json"
-MODEL_IDS = ["deepseek-flash", "doubao-2.1-pro", "glm-5.3-codeplan", "jev", "kimi-k3"]
-DISPLAY_NAMES = {
-    "deepseek-flash": "DeepSeek Flash",
-    "doubao-2.1-pro": "Doubao 2.1 Pro",
-    "glm-5.3-codeplan": "GLM 5.3 Codeplan",
-    "jev": "Jev",
-    "kimi-k3": "Kimi K3",
-}
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from llm_eval.adapters import OPENAI_MODELS  # noqa: E402
+
+# Jev (native) plus the OpenAI verbalized lineup; run directories are named
+# after these ids (runs/notebook-demo/real/<id>/), as the notebook writes them.
+MODEL_IDS = ["jev", *OPENAI_MODELS]
+DISPLAY_NAMES = {"jev": "Jev", **{model: model for model in OPENAI_MODELS}}
 
 
 def aggregate_model(archive, model_id):
@@ -92,20 +93,34 @@ def aggregate_model(archive, model_id):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zip", dest="zip_path", required=True, type=Path, help="Uploaded JevBench results ZIP")
+    parser.add_argument("--date", default=datetime.date.today().isoformat(),
+                        help="Snapshot date (YYYY-MM-DD); output goes to figures/jevbench-<date>/")
     args = parser.parse_args()
+    snapshot_date = datetime.date.fromisoformat(args.date).isoformat()
+    output_path = CHAPTER / "figures" / f"jevbench-{snapshot_date}" / "snapshot.json"
     zip_path = args.zip_path.expanduser().resolve()
     with zipfile.ZipFile(zip_path) as archive:
-        models = [aggregate_model(archive, model_id) for model_id in MODEL_IDS]
+        members = set(archive.namelist())
+        present = [
+            model_id for model_id in MODEL_IDS
+            if f"runs/notebook-demo/real/{model_id}/summary.json" in members
+        ]
+        for model_id in MODEL_IDS:
+            if model_id not in present:
+                print(f"skip {model_id}: no runs/notebook-demo/real/{model_id}/ in {zip_path.name}")
+        if not present:
+            raise SystemExit("no known model runs in the archive")
+        models = [aggregate_model(archive, model_id) for model_id in present]
 
     metadata = {
-        "snapshot_date": "2026-09-26",
+        "snapshot_date": snapshot_date,
         "source_zip": zip_path.name,
         "source_members": [
             "runs/notebook-demo/real/{provider}/summary.json",
             "runs/notebook-demo/real/{provider}/results.jsonl",
         ],
         "task_rows_by_provider": {model["id"]: model["n_tasks"] for model in models},
-        "models_order": MODEL_IDS,
+        "models_order": present,
         "metrics_note": (
             "conditional_accuracy, Brier and ECE are computed on scorable responses; "
             "valid_rate and correct_rate_all_tasks use all task rows; p50/p95 use rows "
@@ -117,12 +132,12 @@ def main():
             "Raw prompts, model outputs, provider ledgers and credentials are excluded."
         ),
     }
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
         json.dumps({"metadata": metadata, "models": models}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print(f"Wrote {OUTPUT_PATH}")
+    print(f"Wrote {output_path}")
     for model in models:
         acc = model["conditional_accuracy"]
         acc_s = f"{acc:.4f}" if acc is not None else "n/a"

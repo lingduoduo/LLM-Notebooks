@@ -1,4 +1,7 @@
-"""Render the curated 2026-09-26 JevBench snapshot as self-contained SVG charts.
+"""Render a curated JevBench snapshot as self-contained SVG charts.
+
+Reads figures/jevbench-<date>/snapshot.json (written by prepare_jevbench_snapshot.py)
+and writes the SVGs next to it. Layouts scale with the number of models.
 
 The compact snapshot intentionally excludes raw prompts, provider responses,
 ledgers, and credentials. This renderer uses only the Python standard library.
@@ -6,14 +9,15 @@ ledgers, and credentials. This renderer uses only the Python standard library.
 
 from __future__ import annotations
 
+import argparse
+import datetime
 import json
 from html import escape
 from pathlib import Path
 
 
 CHAPTER = Path(__file__).resolve().parents[2]
-FIGURES = CHAPTER / "figures" / "jevbench-2026-09-26"
-SNAPSHOT = FIGURES / "snapshot.json"
+FIGURES = None  # set by main() to the snapshot's directory
 
 BG = "#F3F7F6"
 CARD = "#FFFFFF"
@@ -49,12 +53,24 @@ FAMILY_LABELS = {
 }
 
 MODEL_COLORS = {
-    "deepseek-flash": "#2A9D8F",
-    "doubao-2.1-pro": "#E5A15A",
-    "glm-5.3-codeplan": "#718596",
     "jev": "#1E716B",
-    "kimi-k3": "#8A78AC",
+    "gpt-6.1-sol": "#2A9D8F",
+    "gpt-6-luna": "#E5A15A",
+    "gpt-5.6-terra": "#718596",
+    "gpt-5.6-luna": "#8A78AC",
+    "gpt-4.1-mini": "#D97767",
 }
+
+
+def row_positions(start, count, span, max_step):
+    """Evenly spaced row centres; rows tighten instead of overflowing the panel."""
+    step = max_step if count <= 1 else min(max_step, span / (count - 1))
+    return [start + step * i for i in range(count)]
+
+
+def column_width(count, available, gap, max_width):
+    """Column width that fits `count` columns (with gaps) into `available` pixels."""
+    return min(max_width, (available - gap * (count - 1)) / max(count, 1))
 
 
 def text(x, y, value, size=16, color=INK, weight=400, anchor="start"):
@@ -114,20 +130,21 @@ def axis(parts, x, y, width, ticks, maximum, suffix=""):
         parts.append(text(px, y + 18, f"{value:g}{suffix}", 11, MUTED, anchor="middle"))
 
 
-def render_dashboard(models):
+def render_dashboard(models, snapshot_date):
     width, height = 1500, 970
+    when = datetime.date.fromisoformat(snapshot_date).strftime("%-d %b %Y")
     parts = start(
         width,
         height,
-        "JevBench | five-provider snapshot",
-        "Public task set · 231 planned tasks per provider · 26 Sep 2026 · one run each",
+        f"JevBench | {len(models)}-provider snapshot",
+        f"Public task set · 231 planned tasks per provider · {when} · one run each",
     )
     x1, x2, panel_w = 58, 766, 676
     y1, y2, panel_h = 132, 520, 356
 
     panel(parts, x1, y1, panel_w, panel_h, "Conditional accuracy", "Only scorable responses · label includes n")
     bar_x, bar_w = x1 + 208, 300
-    row_y = [y1 + 117 + 39 * i for i in range(5)]
+    row_y = row_positions(y1 + 117, len(models), 156, 39)
     for model, cy in zip(models, row_y):
         name = model["display_name"]
         value = model["conditional_accuracy"] or 0
@@ -162,7 +179,7 @@ def render_dashboard(models):
 
     panel(parts, x1, y2, panel_w, panel_h, "Observed latency", "Line spans p50 → p95 · attempted rows with latency")
     time_x, time_w = x1 + 208, 300
-    for model, cy in zip(models, [y2 + 117 + 39 * i for i in range(5)]):
+    for model, cy in zip(models, row_positions(y2 + 117, len(models), 156, 39)):
         name = model["display_name"]
         p50, p95 = model["p50_s"] or 0, model["p95_s"] or 0
         parts.append(text(x1 + 22, cy, name, 14, INK, 600))
@@ -176,7 +193,7 @@ def render_dashboard(models):
     cost_models = models
     panel(parts, x2, y2, panel_w, panel_h, "Observed cost per 1,000 valid answers", "Recorded spend / valid responses × 1,000 · partial-run snapshot")
     cost_x, cost_w = x2 + 208, 300
-    for model, cy in zip(cost_models, [y2 + 117 + 39 * i for i in range(5)]):
+    for model, cy in zip(cost_models, row_positions(y2 + 117, len(cost_models), 156, 39)):
         cost = (model["observed_cost_per_valid_usd"] or 0) * 1000
         parts.append(text(x2 + 22, cy, model["display_name"], 14, INK, 600))
         parts.append(rect(cost_x, cy - 8, cost_w, 16, PALE, 8))
@@ -199,13 +216,13 @@ def render_composite(models):
         "Four-axis formula output · values are provisional because valid-response counts differ",
     )
     x, bar_w = 330, 780
-    top, gap = 205, 82
+    top = 205
+    rows = row_positions(top, len(ordered), 360, 82)
     for tick in [0, 20, 40, 60, 80, 100]:
         px = x + bar_w * tick / 100
-        parts.append(line(px, top - 28, px, top + 4 * gap + 32, GRID, 1, "4 6"))
+        parts.append(line(px, top - 28, px, rows[-1] + 32, GRID, 1, "4 6"))
         parts.append(text(px, top - 45, str(tick), 12, MUTED, anchor="middle"))
-    for i, model in enumerate(ordered):
-        cy = top + i * gap
+    for model, cy in zip(ordered, rows):
         score = model["jevbench_score"] or 0
         parts.append(text(76, cy, model["display_name"], 18, INK, 600))
         parts.append(rect(x, cy - 18, bar_w, 36, PALE, 18))
@@ -239,7 +256,8 @@ def render_split_coverage(models):
         "Cell = valid typed responses / planned tasks in the ID-prefix group",
     )
     groups = [("easy", "Easy", 48), ("original", "Original", 72), ("hard", "Hard", 111)]
-    left, top, cw, ch, gap = 340, 260, 207, 124, 16
+    left, top, ch, gap = 340, 260, 124, 16
+    cw = column_width(len(models), width - left - 70, gap, 207)
     for col, model in enumerate(models):
         cx = left + col * (cw + gap) + cw / 2
         parts.append(text(cx, top - 59, model["display_name"], 14, INK, 700, anchor="middle"))
@@ -269,7 +287,8 @@ def render_family_yield(models):
         "Cell = correct outputs / all planned tasks in that family · errors and unattempted rows are not successes",
     )
     order = list(FAMILY_LABELS)
-    left, top, cw, ch, gap = 430, 250, 235, 45, 10
+    left, top, ch, gap = 430, 250, 45, 10
+    cw = column_width(len(models), width - left - 60, gap, 235)
     parts.append(text(86, top - 44, "Task family", 13, MUTED, 700))
     parts.append(text(354, top - 44, "N", 13, MUTED, 700, anchor="middle"))
     for col, model in enumerate(models):
@@ -307,7 +326,8 @@ def render_failure_breakdown(models):
         "Where planned tasks ended",
         "Counts from each provider's 231 task rows · one run per provider",
     )
-    x, bar_w, top, gap = 330, 900, 235, 68
+    x, bar_w, top = 330, 900, 235
+    rows = row_positions(top, len(models), 272, 68)
     colors = {
         "valid": TEAL,
         "empty_probs": CORAL,
@@ -329,11 +349,10 @@ def render_failure_breakdown(models):
 
     for tick in [0, 50, 100, 150, 200, 231]:
         px = x + bar_w * tick / 231
-        parts.append(line(px, top - 27, px, top + gap * 4 + 24, GRID, 1, "4 6"))
+        parts.append(line(px, top - 27, px, rows[-1] + 24, GRID, 1, "4 6"))
         parts.append(text(px, top - 46, tick, 12, MUTED, anchor="middle"))
 
-    for index, model in enumerate(models):
-        cy = top + index * gap
+    for model, cy in zip(models, rows):
         counts = model["status_counts"]
         error_count = counts.get("error", 0)
         values = [
@@ -357,16 +376,30 @@ def render_failure_breakdown(models):
 
     for tick in [0, 50, 100, 150, 200, 231]:
         px = x + bar_w * tick / 231
-        parts.append(text(px, top + gap * 5 - 8, tick, 11, MUTED, anchor="middle"))
+        parts.append(text(px, rows[-1] + 60, tick, 11, MUTED, anchor="middle"))
     parts.append(rect(78, 605, 1384, 46, "#FFF4E7", 12, "#F0D2A8", 1))
     parts.append(text(98, 628, "Empty-probs counts are a recorded parse-error subtype; they describe this run's output path, not the model's underlying capability.", 12, INK, 500))
     end(parts, FIGURES / "failure_breakdown.svg")
 
 
+def latest_snapshot():
+    found = sorted((CHAPTER / "figures").glob("jevbench-*/snapshot.json"))
+    if not found:
+        raise SystemExit("no figures/jevbench-*/snapshot.json; run prepare_jevbench_snapshot.py first")
+    return found[-1]
+
+
 def main():
-    data = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+    global FIGURES
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--snapshot", type=Path, default=None,
+                        help="snapshot.json to render (default: newest figures/jevbench-*/snapshot.json)")
+    args = parser.parse_args()
+    snapshot = (args.snapshot or latest_snapshot()).expanduser().resolve()
+    FIGURES = snapshot.parent
+    data = json.loads(snapshot.read_text(encoding="utf-8"))
     models = data["models"]
-    render_dashboard(models)
+    render_dashboard(models, data["metadata"]["snapshot_date"])
     render_composite(models)
     render_split_coverage(models)
     render_family_yield(models)
