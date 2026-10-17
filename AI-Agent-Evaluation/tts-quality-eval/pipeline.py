@@ -207,35 +207,11 @@ def _synth_minimax(cfg: config.TTSConfig, text: str) -> bytes:
     return bytes.fromhex(hexstr)
 
 
-def _synth_doubao(cfg: config.TTSConfig, text: str) -> bytes:
-    import uuid
-    appid = _require_env("DOUBAO_APP_ID")
-    token = _require_env("DOUBAO_ACCESS_TOKEN")
-    body = {
-        "app": {"appid": appid, "token": token,
-                "cluster": cfg.model or "volcano_tts"},
-        "user": {"uid": "tts-quality-eval"},
-        "audio": {"voice_type": cfg.voice, "encoding": "mp3",
-                  "speed_ratio": cfg.speed},
-        "request": {"reqid": str(uuid.uuid4()), "text": text, "operation": "query"},
-    }
-    # Volcengine requires the special Bearer;{token} header and returns base64 audio in data.
-    raw = _http_post("https://openspeech.bytedance.com/api/v1/tts", body,
-                     {"Authorization": f"Bearer;{token}"})
-    data = json.loads(raw)
-    b64 = data.get("data")
-    if not b64:
-        raise RuntimeError(f"Doubao returned no audio: code={data.get('code')} "
-                           f"message={data.get('message')}")
-    return base64.b64decode(b64)
-
-
 _SYNTH_DISPATCH = {
     "openai": _synth_openai,
     "elevenlabs": _synth_elevenlabs,
     "fishaudio": _synth_fishaudio,
     "minimax": _synth_minimax,
-    "doubao": _synth_doubao,
 }
 
 
