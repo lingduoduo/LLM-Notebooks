@@ -1952,8 +1952,13 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
     /* =========================================================================
        8. COMMAND EXECUTION
        ========================================================================= */
+    // 在途保护：按钮 / 回车 / 语音 / 快捷指令共用同一入口，上一条未完成时忽略新请求，
+    // 避免并发的付费调用，以及较慢的旧 trace 覆盖较新的结果
+    let commandBusy = false;
     async function executeNaturalCommand(inputVal, via = 'text') {
       if (!inputVal || !inputVal.trim()) return;
+      if (commandBusy) return;
+      commandBusy = true;
       const cmd = inputVal.trim();
       const sendBtn = document.getElementById('sendNlBtn');
       sendBtn.disabled = true;
@@ -2006,6 +2011,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
         console.error('Execution error:', err);
         showNotificationBanner('执行异常', String(err.message || err), 'Error');
       } finally {
+        commandBusy = false;
         sendBtn.disabled = false;
         sendBtn.innerHTML = `<span>执行分析</span>
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2332,7 +2338,7 @@ depends_on：必须先于本条执行的前置子指令下标数组（无依赖�
        ========================================================================= */
     const nlInput = document.getElementById('nlCommandInput');
     document.getElementById('sendNlBtn').addEventListener('click', () => executeNaturalCommand(nlInput.value));
-    nlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') executeNaturalCommand(nlInput.value); });
+    nlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !commandBusy) executeNaturalCommand(nlInput.value); });
 
     document.querySelectorAll('.preset-chip').forEach(btn => {
       btn.addEventListener('click', () => {

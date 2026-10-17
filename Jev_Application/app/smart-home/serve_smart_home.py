@@ -51,6 +51,7 @@ answer_model = os.environ.get("STEPFUN_ANSWER_MODEL", "step-3.5-flash")         
 compare_model = os.environ.get("STEPFUN_COMPARE_MODEL", "step-5-preview")        # 传统 LLM 对比场景
 
 _SSL = ssl.create_default_context()
+MAX_CHAT_TOKENS = 2048  # /api/chat 的 max_tokens 上限，防止客户端任意放大付费调用
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -61,20 +62,20 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- 基础设施 ----------
 
-    def _cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+    # 页面与 API 同源（相对 URL），故不发任何 CORS 头：其他网站无法借本地代理消耗 API key
 
-    def do_OPTIONS(self) -> None:
-        self.send_response(204)
-        self._cors()
-        self.end_headers()
+    def _cross_origin(self) -> bool:
+        """带 Origin 且与 Host 不一致 → 跨站请求。"""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return False
+        host = self.headers.get("Host", "")
+        netloc = origin.split("://", 1)[-1].rstrip("/")
+        return netloc.lower() != host.lower()
 
     def _send_json(self, obj: dict, status: int = 200) -> None:
         body = json.dumps(obj, ensure_ascii=False).encode()
         self.send_response(status)
-        self._cors()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -96,7 +97,6 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             html = HTML_PATH.read_bytes()
             self.send_response(200)
-            self._cors()
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(html)))
             self.end_headers()
@@ -115,6 +115,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
+        if self._cross_origin():
+            self.close_connection = True  # 未读请求体，关闭连接以免污染 keep-alive
+            self._send_json({"error": "cross-origin request rejected"}, 403)
+            return
+        ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if ctype != "application/json":
+            # 只收 JSON：text/plain 等「简单请求」可绕过浏览器预检，必须拒绝
+            self.close_connection = True
+            self._send_json({"error": "Content-Type must be application/json"}, 415)
+            return
         if self.path == "/api/jev":
             self._proxy_jev()
         elif self.path == "/api/asr":
@@ -191,19 +201,18 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": f"ASR 上游连接失败: {type(e).__name__}: {e}"}, 502)
             return
 
-        if resp.status != 200:
-            err = resp.read().decode(errors="replace")[:500]
-            self._send_json({"error": f"ASR 上游 HTTP {resp.status}", "detail": err}, 502)
-            return
-
-        # SSE 逐块透传给浏览器，前端边收边把增量文字填进输入框
-        self.send_response(200)
-        self._cors()
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Transfer-Encoding", "chunked")
-        self.end_headers()
         try:
+            if resp.status != 200:
+                err = resp.read().decode(errors="replace")[:500]
+                self._send_json({"error": f"ASR 上游 HTTP {resp.status}", "detail": err}, 502)
+                return
+
+            # SSE 逐块透传给浏览器，前端边收边把增量文字填进输入框
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
             while True:
                 chunk = resp.read(512)
                 if not chunk:
@@ -229,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
             "model": purpose_model.get(payload.get("purpose"), chat_model),
             "messages": messages,
             "temperature": payload.get("temperature", 0),
-            "max_tokens": payload.get("max_tokens", 500),
+            "max_tokens": _clamp_max_tokens(payload.get("max_tokens", 500)),
         }).encode()
         req = urllib.request.Request(
             f"https://{STEP_HOST}{CHAT_PATH}", data=body, method="POST",
@@ -259,6 +268,13 @@ class Handler(BaseHTTPRequestHandler):
                          "upstream_ms": round((time.monotonic() - t0) * 1000),
                          "model": purpose_model.get(payload.get("purpose"), chat_model),
                          "usage": parsed.get("usage")})
+
+
+def _clamp_max_tokens(value) -> int:
+    """客户端传入的 max_tokens 限制在 [1, MAX_CHAT_TOKENS]；非法值回落到默认 500。"""
+    if type(value) is not int:
+        return 500
+    return max(1, min(value, MAX_CHAT_TOKENS))
 
 
 def make_selfsigned_cert(cert_dir: Path) -> tuple[Path, Path]:
