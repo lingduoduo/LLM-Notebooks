@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+artifacts/
+# Keep the two bundled fixtures and the live dependency manifest despite root rules.
+!data/
+data/*
+!data/walkthrough.json
+!data/synthetic.json
+!requirements-live.txt
