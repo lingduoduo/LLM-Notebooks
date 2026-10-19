@@ -1,0 +1,3 @@
+# Offline mode uses only the Python standard library.
+# Install in a dedicated virtual environment for real Jev decisions.
+typesafe-sdk>=0.7,<1
