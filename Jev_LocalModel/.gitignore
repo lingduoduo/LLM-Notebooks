@@ -1,0 +1,12 @@
+# 模型权重不入库（约 2.2 GB）；仅保留推理所需的两个模块与说明
+models/*
+!models/rl_agent_api.py
+!models/rl_common.py
+!models/README.md
+
+# 生成的候选数据、原始语料与审核表（DATA_GENERATION.md 约定不入库）
+data_generation/generated/
+
+# Local Python environment and test caches
+.venv/
+.pytest_cache/
