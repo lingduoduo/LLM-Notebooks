@@ -195,6 +195,25 @@ per-category axes before the current validator can load them. `--init` rebuilds 
 fixtures and overwrites the taxonomy and the seed vocabulary rows (other
 `keywords_v1.csv` rows are kept), so preserve local edits before using it.
 
+## Semantic evaluation
+
+Borrowed dataset-design ideas are documented in [evaluation/README.md](evaluation/README.md)
+with public card references and licensing/provenance observations. The bundled
+28-case fixture is original text, not imported Hugging Face rows. It exercises
+paraphrases, negation, benign meanings and multi-axis labels against independent
+gold. No taxonomy, vocabulary or policy behavior changes for this benchmark.
+
+```bash
+python semantic_evaluation.py --output /tmp/room-evaluation.json
+python semantic_evaluation.py --predictions /path/to/model-predictions.jsonl
+```
+
+Reports include concept/category/hierarchical scores, per-label and per-slice
+metrics, candidate false positives on taxonomy-negative text, review flags and
+per-case errors. The keyword baseline is not a semantic model; flags requiring
+review do not establish semantic correctness. External semantic-model predictions
+can be compared using the same fixture without making API calls in this tool.
+
 ## Verify
 
 From this directory:

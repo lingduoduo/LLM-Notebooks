@@ -1,0 +1,341 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.3.0",
+  "provenance": {
+    "kind": "original_synthetic",
+    "external_dataset_rows": false
+  },
+  "annotation_policy": "Label advertised room features, not every mentioned topic. Exclude negated offerings, educational mentions, and benign alternative senses. Identity requires explicit self-declaration. Profanity belongs to GENERIC, never automatically to content. Gold is authored independently of matcher output.",
+  "limitations": "Small English-first challenge fixture with one Unicode case; not a representative or independently adjudicated benchmark, training set, or safety-policy evaluation.",
+  "cases": [
+    {
+      "id": "private",
+      "group_id": "private-format",
+      "split": "test",
+      "slice": "exact",
+      "subject": "Private show tonight.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "private_show"
+      ]
+    },
+    {
+      "id": "public",
+      "group_id": "public-format",
+      "split": "test",
+      "slice": "exact",
+      "subject": "Public live broadcast.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "public_live"
+      ]
+    },
+    {
+      "id": "goal",
+      "group_id": "tip-goal",
+      "split": "test",
+      "slice": "independent_axes",
+      "subject": "Tip goal for tonight.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "tip_goal"
+      ]
+    },
+    {
+      "id": "subscription",
+      "group_id": "subscription",
+      "split": "test",
+      "slice": "exact",
+      "subject": "A subscription supports this room.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "subscription"
+      ]
+    },
+    {
+      "id": "clothing",
+      "group_id": "lingerie",
+      "split": "test",
+      "slice": "exact",
+      "subject": "Lingerie showcase.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "lingerie"
+      ]
+    },
+    {
+      "id": "broad-kink",
+      "group_id": "bdsm",
+      "split": "test",
+      "slice": "exact",
+      "subject": "BDSM themed room.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "bdsm"
+      ]
+    },
+    {
+      "id": "material",
+      "group_id": "latex-roleplay",
+      "split": "test",
+      "slice": "multilabel",
+      "subject": "A latex outfit for the roleplay show.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "latex",
+        "roleplay"
+      ]
+    },
+    {
+      "id": "kink-pair",
+      "group_id": "bondage-latex",
+      "split": "test",
+      "slice": "multilabel",
+      "subject": "Bondage with latex props.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "bondage",
+        "latex"
+      ]
+    },
+    {
+      "id": "format-roleplay",
+      "group_id": "private-format",
+      "split": "test",
+      "slice": "multilabel",
+      "subject": "Private show with cosplay.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "private_show",
+        "costume_roleplay"
+      ]
+    },
+    {
+      "id": "format-commerce",
+      "group_id": "tip-goal",
+      "split": "test",
+      "slice": "independent_axes",
+      "subject": "Private show with a tip goal.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "private_show",
+        "tip_goal"
+      ]
+    },
+    {
+      "id": "paraphrase-format",
+      "group_id": "private-format",
+      "split": "test",
+      "slice": "paraphrase",
+      "subject": "A session just for one paying viewer.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "private_show",
+        "paid_session"
+      ]
+    },
+    {
+      "id": "paraphrase-solo",
+      "group_id": "solo-performance",
+      "split": "test",
+      "slice": "paraphrase",
+      "subject": "An erotic solo performance by an adult.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "solo_performance"
+      ]
+    },
+    {
+      "id": "paraphrase-company",
+      "group_id": "companionship",
+      "split": "test",
+      "slice": "paraphrase",
+      "subject": "Friendly conversation and company tonight.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "chat",
+        "companionship"
+      ]
+    },
+    {
+      "id": "paraphrase-requests",
+      "group_id": "audience-choice",
+      "split": "test",
+      "slice": "paraphrase",
+      "subject": "Viewers can choose what happens next.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "interactive_show",
+        "audience_requests"
+      ]
+    },
+    {
+      "id": "negated-format",
+      "group_id": "private-format",
+      "split": "test",
+      "slice": "negation",
+      "subject": "No private show tonight.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "negated-commerce",
+      "group_id": "subscription",
+      "split": "test",
+      "slice": "negation",
+      "subject": "No tips or subscriptions requested.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "negated-clothing",
+      "group_id": "lingerie",
+      "split": "test",
+      "slice": "negation",
+      "subject": "Not a lingerie show; today's topic is astronomy.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "educational-reference",
+      "group_id": "bondage-education",
+      "split": "test",
+      "slice": "educational",
+      "subject": "A museum lecture about the history of bondage terminology.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "benign-latex",
+      "group_id": "latex-paint",
+      "split": "test",
+      "slice": "benign_context",
+      "subject": "Latex paint review for interior walls.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "benign-leather",
+      "group_id": "leather-craft",
+      "split": "test",
+      "slice": "benign_context",
+      "subject": "Leather bookbinding workshop.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "benign-submission",
+      "group_id": "submission-deadline",
+      "split": "test",
+      "slice": "benign_context",
+      "subject": "The submission deadline is Friday.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "benign-tips",
+      "group_id": "travel-advice",
+      "split": "test",
+      "slice": "benign_context",
+      "subject": "Travel tips for visitors to Kyoto.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "word-boundary",
+      "group_id": "class-music",
+      "split": "test",
+      "slice": "word_boundary",
+      "subject": "A class on classical music.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "generic-profanity",
+      "group_id": "stream-error",
+      "split": "test",
+      "slice": "generic_language",
+      "subject": "Damn, the stream froze again.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "profanity"
+      ]
+    },
+    {
+      "id": "neutral-identity",
+      "group_id": "identity-discussion",
+      "split": "test",
+      "slice": "neutral_identity",
+      "subject": "A conversation about gender identity and equality.",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": []
+    },
+    {
+      "id": "declared-identity",
+      "group_id": "identity-declaration",
+      "split": "test",
+      "slice": "self_declaration",
+      "subject": "Welcome to our community.",
+      "tags": [],
+      "self_declared_concepts": [
+        "orientation"
+      ],
+      "expected_concepts": [
+        "orientation"
+      ]
+    },
+    {
+      "id": "unicode-format",
+      "group_id": "private-format",
+      "split": "test",
+      "slice": "unicode",
+      "subject": "Ｐｒｉｖａｔｅ　ｓｈｏｗ",
+      "tags": [],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "private_show"
+      ]
+    },
+    {
+      "id": "tag-evidence",
+      "group_id": "lingerie-latex-tags",
+      "split": "test",
+      "slice": "tags",
+      "subject": "Welcome",
+      "tags": [
+        "lingerie",
+        "latex"
+      ],
+      "self_declared_concepts": [],
+      "expected_concepts": [
+        "lingerie",
+        "latex"
+      ]
+    }
+  ]
+}
