@@ -63,19 +63,24 @@ class FileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(
             build, "ROOT", Path(directory)
         ):
+            vocabulary = build.ROOT / "keywords_v1.csv"
             build.generate()
             for name in ("taxonomy_v1.json", "taxonomy_schema.json"):
                 self.assertEqual(
                     json.loads((build.ROOT / name).read_text()),
                     json.loads((source / name).read_text()),
                 )
-            self.assertEqual(
-                (build.ROOT / "keywords_v1.csv").read_bytes(),
-                (source / "keywords_v1.csv").read_bytes(),
+            with vocabulary.open(encoding="utf-8", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), len(build.SEEDS))
+            self.assertTrue(all(r["source"] == "curated_seed" for r in rows))
+            # Regenerating restores edited seed rows and keeps imported rows.
+            original = (source / "keywords_v1.csv").read_bytes()
+            vocabulary.write_bytes(
+                original.replace(b"nude,en,full_nudity", b"nude,en,lingerie", 1)
             )
-            # Curated vocabulary imports are not generated; copy them alongside.
-            for name in build.VOCABULARY_FILES[1:]:
-                (build.ROOT / name).write_bytes((source / name).read_bytes())
+            build.generate()
+            self.assertEqual(vocabulary.read_bytes(), original)
             parents, rows = build.load()
             build.Matcher(parents, rows)
 
