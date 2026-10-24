@@ -98,6 +98,7 @@ Importing a dictionary creates `candidate_terms.csv` with *unmapped* terms. Revi
 - `sample_output.json`: sample classifier output.
 - `build.py`: generator, compatibility exports, CLI, and candidate importer.
 - `taxonomy.py`: category metadata, schema builder and graph validation.
+- `build_taxonomy_explorer.py` + `visuals/explorer.template.html`: builds a single-file, offline, searchable explorer of the validated taxonomy (`python build_taxonomy_explorer.py`, written to `visuals/taxonomy_explorer.html`). Labels render as text, and embedded JSON escapes `<`.
 - `matching.py`: prepared keyword matching (the existing API).
 - `room_classifier.py`: versioned room assignments and distinct-room aggregation.
 - `sample_room_output.json`: evidence-backed room classification example.

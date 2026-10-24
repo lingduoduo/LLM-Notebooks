@@ -151,5 +151,40 @@ class FileTests(unittest.TestCase):
             )
 
 
+class ExplorerTests(unittest.TestCase):
+    def test_explorer_embeds_validated_taxonomy_without_script_breakout(self):
+        import build_taxonomy_explorer
+
+        taxonomy = build.load_taxonomy()
+        taxonomy["nodes"][1]["label"] = "</script><b>x</b>"
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "taxonomy.json"
+            output = Path(directory) / "explorer.html"
+            source.write_text(json.dumps(taxonomy), encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                build_taxonomy_explorer.main(
+                    ["--taxonomy", str(source), "--output", str(output)]
+                )
+            html = output.read_text(encoding="utf-8")
+        self.assertNotIn("__TAXONOMY_JSON__", html)
+        self.assertNotIn("</script><b>", html)
+        self.assertIn("\\u003c/script>", html)
+
+    def test_explorer_rejects_invalid_taxonomy(self):
+        import build_taxonomy_explorer
+
+        taxonomy = build.load_taxonomy()
+        taxonomy["edges"] = []
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "taxonomy.json"
+            output = Path(directory) / "explorer.html"
+            source.write_text(json.dumps(taxonomy), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                build_taxonomy_explorer.main(
+                    ["--taxonomy", str(source), "--output", str(output)]
+                )
+            self.assertFalse(output.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
