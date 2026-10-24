@@ -1,0 +1,831 @@
+{
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "adult_content",
+      "label": "Adult Content",
+      "parent_id": null,
+      "axis": "topic",
+      "level": 0
+    },
+    {
+      "id": "body_appearance",
+      "label": "Body Appearance",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "nudity",
+      "label": "Nudity",
+      "parent_id": "body_appearance",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "full_nudity",
+      "label": "Full Nudity",
+      "parent_id": "nudity",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "partial_nudity",
+      "label": "Partial Nudity",
+      "parent_id": "nudity",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "implied_nudity",
+      "label": "Implied Nudity",
+      "parent_id": "nudity",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "clothing",
+      "label": "Clothing",
+      "parent_id": "body_appearance",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "lingerie",
+      "label": "Lingerie",
+      "parent_id": "clothing",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "costume",
+      "label": "Costume",
+      "parent_id": "clothing",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "swimwear",
+      "label": "Swimwear",
+      "parent_id": "clothing",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "appearance",
+      "label": "Appearance",
+      "parent_id": "body_appearance",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "tattoos",
+      "label": "Tattoos",
+      "parent_id": "appearance",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "hair_style",
+      "label": "Hair Style",
+      "parent_id": "appearance",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "sexual_activities",
+      "label": "Sexual Activities",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "solo",
+      "label": "Solo",
+      "parent_id": "sexual_activities",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "solo_performance",
+      "label": "Solo Performance",
+      "parent_id": "solo",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "self_stimulation",
+      "label": "Self Stimulation",
+      "parent_id": "solo",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "partnered",
+      "label": "Partnered",
+      "parent_id": "sexual_activities",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "partnered_intimacy",
+      "label": "Partnered Intimacy",
+      "parent_id": "partnered",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "partnered_activity",
+      "label": "Partnered Activity",
+      "parent_id": "partnered",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "fetish_kink",
+      "label": "Fetish Kink",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "bdsm",
+      "label": "Bdsm",
+      "parent_id": "fetish_kink",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "bondage",
+      "label": "Bondage",
+      "parent_id": "bdsm",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "dominance",
+      "label": "Dominance",
+      "parent_id": "bdsm",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "submission",
+      "label": "Submission",
+      "parent_id": "bdsm",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "roleplay",
+      "label": "Roleplay",
+      "parent_id": "fetish_kink",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "costume_roleplay",
+      "label": "Costume Roleplay",
+      "parent_id": "roleplay",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "fantasy_roleplay",
+      "label": "Fantasy Roleplay",
+      "parent_id": "roleplay",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "material_interest",
+      "label": "Material Interest",
+      "parent_id": "fetish_kink",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "latex",
+      "label": "Latex",
+      "parent_id": "material_interest",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "leather",
+      "label": "Leather",
+      "parent_id": "material_interest",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "footwear",
+      "label": "Footwear",
+      "parent_id": "material_interest",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "performance_format",
+      "label": "Performance Format",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "broadcast_mode",
+      "label": "Broadcast Mode",
+      "parent_id": "performance_format",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "public_live",
+      "label": "Public Live",
+      "parent_id": "broadcast_mode",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "private_show",
+      "label": "Private Show",
+      "parent_id": "broadcast_mode",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "group_show",
+      "label": "Group Show",
+      "parent_id": "broadcast_mode",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "audience_engagement",
+      "label": "Audience Engagement",
+      "parent_id": "performance_format",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "interactive_show",
+      "label": "Interactive Show",
+      "parent_id": "audience_engagement",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "request_show",
+      "label": "Request Show",
+      "parent_id": "audience_engagement",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "goal_show",
+      "label": "Goal Show",
+      "parent_id": "audience_engagement",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "products_props",
+      "label": "Products Props",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "devices",
+      "label": "Devices",
+      "parent_id": "products_props",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "adult_toy",
+      "label": "Adult Toy",
+      "parent_id": "devices",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "interactive_device",
+      "label": "Interactive Device",
+      "parent_id": "devices",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "accessories",
+      "label": "Accessories",
+      "parent_id": "products_props",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "restraints",
+      "label": "Restraints",
+      "parent_id": "accessories",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "costume_props",
+      "label": "Costume Props",
+      "parent_id": "accessories",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "social_interaction",
+      "label": "Social Interaction",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "conversation",
+      "label": "Conversation",
+      "parent_id": "social_interaction",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "flirting",
+      "label": "Flirting",
+      "parent_id": "conversation",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "companionship",
+      "label": "Companionship",
+      "parent_id": "conversation",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "participation",
+      "label": "Participation",
+      "parent_id": "social_interaction",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "audience_requests",
+      "label": "Audience Requests",
+      "parent_id": "participation",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "games",
+      "label": "Games",
+      "parent_id": "participation",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "identity_audience",
+      "label": "Identity Audience",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "self_description",
+      "label": "Self Description",
+      "parent_id": "identity_audience",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "gender_identity",
+      "label": "Gender Identity",
+      "parent_id": "self_description",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "orientation",
+      "label": "Orientation",
+      "parent_id": "self_description",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "audience_description",
+      "label": "Audience Description",
+      "parent_id": "identity_audience",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "audience_interest",
+      "label": "Audience Interest",
+      "parent_id": "audience_description",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "commercial_context",
+      "label": "Commercial Context",
+      "parent_id": "adult_content",
+      "axis": "topic",
+      "level": 1
+    },
+    {
+      "id": "monetization",
+      "label": "Monetization",
+      "parent_id": "commercial_context",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "tips",
+      "label": "Tips",
+      "parent_id": "monetization",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "paid_session",
+      "label": "Paid Session",
+      "parent_id": "monetization",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "subscription",
+      "label": "Subscription",
+      "parent_id": "monetization",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "promotion",
+      "label": "Promotion",
+      "parent_id": "commercial_context",
+      "axis": "topic",
+      "level": 2
+    },
+    {
+      "id": "special_offer",
+      "label": "Special Offer",
+      "parent_id": "promotion",
+      "axis": "topic",
+      "level": 3
+    },
+    {
+      "id": "scheduled_event",
+      "label": "Scheduled Event",
+      "parent_id": "promotion",
+      "axis": "topic",
+      "level": 3
+    }
+  ],
+  "edges": [
+    {
+      "source": "body_appearance",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "nudity",
+      "predicate": "IS_A",
+      "target": "body_appearance"
+    },
+    {
+      "source": "full_nudity",
+      "predicate": "IS_A",
+      "target": "nudity"
+    },
+    {
+      "source": "partial_nudity",
+      "predicate": "IS_A",
+      "target": "nudity"
+    },
+    {
+      "source": "implied_nudity",
+      "predicate": "IS_A",
+      "target": "nudity"
+    },
+    {
+      "source": "clothing",
+      "predicate": "IS_A",
+      "target": "body_appearance"
+    },
+    {
+      "source": "lingerie",
+      "predicate": "IS_A",
+      "target": "clothing"
+    },
+    {
+      "source": "costume",
+      "predicate": "IS_A",
+      "target": "clothing"
+    },
+    {
+      "source": "swimwear",
+      "predicate": "IS_A",
+      "target": "clothing"
+    },
+    {
+      "source": "appearance",
+      "predicate": "IS_A",
+      "target": "body_appearance"
+    },
+    {
+      "source": "tattoos",
+      "predicate": "IS_A",
+      "target": "appearance"
+    },
+    {
+      "source": "hair_style",
+      "predicate": "IS_A",
+      "target": "appearance"
+    },
+    {
+      "source": "sexual_activities",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "solo",
+      "predicate": "IS_A",
+      "target": "sexual_activities"
+    },
+    {
+      "source": "solo_performance",
+      "predicate": "IS_A",
+      "target": "solo"
+    },
+    {
+      "source": "self_stimulation",
+      "predicate": "IS_A",
+      "target": "solo"
+    },
+    {
+      "source": "partnered",
+      "predicate": "IS_A",
+      "target": "sexual_activities"
+    },
+    {
+      "source": "partnered_intimacy",
+      "predicate": "IS_A",
+      "target": "partnered"
+    },
+    {
+      "source": "partnered_activity",
+      "predicate": "IS_A",
+      "target": "partnered"
+    },
+    {
+      "source": "fetish_kink",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "bdsm",
+      "predicate": "IS_A",
+      "target": "fetish_kink"
+    },
+    {
+      "source": "bondage",
+      "predicate": "IS_A",
+      "target": "bdsm"
+    },
+    {
+      "source": "dominance",
+      "predicate": "IS_A",
+      "target": "bdsm"
+    },
+    {
+      "source": "submission",
+      "predicate": "IS_A",
+      "target": "bdsm"
+    },
+    {
+      "source": "roleplay",
+      "predicate": "IS_A",
+      "target": "fetish_kink"
+    },
+    {
+      "source": "costume_roleplay",
+      "predicate": "IS_A",
+      "target": "roleplay"
+    },
+    {
+      "source": "fantasy_roleplay",
+      "predicate": "IS_A",
+      "target": "roleplay"
+    },
+    {
+      "source": "material_interest",
+      "predicate": "IS_A",
+      "target": "fetish_kink"
+    },
+    {
+      "source": "latex",
+      "predicate": "IS_A",
+      "target": "material_interest"
+    },
+    {
+      "source": "leather",
+      "predicate": "IS_A",
+      "target": "material_interest"
+    },
+    {
+      "source": "footwear",
+      "predicate": "IS_A",
+      "target": "material_interest"
+    },
+    {
+      "source": "performance_format",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "broadcast_mode",
+      "predicate": "IS_A",
+      "target": "performance_format"
+    },
+    {
+      "source": "public_live",
+      "predicate": "IS_A",
+      "target": "broadcast_mode"
+    },
+    {
+      "source": "private_show",
+      "predicate": "IS_A",
+      "target": "broadcast_mode"
+    },
+    {
+      "source": "group_show",
+      "predicate": "IS_A",
+      "target": "broadcast_mode"
+    },
+    {
+      "source": "audience_engagement",
+      "predicate": "IS_A",
+      "target": "performance_format"
+    },
+    {
+      "source": "interactive_show",
+      "predicate": "IS_A",
+      "target": "audience_engagement"
+    },
+    {
+      "source": "request_show",
+      "predicate": "IS_A",
+      "target": "audience_engagement"
+    },
+    {
+      "source": "goal_show",
+      "predicate": "IS_A",
+      "target": "audience_engagement"
+    },
+    {
+      "source": "products_props",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "devices",
+      "predicate": "IS_A",
+      "target": "products_props"
+    },
+    {
+      "source": "adult_toy",
+      "predicate": "IS_A",
+      "target": "devices"
+    },
+    {
+      "source": "interactive_device",
+      "predicate": "IS_A",
+      "target": "devices"
+    },
+    {
+      "source": "accessories",
+      "predicate": "IS_A",
+      "target": "products_props"
+    },
+    {
+      "source": "restraints",
+      "predicate": "IS_A",
+      "target": "accessories"
+    },
+    {
+      "source": "costume_props",
+      "predicate": "IS_A",
+      "target": "accessories"
+    },
+    {
+      "source": "social_interaction",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "conversation",
+      "predicate": "IS_A",
+      "target": "social_interaction"
+    },
+    {
+      "source": "flirting",
+      "predicate": "IS_A",
+      "target": "conversation"
+    },
+    {
+      "source": "companionship",
+      "predicate": "IS_A",
+      "target": "conversation"
+    },
+    {
+      "source": "participation",
+      "predicate": "IS_A",
+      "target": "social_interaction"
+    },
+    {
+      "source": "audience_requests",
+      "predicate": "IS_A",
+      "target": "participation"
+    },
+    {
+      "source": "games",
+      "predicate": "IS_A",
+      "target": "participation"
+    },
+    {
+      "source": "identity_audience",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "self_description",
+      "predicate": "IS_A",
+      "target": "identity_audience"
+    },
+    {
+      "source": "gender_identity",
+      "predicate": "IS_A",
+      "target": "self_description"
+    },
+    {
+      "source": "orientation",
+      "predicate": "IS_A",
+      "target": "self_description"
+    },
+    {
+      "source": "audience_description",
+      "predicate": "IS_A",
+      "target": "identity_audience"
+    },
+    {
+      "source": "audience_interest",
+      "predicate": "IS_A",
+      "target": "audience_description"
+    },
+    {
+      "source": "commercial_context",
+      "predicate": "IS_A",
+      "target": "adult_content"
+    },
+    {
+      "source": "monetization",
+      "predicate": "IS_A",
+      "target": "commercial_context"
+    },
+    {
+      "source": "tips",
+      "predicate": "IS_A",
+      "target": "monetization"
+    },
+    {
+      "source": "paid_session",
+      "predicate": "IS_A",
+      "target": "monetization"
+    },
+    {
+      "source": "subscription",
+      "predicate": "IS_A",
+      "target": "monetization"
+    },
+    {
+      "source": "promotion",
+      "predicate": "IS_A",
+      "target": "commercial_context"
+    },
+    {
+      "source": "special_offer",
+      "predicate": "IS_A",
+      "target": "promotion"
+    },
+    {
+      "source": "scheduled_event",
+      "predicate": "IS_A",
+      "target": "promotion"
+    }
+  ],
+  "notes": "Identity labels are descriptive, not inherently NSFW. Safety policy is separate."
+}

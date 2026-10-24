@@ -1,0 +1,23 @@
+keyword,language,concept_id,source,context_required,review_status
+nude,en,full_nudity,curated_seed,false,seed_review_required
+nudity,en,full_nudity,curated_seed,false,seed_review_required
+topless,en,partial_nudity,curated_seed,false,seed_review_required
+lingerie,en,lingerie,curated_seed,false,seed_review_required
+cosplay,en,costume_roleplay,curated_seed,true,seed_review_required
+bdsm,en,bdsm,curated_seed,false,seed_review_required
+bondage,en,bondage,curated_seed,false,seed_review_required
+domination,en,dominance,curated_seed,true,seed_review_required
+submission,en,submission,curated_seed,true,seed_review_required
+latex,en,latex,curated_seed,true,seed_review_required
+leather,en,leather,curated_seed,true,seed_review_required
+private show,en,private_show,curated_seed,true,seed_review_required
+group show,en,group_show,curated_seed,true,seed_review_required
+interactive show,en,interactive_show,curated_seed,true,seed_review_required
+tips,en,tips,curated_seed,true,seed_review_required
+tip goal,en,goal_show,curated_seed,true,seed_review_required
+adult toy,en,adult_toy,curated_seed,true,seed_review_required
+flirting,en,flirting,curated_seed,true,seed_review_required
+roleplay,en,roleplay,curated_seed,true,seed_review_required
+solo show,en,solo_performance,curated_seed,true,seed_review_required
+subscription,en,subscription,curated_seed,true,seed_review_required
+costume,en,costume,curated_seed,true,seed_review_required
