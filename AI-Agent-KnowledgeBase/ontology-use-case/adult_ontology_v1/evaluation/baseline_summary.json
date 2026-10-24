@@ -1,0 +1,15 @@
+{
+  "method": "RoomClassifier keyword candidate baseline",
+  "taxonomy_version": "1.3.0",
+  "fixture_sha256": "5b2da98022d3cb22d23ce3706e78fff533c33883ddc167dd3debf91ef3adf98f",
+  "vocabulary_sha256": "1f3df1e94e972127b56fdde31995a1b9040de80cf853e7f520eb78016ca45050",
+  "case_count": 28,
+  "concept_micro_f1": 0.6792452830188679,
+  "concept_exact_match": 0.5357142857142857,
+  "category_micro_f1": 0.6666666666666666,
+  "hierarchical_micro_f1": 0.6711409395973155,
+  "taxonomy_negative_count": 10,
+  "taxonomy_negative_false_positive_rate": 0.8,
+  "review_flagged_count": 17,
+  "limitations": "Original synthetic challenge fixture, not representative accuracy. All candidate labels count, including those needing review. No semantic model evaluated."
+}

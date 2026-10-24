@@ -1,0 +1,50 @@
+{
+  "observed_on": "2026-10-24",
+  "scope": "Public dataset-card research only. No dataset rows copied, downloaded, or bundled; no gated terms accepted. Metadata records card claims rather than a rights audit.",
+  "sources": [
+    {
+      "dataset_id": "cardiffnlp/x_sensitive",
+      "card_url": "https://huggingface.co/datasets/cardiffnlp/x_sensitive/blob/main/README.md",
+      "card_revision_displayed": "7a2acc2",
+      "declared_license": "cc-by-2.0",
+      "access_observation": "Gated; includes a non-commercial-use checkbox in addition to the license metadata. Resolve these terms before any data reuse.",
+      "design_ideas": ["Multi-label rather than binary annotations", "Evidence highlights per label", "Fixed train/validation/test splits"],
+      "quality_observation": "English social-media posts differ from room descriptions; label definitions and annotation agreement need inspection before transfer.",
+      "mapping_observation": "The broad sex/profanity labels do not identify specific room concepts; independent room-taxonomy annotation is required.",
+      "reuse_status": "ideas_only_no_rows_imported"
+    },
+    {
+      "dataset_id": "eliasalbouzidi/NSFW-Safe-Dataset",
+      "card_url": "https://huggingface.co/datasets/eliasalbouzidi/NSFW-Safe-Dataset/blob/main/README.md",
+      "card_revision_displayed": "1f7d4a8",
+      "declared_license": "apache-2.0",
+      "access_observation": "Card was readable; data access conditions not separately verified.",
+      "design_ideas": ["Separate evaluation splits", "Compare original and preprocessed text", "Record preprocessing explicitly"],
+      "quality_observation": "Card describes scraped and aggregated text, much of it scene/image descriptions. It removes numbers, punctuation and other signals during preprocessing; source lineage and duplicates need review.",
+      "mapping_observation": "A binary NSFW label is not a multi-axis room-taxonomy assignment or a separate policy outcome.",
+      "reuse_status": "ideas_only_no_rows_imported"
+    },
+    {
+      "dataset_id": "valurank/Adult-content-dataset",
+      "card_url": "https://huggingface.co/datasets/valurank/Adult-content-dataset/blob/main/README.md",
+      "card_revision_displayed": "9a546b4",
+      "declared_license": "other",
+      "access_observation": "Card was readable; specific reuse terms were not established from the card.",
+      "design_ideas": ["Labeled text paired with explicit categories", "Include negative examples"],
+      "quality_observation": "Card describes 850 English article descriptions scraped from different platforms, with limited annotation/provenance detail.",
+      "mapping_observation": "Adult/Non_Adult labels require reannotation for specific room concepts; neither class should be blindly mapped to the content root.",
+      "reuse_status": "ideas_only_no_rows_imported"
+    },
+    {
+      "dataset_id": "DaijobuAI/moderation_dataset",
+      "card_url": "https://huggingface.co/datasets/DaijobuAI/moderation_dataset/blob/main/README.md",
+      "card_revision_displayed": "3a78d09",
+      "declared_license": "mit",
+      "access_observation": "Card includes a moderation-training intended-use statement; inspect this and upstream terms before any reuse.",
+      "design_ideas": ["Explicit label definitions", "Document upstream datasets and distinguish tasks"],
+      "quality_observation": "Derived from moderation evaluation data and WELFake; its mixed tasks and label types require careful interpretation.",
+      "mapping_observation": "Moderation and policy labels stay separate from room taxonomy. No policy examples or rows are imported here.",
+      "reuse_status": "ideas_only_no_rows_imported"
+    }
+  ]
+}
