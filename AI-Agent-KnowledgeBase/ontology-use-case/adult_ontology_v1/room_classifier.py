@@ -30,7 +30,7 @@ class RoomClassifier:
         *,
         self_declared_concepts: Iterable[str] = (),
     ) -> dict:
-        """Group matched evidence by concept and derive ancestors and L1 membership.
+        """Group matched evidence by concept and derive ancestors, L1 and axes.
 
         Evidence retains the complete original field and the normalized matched
         term, without claiming a precise raw-text span after Unicode normalization.
@@ -61,6 +61,7 @@ class RoomClassifier:
                 {
                     "concept_id": concept_id,
                     "category_id": node["category_id"],
+                    "axis": node["axis"],
                     "level": node["level"],
                     "evidence": [],
                     "requires_context_review": False,
@@ -117,6 +118,7 @@ class RoomClassifier:
             "category_ids": sorted(
                 {item["category_id"] for item in assignments.values()}
             ),
+            "axes": sorted({item["axis"] for item in assignments.values()}),
             "requires_context_review": any(
                 item["requires_context_review"] for item in assignments.values()
             ),

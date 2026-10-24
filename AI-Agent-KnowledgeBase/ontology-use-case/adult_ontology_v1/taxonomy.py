@@ -1,17 +1,47 @@
 """Three-level taxonomy metadata, JSON Schema, and cross-reference validation."""
 
-TAXONOMY_VERSION = "1.1.0"
+TAXONOMY_VERSION = "1.2.0"
+# Independent dimensions: only "content" categories sit under the L0 root, so a
+# format, interaction, identity or commerce label never implies adult content.
+# Safety/policy labels belong to a separate system and have no axis here.
+CONTENT_AXIS = "content"
+AXES = (CONTENT_AXIS, "format", "interaction", "identity", "commerce")
 CATEGORIES = {
-    "body_appearance": {"code": "BODY", "label": "Body & Appearance"},
-    "sexual_activities": {"code": "ACT", "label": "Sexual Activity"},
-    "fetish_kink": {"code": "KINK", "label": "Fetish & Kink"},
-    "performance_format": {"code": "FORMAT", "label": "Performance Format"},
-    "products_props": {"code": "PRODUCT", "label": "Products & Props"},
-    "social_interaction": {"code": "SOCIAL", "label": "Social Interaction"},
-    "identity_audience": {"code": "IDENTITY", "label": "Identity & Audience"},
-    "commercial_context": {"code": "COMMERCE", "label": "Monetization"},
+    "body_appearance": {
+        "code": "BODY",
+        "label": "Body & Appearance",
+        "axis": "content",
+    },
+    "sexual_activities": {"code": "ACT", "label": "Sexual Activity", "axis": "content"},
+    "fetish_kink": {"code": "KINK", "label": "Fetish & Kink", "axis": "content"},
+    "performance_format": {
+        "code": "FORMAT",
+        "label": "Performance Format",
+        "axis": "format",
+    },
+    "products_props": {
+        "code": "PRODUCT",
+        "label": "Products & Props",
+        "axis": "content",
+    },
+    "social_interaction": {
+        "code": "SOCIAL",
+        "label": "Social Interaction",
+        "axis": "interaction",
+    },
+    "identity_audience": {
+        "code": "IDENTITY",
+        "label": "Identity & Audience",
+        "axis": "identity",
+    },
+    "commercial_context": {
+        "code": "COMMERCE",
+        "label": "Monetization",
+        "axis": "commerce",
+    },
 }
 CATEGORY_CODES = tuple(category["code"] for category in CATEGORIES.values())
+CATEGORY_AXES = {category["code"]: category["axis"] for category in CATEGORIES.values()}
 LABELS = {
     "bdsm": "BDSM",
     "audience_engagement": "Interaction",
@@ -41,7 +71,7 @@ def taxonomy_schema() -> dict:
             "id": {"type": "string", "minLength": 1},
             "label": {"type": "string", "minLength": 1},
             "parent_id": {"type": ["string", "null"]},
-            "axis": {"type": "string"},
+            "axis": {"enum": list(AXES)},
             "level": {"type": "integer", "minimum": 0, "maximum": 3},
             "category_id": {"enum": [None, *CATEGORY_CODES]},
         },
@@ -71,7 +101,7 @@ def taxonomy_schema() -> dict:
     }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://example.org/ontology/taxonomy-v1.1.schema.json",
+        "$id": "https://example.org/ontology/taxonomy-v1.2.schema.json",
         "type": "object",
         "required": ["version", "nodes", "edges"],
         "properties": {
@@ -85,7 +115,7 @@ def taxonomy_schema() -> dict:
 
 
 def validate_taxonomy(taxonomy: dict) -> None:
-    """Reject invalid levels, categories, parents and inconsistent IS_A edges."""
+    """Reject invalid levels, categories, axes, parents and inconsistent IS_A edges."""
     if (
         not isinstance(taxonomy, dict)
         or not isinstance(taxonomy.get("version"), str)
@@ -120,6 +150,8 @@ def validate_taxonomy(taxonomy: dict) -> None:
             raise ValueError(f"Invalid parent ID: {node['id']}")
         if node["category_id"] is not None and not isinstance(node["category_id"], str):
             raise ValueError(f"Invalid category code: {node['id']}")
+        if node["axis"] not in AXES:
+            raise ValueError(f"Unknown axis: {node['id']}")
         nodes[node["id"]] = node
     roots = [node for node in nodes.values() if node["level"] == 0]
     categories = [node["category_id"] for node in nodes.values() if node["level"] == 1]
@@ -139,14 +171,17 @@ def validate_taxonomy(taxonomy: dict) -> None:
         if level == 0:
             if parent_id is not None or category is not None:
                 raise ValueError("L0 root must have no parent or category")
+            if node["axis"] != CONTENT_AXIS:
+                raise ValueError("L0 root must be on the content axis")
             continue
         if category not in CATEGORY_CODES:
             raise ValueError(f"Unknown category: {node['id']}")
-        if level == 1 and not roots:
+        if node["axis"] != CATEGORY_AXES[category]:
+            raise ValueError(f"Axis differs from category: {node['id']}")
+        # Only content categories attach to the root; others stand alone.
+        if level == 1 and (not roots or node["axis"] != CONTENT_AXIS):
             if parent_id is not None:
-                raise ValueError(
-                    f"Rootless L1 category must have no parent: {node['id']}"
-                )
+                raise ValueError(f"L1 category must have no parent: {node['id']}")
             continue
         parent = nodes.get(parent_id)
         if parent is None or parent["level"] != level - 1:
