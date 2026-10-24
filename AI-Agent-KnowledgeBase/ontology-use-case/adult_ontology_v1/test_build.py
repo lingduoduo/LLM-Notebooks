@@ -73,6 +73,9 @@ class FileTests(unittest.TestCase):
                 (build.ROOT / "keywords_v1.csv").read_bytes(),
                 (source / "keywords_v1.csv").read_bytes(),
             )
+            # Curated vocabulary imports are not generated; copy them alongside.
+            for name in build.VOCABULARY_FILES[1:]:
+                (build.ROOT / name).write_bytes((source / name).read_bytes())
             parents, rows = build.load()
             build.Matcher(parents, rows)
 

@@ -1,11 +1,12 @@
 """Three-level taxonomy metadata, JSON Schema, and cross-reference validation."""
 
-TAXONOMY_VERSION = "1.2.0"
+TAXONOMY_VERSION = "1.3.0"
 # Independent dimensions: only "content" categories sit under the L0 root, so a
-# format, interaction, identity or commerce label never implies adult content.
-# Safety/policy labels belong to a separate system and have no axis here.
+# format, interaction, identity, commerce or generic label never implies adult
+# content. GENERIC holds non-specific terms (generic explicitness, profanity,
+# brands). Safety/policy labels belong to a separate system and have no axis here.
 CONTENT_AXIS = "content"
-AXES = (CONTENT_AXIS, "format", "interaction", "identity", "commerce")
+AXES = (CONTENT_AXIS, "format", "interaction", "identity", "commerce", "generic")
 CATEGORIES = {
     "body_appearance": {
         "code": "BODY",
@@ -39,6 +40,7 @@ CATEGORIES = {
         "label": "Monetization",
         "axis": "commerce",
     },
+    "generic_reference": {"code": "GENERIC", "label": "Generic", "axis": "generic"},
 }
 CATEGORY_CODES = tuple(category["code"] for category in CATEGORIES.values())
 CATEGORY_AXES = {category["code"]: category["axis"] for category in CATEGORIES.values()}
@@ -101,7 +103,7 @@ def taxonomy_schema() -> dict:
     }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://example.org/ontology/taxonomy-v1.2.schema.json",
+        "$id": "https://example.org/ontology/taxonomy-v1.3.schema.json",
         "type": "object",
         "required": ["version", "nodes", "edges"],
         "properties": {
@@ -160,7 +162,9 @@ def validate_taxonomy(taxonomy: dict) -> None:
         or len(categories) != len(CATEGORY_CODES)
         or set(categories) != set(CATEGORY_CODES)
     ):
-        raise ValueError("Expected eight unique L1 categories and at most one L0 root")
+        raise ValueError(
+            "Expected one L1 node per category code and at most one L0 root"
+        )
     expected_edges = set()
     for node in nodes.values():
         level, parent_id, category = (
