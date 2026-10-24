@@ -144,7 +144,7 @@ def main(argv=None):
             model=encoder.metadata,
             python=platform.python_version(),
             benchmark_sha256=sha256_file(args.benchmark),
-            vocabulary_sha256=sha256_file(ROOT / "keywords_v1.csv"),
+            vocabulary_sha256=sha256_file(ROOT / "keywords.csv"),
         )
         args.output_dir.mkdir(parents=True, exist_ok=True)
         (args.output_dir / "semantic_comparison.json").write_text(

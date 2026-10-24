@@ -25,21 +25,24 @@ HEADER = [
     "Set context_required",
     "Reviewer note",
 ]
-# Small fixture vocabulary, independent of the live (already reviewed) files.
-VOCABULARY = (
-    "keyword,language,concept_id,source,context_required,review_status\r\n"
-    "latex,en,latex,curated_seed,true,seed_review_required\r\n"
-    "dildo,en,adult_toy,ldnoobw_en,false,mapped_unreviewed\r\n"
-    "fingering,en,partnered_activity,ldnoobw_en,false,mapped_unreviewed\r\n"
-    "snowballing,en,partnered_activity,ldnoobw_en,true,mapped_unreviewed\r\n"
-    "voyeur,en,fetish_kink,ldnoobw_en,true,mapped_unreviewed\r\n"
-    "twink,en,crude_slang,ldnoobw_en,true,mapped_unreviewed\r\n"
+# Small fixture keywords file, independent of the live (already reviewed) one.
+HEADER_ROW = (
+    "keyword,language,concept_id,source,context_required,review_status,policy_route\r\n"
 )
-POLICY = (
-    "keyword,language,policy_route,source,review_status\n"
-    "rape,en,non_consent,ldnoobw_en,policy_review_required\n"
+KEYWORDS = HEADER_ROW + (
+    "latex,en,latex,curated_seed,true,seed_review_required,\r\n"
+    "dildo,en,adult_toy,ldnoobw_en,false,mapped_unreviewed,\r\n"
+    "fingering,en,partnered_activity,ldnoobw_en,false,mapped_unreviewed,\r\n"
+    "snowballing,en,partnered_activity,ldnoobw_en,true,mapped_unreviewed,\r\n"
+    "voyeur,en,fetish_kink,ldnoobw_en,true,mapped_unreviewed,\r\n"
+    "twink,en,crude_slang,ldnoobw_en,true,mapped_unreviewed,\r\n"
+    "rape,en,,ldnoobw_en,,policy_review_required,non_consent\r\n"
 )
-FILES = ("taxonomy_v1.json", "keywords_v1.csv", "policy_candidates_ldnoobw_en.csv")
+FILES = ("taxonomy_v1.json", "keywords.csv")
+
+
+def policy_rows(root):
+    return [r for r in read_csv(root / "keywords.csv") if r["policy_route"]]
 
 
 def read_csv(path):
@@ -53,8 +56,7 @@ class ApplyReviewTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
         shutil.copy(build.ROOT / "taxonomy_v1.json", self.root / "taxonomy_v1.json")
-        (self.root / "keywords_v1.csv").write_bytes(VOCABULARY.encode())
-        (self.root / "policy_candidates_ldnoobw_en.csv").write_bytes(POLICY.encode())
+        (self.root / "keywords.csv").write_bytes(KEYWORDS.encode())
         self.patch = patch.object(build, "ROOT", self.root)
         self.patch.start()
 
@@ -118,9 +120,10 @@ class ApplyReviewTests(unittest.TestCase):
         self.assertEqual(
             summary, {"accept": 2, "change": 1, "move to policy": 1, "drop": 1}
         )
-        rows = {
+        rows = {  # keyword rows only; policy candidates have a policy_route
             (r["keyword"], r["source"]): r
-            for r in read_csv(self.root / "keywords_v1.csv")
+            for r in read_csv(self.root / "keywords.csv")
+            if not r["policy_route"]
         }
         self.assertEqual(
             rows[("dildo", "ldnoobw_en")]["review_status"], "model_reviewed"
@@ -136,22 +139,22 @@ class ApplyReviewTests(unittest.TestCase):
         self.assertEqual(
             rows[("latex", "curated_seed")]["review_status"], "seed_review_required"
         )
-        policy = {
-            r["keyword"]: r
-            for r in read_csv(self.root / "policy_candidates_ldnoobw_en.csv")
-        }
+        policy = {r["keyword"]: r for r in policy_rows(self.root)}
         self.assertEqual(policy["voyeur"]["policy_route"], "non_consent")
         self.assertEqual(policy["voyeur"]["review_status"], "policy_review_required")
         build.Matcher(*build.load())
 
-    def test_seed_rows_and_policy_file_dialect_are_preserved(self):
-        before = (self.root / "keywords_v1.csv").read_bytes()
+    def test_seed_rows_policy_rows_and_line_endings_are_preserved(self):
+        before = (self.root / "keywords.csv").read_bytes()
         self.apply([["dildo", "adult_toy", "accept", None, None, None, ""]], status="x")
-        after = (self.root / "keywords_v1.csv").read_bytes()
+        after = (self.root / "keywords.csv").read_bytes()
         self.assertEqual(before.split(b"\r\n")[:2], after.split(b"\r\n")[:2])
-        self.assertNotIn(
-            b"\r\n", (self.root / "policy_candidates_ldnoobw_en.csv").read_bytes()
+        self.assertTrue(
+            after.endswith(
+                b"rape,en,,ldnoobw_en,,policy_review_required,non_consent\r\n"
+            )
         )
+        self.assertEqual(after.count(b"\n"), after.count(b"\r\n"))
 
     def test_invalid_decisions_change_nothing(self):
         originals = {name: (self.root / name).read_bytes() for name in FILES}
@@ -216,7 +219,7 @@ class ApplyReviewTests(unittest.TestCase):
             ],
             status="human_reviewed",
         )
-        rows = {r["keyword"]: r for r in read_csv(self.root / "keywords_v1.csv")}
+        rows = {r["keyword"]: r for r in read_csv(self.root / "keywords.csv")}
         self.assertEqual(
             (rows["twink"]["concept_id"], rows["twink"]["context_required"]),
             ("crude_slang", "false"),
@@ -225,10 +228,7 @@ class ApplyReviewTests(unittest.TestCase):
         self.assertEqual(rows["voyeur"]["review_status"], "human_reviewed")
         # Re-created without an original flag: conservatively needs context review.
         self.assertEqual(rows["voyeur"]["context_required"], "true")
-        policy = [
-            r["keyword"]
-            for r in read_csv(self.root / "policy_candidates_ldnoobw_en.csv")
-        ]
+        policy = [r["keyword"] for r in policy_rows(self.root)]
         self.assertEqual(policy, ["rape"])
         build.Matcher(*build.load())
 
@@ -243,14 +243,14 @@ class ApplyReviewTests(unittest.TestCase):
             )
 
     def test_dry_run_reports_without_writing(self):
-        before = (self.root / "keywords_v1.csv").read_bytes()
+        before = (self.root / "keywords.csv").read_bytes()
         summary = self.apply(
             [["twink", "crude_slang", "drop", None, None, None, ""]],
             status="model_reviewed",
             dry_run=True,
         )
         self.assertEqual(summary["drop"], 1)
-        self.assertEqual((self.root / "keywords_v1.csv").read_bytes(), before)
+        self.assertEqual((self.root / "keywords.csv").read_bytes(), before)
 
 
 if __name__ == "__main__":

@@ -5,9 +5,9 @@ row sets the outcome for that imported keyword (source ldnoobw_en by default):
 
 - accept: keep it under "Mapped concept_id" with the given review_status.
 - change: keep it under "Corrected concept_id" with the given review_status.
-- move to policy: keep it out of the vocabulary and list it in
-  policy_candidates_ldnoobw_en.csv with its "Policy route".
-- drop: keep it out of the vocabulary and the policy candidates.
+- move to policy: keep it as a policy candidate in keywords.csv (empty
+  concept_id, "Policy route" set), so the matcher never loads it.
+- drop: remove it from keywords.csv entirely.
 
 Because outcomes are set rather than edited, re-applying a workbook changes
 nothing, and overriding an applied drop or policy move re-creates the keyword
@@ -26,16 +26,7 @@ import csv
 import build
 from matching import Matcher, norm
 
-POLICY_FILE = "policy_candidates_ldnoobw_en.csv"
-POLICY_ROUTES = (
-    "minor_safety",
-    "non_consent",
-    "incest",
-    "bestiality",
-    "violence_extremism",
-    "solicitation",
-    "hate_slur",
-)
+POLICY_ROUTES = build.POLICY_ROUTES
 DECISIONS = ("accept", "change", "move to policy", "drop")
 COLUMNS = {
     "keyword": "Keyword",
@@ -85,16 +76,14 @@ def read_csv(path):
 
 
 def apply_review(workbook_path, status, dry_run=False, source="ldnoobw_en"):
-    """Validate every decision, then rewrite the vocabulary and policy files."""
+    """Validate every decision, then rewrite keywords.csv."""
     taxonomy = build.load_taxonomy()
     nodes = {node["id"]: node for node in taxonomy["nodes"]}
-    vocab_path = build.ROOT / build.VOCABULARY_FILE
-    policy_path = build.ROOT / POLICY_FILE
-    vocab_fields, vocabulary = read_csv(vocab_path)
-    policy_fields, policy = read_csv(policy_path)
-    current = {norm(r["keyword"]): r for r in vocabulary if r["source"] == source}
+    path = build.ROOT / build.VOCABULARY_FILE
+    fields, rows = read_csv(path)
+    current = {norm(r["keyword"]): r for r in rows if r["source"] == source}
 
-    outcomes = {}  # normalized keyword -> vocabulary row, policy row, or None
+    outcomes = {}  # normalized keyword -> new row, or None to drop it
     summary = {decision: 0 for decision in DECISIONS}
     for d in read_decisions(workbook_path):
         keyword = norm(d["keyword"])
@@ -121,71 +110,57 @@ def apply_review(workbook_path, status, dry_run=False, source="ldnoobw_en"):
                 or d.get("original_context")
                 or "true"
             )
-            outcomes[keyword] = (
-                "vocabulary",
-                {
-                    "keyword": previous.get("keyword", keyword),
-                    "language": previous.get("language", "en"),
-                    "concept_id": concept,
-                    "source": source,
-                    "context_required": context,
-                    "review_status": status,
-                },
-            )
+            outcomes[keyword] = {
+                "keyword": previous.get("keyword", keyword),
+                "language": previous.get("language", "en"),
+                "concept_id": concept,
+                "source": source,
+                "context_required": context,
+                "review_status": status,
+                "policy_route": "",
+            }
         elif d["decision"] == "move to policy":
             if d["route"] not in POLICY_ROUTES:
                 raise ValueError(
                     f"Policy route must be one of {POLICY_ROUTES} for {where}"
                 )
-            outcomes[keyword] = (
-                "policy",
-                {
-                    "keyword": current.get(keyword, {}).get("keyword", keyword),
-                    "language": "en",
-                    "policy_route": d["route"],
-                    "source": source,
-                    "review_status": "policy_review_required",
-                },
-            )
+            outcomes[keyword] = {
+                "keyword": current.get(keyword, {}).get("keyword", keyword),
+                "language": current.get(keyword, {}).get("language", "en"),
+                "concept_id": "",
+                "source": source,
+                "context_required": "",
+                "review_status": "policy_review_required",
+                "policy_route": d["route"],
+            }
         else:
-            outcomes[keyword] = ("drop", None)
+            outcomes[keyword] = None
         summary[d["decision"]] += 1
 
-    def settle(rows, kind):
-        """Replace decided rows in place; append decided rows not yet present."""
-        settled, seen = [], set()
-        for row in rows:
-            key = norm(row["keyword"])
-            if row["source"] != source or key not in outcomes:
-                settled.append(row)
-                continue
-            seen.add(key)
-            where, new = outcomes[key]
-            if where == kind:
-                settled.append({**row, **new})
-        for key, (where, new) in outcomes.items():
-            if where == kind and key not in seen:
-                settled.append(new)
-        return settled
-
-    vocabulary, policy = settle(vocabulary, "vocabulary"), settle(policy, "policy")
-    build.check_vocabulary(vocabulary)
-    Matcher({i: n["parent_id"] for i, n in nodes.items()}, vocabulary)
+    # Replace decided rows in place, drop them, or append ones not yet present.
+    settled, seen = [], set()
+    for row in rows:
+        key = norm(row["keyword"])
+        if row["source"] != source or key not in outcomes:
+            settled.append(row)
+            continue
+        seen.add(key)
+        if outcomes[key] is not None:
+            settled.append(outcomes[key])
+    settled += [new for key, new in outcomes.items() if new and key not in seen]
+    keywords, _ = build.split_keyword_rows(settled)
+    Matcher({i: n["parent_id"] for i, n in nodes.items()}, keywords)
     print(
         ("Would apply" if dry_run else "Applied"),
         ", ".join(f"{count} {decision}" for decision, count in summary.items()),
     )
     if dry_run:
         return summary
-    # Same dialects as the generator: CRLF vocabulary, LF policy candidates.
-    with vocab_path.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=vocab_fields)
+    # Same dialect as the generator (CRLF).
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(vocabulary)
-    with policy_path.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=policy_fields, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(policy)
+        writer.writerows(settled)
     return summary
 
 
