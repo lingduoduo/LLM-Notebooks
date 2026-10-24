@@ -13,6 +13,7 @@ CATEGORIES = {
 }
 CATEGORY_CODES = tuple(category["code"] for category in CATEGORIES.values())
 LABELS = {
+    "bdsm": "BDSM",
     "audience_engagement": "Interaction",
     "participation": "Engagement",
     "audience_description": "Audience",
