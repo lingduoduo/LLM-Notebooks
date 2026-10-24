@@ -101,6 +101,7 @@ Importing a dictionary creates `candidate_terms.csv` with *unmapped* terms. Revi
 - `matching.py`: prepared keyword matching (the existing API).
 - `room_classifier.py`: versioned room assignments and distinct-room aggregation.
 - `sample_room_output.json`: evidence-backed room classification example.
+- `semicircle_taxonomy.py`: semicircular sunburst (L1 → L2 → L3) of keyword rows per concept. Optional; needs `matplotlib` and `numpy`. Run `python semicircle_taxonomy.py --output taxonomy_semicircle` to write PNG and SVG.
 
 ## Limitations
 

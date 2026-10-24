@@ -317,6 +317,17 @@ class VocabularyTests(unittest.TestCase):
             ]
         )
 
+    def test_semicircle_rows_count_every_keyword_once(self):
+        from semicircle_taxonomy import taxonomy_rows
+
+        rows = taxonomy_rows(self.taxonomy, self.rows)
+        self.assertEqual(sum(r[3] for r in rows), len(self.rows))
+        self.assertNotIn("IDENTITY", {r[0] for r in rows})
+        self.assertIn(("BODY", "Nudity", "Direct to Nudity"), {r[:3] for r in rows})
+        self.assertIn(
+            ("KINK", "Category-level", "Direct to KINK"), {r[:3] for r in rows}
+        )
+
     def test_duplicate_vocabulary_rows_rejected(self):
         with self.assertRaisesRegex(ValueError, "Duplicate vocabulary row"):
             build.check_vocabulary(self.rows + self.rows[:1])
