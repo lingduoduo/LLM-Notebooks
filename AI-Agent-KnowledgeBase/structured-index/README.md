@@ -18,7 +18,7 @@ Two advanced approaches for large technical documents (e.g. Intel® SDM-style ma
 ### Installation
 
 ```bash
-cd chapter3/structured-index
+cd AI-Agent-KnowledgeBase/structured-index
 pip install -r requirements.txt
 cp env.example .env
 # API keys and preferences

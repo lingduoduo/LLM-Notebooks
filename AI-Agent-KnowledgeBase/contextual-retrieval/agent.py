@@ -9,12 +9,7 @@ from openai import OpenAI
 
 from config import Config
 from tools import KnowledgeBaseTools, get_tool_definitions
-
-
-def _reasoning_safe_temperature(model, requested=1.0):
-    """GPT-5 models only accept temperature=1."""
-    m = str(model or "").lower().replace("/", "-")
-    return 1 if "gpt-5" in m else requested
+from llm_utils import reasoning_safe_temperature as _reasoning_safe_temperature
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

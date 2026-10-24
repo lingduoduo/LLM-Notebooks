@@ -17,9 +17,23 @@ import argparse
 import json
 import logging
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
-from bm25_engine import SparseSearchEngine
+# Preserve `python path/to/cli.py` without installing the examples as a package.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from knowledge_common.datasets import (  # noqa: E402
+    InputError,
+    load_corpus as _load_corpus,
+    load_labels as _load_labels,
+)
+from knowledge_common.evaluation import (
+    metrics_for_query as _metrics_for_query,
+)  # noqa: E402
+from knowledge_common.sample_data import SAMPLE_CORPUS  # noqa: E402
+
+
+from bm25_engine import SparseSearchEngine  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -29,28 +43,7 @@ from bm25_engine import SparseSearchEngine
 # and documents that only paraphrase the query, so it shows both where BM25 excels
 # (exact keyword matching) and where it falls short (synonyms).
 # ---------------------------------------------------------------------------
-DEFAULT_CORPUS: List[Dict] = [
-    {"doc_id": "doc_1", "title": "Python Language",
-     "text": "Python is a high-level programming language known for readability and a simple syntax."},
-    {"doc_id": "doc_2", "title": "JavaScript Runtime",
-     "text": "JavaScript runs in the browser and on servers via Node.js for full-stack web development."},
-    {"doc_id": "doc_3", "title": "Model Distillation",
-     "text": "Model distillation compresses a large teacher model into a smaller student model while preserving accuracy."},
-    {"doc_id": "doc_4", "title": "Knowledge Distillation",
-     "text": "Knowledge distillation transfers knowledge from a big neural network to a compact model for efficient inference."},
-    {"doc_id": "doc_5", "title": "BM25 Ranking",
-     "text": "BM25 is a probabilistic ranking function using term frequency and inverse document frequency."},
-    {"doc_id": "doc_6", "title": "HTTP Errors",
-     "text": "The HTTP 404 error code means the requested resource was not found on the web server."},
-    {"doc_id": "doc_7", "title": "A Playful Kitten",
-     "text": "A cute kitten chased a ball of yarn across the living room floor all afternoon."},
-    {"doc_id": "doc_8", "title": "Silent Hunter",
-     "text": "The feline predator stalked its prey silently through the tall grass at dusk."},
-    {"doc_id": "doc_9", "title": "Hardware Fault",
-     "text": "Error code XK9-2B4-7Q1 indicates a hardware fault in the storage controller board."},
-    {"doc_id": "doc_10", "title": "Transformers",
-     "text": "Transformer models use self-attention to process input sequences in parallel efficiently."},
-]
+DEFAULT_CORPUS: List[Dict] = [dict(document) for document in SAMPLE_CORPUS]
 
 # query -> set of relevant doc_ids (hand-labelled ground truth)
 DEFAULT_LABELS: Dict[str, List[str]] = {
@@ -75,10 +68,6 @@ def _quiet_logging(verbose: bool) -> None:
     logging.getLogger("bm25_engine").setLevel(level)
 
 
-class InputError(Exception):
-    """A bad --corpus / --labels file, reported to the user without a traceback."""
-
-
 CORPUS_FORMAT_HINT = (
     'Expected .json  : [{"doc_id": "doc_1", "title": "...", "text": "..."}, ...]\n'
     '                  (an object with a "documents" key holding that list also works)\n'
@@ -87,72 +76,18 @@ CORPUS_FORMAT_HINT = (
 
 LABELS_FORMAT_HINT = (
     'Expected .json  : {"model distillation": ["doc_3", "doc_4"], "HTTP 404 error": ["doc_6"]}\n'
-    '                  i.e. query -> list of relevant doc_ids'
+    "                  i.e. query -> list of relevant doc_ids"
 )
 
 
-def load_corpus(path: Optional[str]) -> List[Dict]:
-    """Load the corpus. Supports .json (array of documents) and .jsonl (one per line)."""
-    if not path:
-        return DEFAULT_CORPUS
-    docs: List[Dict] = []
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            if path.endswith(".jsonl"):
-                for lineno, line in enumerate(f, 1):
-                    line = line.strip()
-                    if line:
-                        try:
-                            docs.append(json.loads(line))
-                        except json.JSONDecodeError as e:
-                            raise InputError(
-                                f"Corpus file '{path}' has invalid JSON on line {lineno}: {e}\n"
-                                f"{CORPUS_FORMAT_HINT}") from None
-            else:
-                data = json.load(f)
-                docs = data["documents"] if isinstance(data, dict) else data
-    except FileNotFoundError:
-        raise InputError(
-            f"Corpus file not found: '{path}'\n"
-            f"Omit --corpus to use the built-in sample corpus "
-            f"({len(DEFAULT_CORPUS)} documents).\n"
-            f"{CORPUS_FORMAT_HINT}") from None
-    except json.JSONDecodeError as e:
-        raise InputError(f"Corpus file '{path}' is not valid JSON: {e}\n"
-                         f"{CORPUS_FORMAT_HINT}") from None
-    except (KeyError, TypeError):
-        raise InputError(f"Unexpected structure in corpus file '{path}'.\n"
-                         f"{CORPUS_FORMAT_HINT}") from None
-
-    if not docs:
-        raise InputError(f"Corpus file is empty: '{path}'\n{CORPUS_FORMAT_HINT}")
-    missing = [i for i, d in enumerate(docs) if not isinstance(d, dict) or "text" not in d]
-    if missing:
-        raise InputError(
-            f"Corpus file '{path}': {len(missing)} document(s) have no 'text' field "
-            f"(first at index {missing[0]}).\n{CORPUS_FORMAT_HINT}")
-    return docs
+def load_corpus(path: Optional[str]):
+    """Load input with this example's defaults and format hint."""
+    return _load_corpus(path, DEFAULT_CORPUS, CORPUS_FORMAT_HINT)
 
 
-def load_labels(path: Optional[str]) -> Dict[str, List[str]]:
-    """Load evaluation labels: {query: [relevant_doc_id, ...]}."""
-    if not path:
-        return DEFAULT_LABELS
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            labels = json.load(f)
-    except FileNotFoundError:
-        raise InputError(
-            f"Labels file not found: '{path}'\n"
-            f"Omit --labels to use the built-in labels ({len(DEFAULT_LABELS)} queries).\n"
-            f"{LABELS_FORMAT_HINT}") from None
-    except json.JSONDecodeError as e:
-        raise InputError(f"Labels file '{path}' is not valid JSON: {e}\n"
-                         f"{LABELS_FORMAT_HINT}") from None
-    if not isinstance(labels, dict) or not labels:
-        raise InputError(f"Labels file '{path}' must be a non-empty query -> doc_ids object.\n"
-                         f"{LABELS_FORMAT_HINT}")
-    return labels
+def load_labels(path: Optional[str]):
+    """Load input with this example's defaults and format hint."""
+    return _load_labels(path, DEFAULT_LABELS, LABELS_FORMAT_HINT)
 
 
 def build_engine(corpus: List[Dict], k1: float, b: float) -> SparseSearchEngine:
@@ -217,21 +152,6 @@ def run_search(engine: SparseSearchEngine, query: str, top_k: int,
             "matched_terms": r["debug"]["matched_terms"],
         })
     return out
-
-
-def _metrics_for_query(retrieved: List[str], relevant: Set[str], k: int) -> Dict:
-    """recall@k / precision@k / hit rank (for MRR) of a single query."""
-    topk = retrieved[:k]
-    hits = [d for d in topk if d in relevant]
-    recall = len(set(hits)) / len(relevant) if relevant else 0.0
-    precision = len(hits) / len(topk) if topk else 0.0
-    rr = 0.0
-    for i, d in enumerate(retrieved, 1):
-        if d in relevant:
-            rr = 1.0 / i
-            break
-    return {"recall": recall, "precision": precision, "rr": rr,
-            "hits": hits, "retrieved": topk}
 
 
 def run_eval(engine: SparseSearchEngine, labels: Dict[str, List[str]],

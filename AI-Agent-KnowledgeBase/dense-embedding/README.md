@@ -105,7 +105,7 @@ Query `a cat playing` ranks docs that only say `kitten` / `feline` (no literal â
 - â‰¥4GB RAM (8GB recommended); optional CUDA GPU  
 
 ```bash
-cd chapter3/dense-embedding
+cd AI-Agent-KnowledgeBase/dense-embedding
 pip install -r requirements.txt
 ```
 
