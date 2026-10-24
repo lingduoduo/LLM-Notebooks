@@ -1,0 +1,4 @@
+- 1.1.0 put all eight L1 categories under adult_content with axis "topic", so private show, tip goal, chat and self-declared orientation all inferred adult_content (violates decisions 1 and 2).
+- "tip goal" mapped to FORMAT goal_show; user chose COMMERCE-only tip_goal.
+- No safety/policy concepts existed, but nothing prevented adding them; the axis allowlist now does.
+- Legacy Matcher still has no identity guard (no identity vocabulary today); legacy sample_output unchanged because its matches are content-axis.

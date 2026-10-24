@@ -41,6 +41,51 @@ class TaxonomyTests(unittest.TestCase):
                 if parent["level"]:
                     self.assertEqual(node["category_id"], parent["category_id"])
 
+    def test_only_content_categories_sit_under_the_adult_content_root(self):
+        nodes = {n["id"]: n for n in build.load_taxonomy()["nodes"]}
+        self.assertEqual(nodes["adult_content"]["axis"], "content")
+        for node in nodes.values():
+            if node["level"] == 1:
+                expected = "adult_content" if node["axis"] == "content" else None
+                self.assertEqual(node["parent_id"], expected, node["id"])
+        self.assertEqual(
+            {n["category_id"] for n in nodes.values() if n["axis"] == "content"}
+            - {None},
+            {"BODY", "ACT", "KINK", "PRODUCT"},
+        )
+        self.assertEqual(nodes["private_show"]["axis"], "format")
+        self.assertEqual(nodes["orientation"]["axis"], "identity")
+        self.assertEqual(nodes["tip_goal"]["parent_id"], "monetization")
+
+    def test_axes_are_validated_so_policy_labels_cannot_be_mixed_in(self):
+        original = build.load_taxonomy()
+        changes = (
+            ("lingerie", {"axis": "policy"}),
+            ("private_show", {"axis": "content"}),
+            ("performance_format", {"axis": "content"}),
+        )
+        for node_id, change in changes:
+            taxonomy = copy.deepcopy(original)
+            next(n for n in taxonomy["nodes"] if n["id"] == node_id).update(change)
+            with self.subTest(node=node_id, change=change), self.assertRaises(
+                ValueError
+            ):
+                build.validate_taxonomy(taxonomy)
+        # A non-content category may not be attached under the content root.
+        taxonomy = copy.deepcopy(original)
+        next(n for n in taxonomy["nodes"] if n["id"] == "performance_format")[
+            "parent_id"
+        ] = "adult_content"
+        taxonomy["edges"].append(
+            {
+                "source": "performance_format",
+                "predicate": "IS_A",
+                "target": "adult_content",
+            }
+        )
+        with self.assertRaises(ValueError):
+            build.validate_taxonomy(taxonomy)
+
     def test_relabeling_and_reparenting_do_not_require_new_ids(self):
         taxonomy = copy.deepcopy(build.load_taxonomy())
         node = next(n for n in taxonomy["nodes"] if n["id"] == "lingerie")
@@ -107,6 +152,33 @@ class RoomTests(unittest.TestCase):
         self.assertTrue(assignments["latex"]["requires_context_review"])
         self.assertIn("material_interest", result["inferred_ancestors"])
         self.assertNotIn("full_nudity", assignments)
+
+    def test_independent_dimensions_do_not_imply_adult_content(self):
+        for subject, category, axis in (
+            ("Private show", "FORMAT", "format"),
+            ("tip goal tonight", "COMMERCE", "commerce"),
+            ("chat", "SOCIAL", "interaction"),
+        ):
+            with self.subTest(subject=subject):
+                result = self.classifier.classify_room("one", subject, [])
+                self.assertEqual(result["category_ids"], [category])
+                self.assertEqual(result["axes"], [axis])
+                self.assertEqual(result["assignments"][0]["axis"], axis)
+                self.assertNotIn("adult_content", result["inferred_ancestors"])
+        result = self.classifier.classify_room("one", "latex", [])
+        self.assertEqual(result["axes"], ["content"])
+        self.assertIn("adult_content", result["inferred_ancestors"])
+
+    def test_tip_goal_is_monetization_not_a_format(self):
+        result = self.classifier.classify_room("one", "tip goal", [])
+        self.assertEqual([a["concept_id"] for a in result["assignments"]], ["tip_goal"])
+
+    def test_self_declared_identity_does_not_imply_adult_content(self):
+        result = self.classifier.classify_room(
+            "one", "", [], self_declared_concepts=["orientation"]
+        )
+        self.assertEqual(result["axes"], ["identity"])
+        self.assertNotIn("adult_content", result["inferred_ancestors"])
 
     def test_broad_assignments_do_not_invent_specific_descendants(self):
         result = self.classifier.classify_room("one", "bdsm", [])

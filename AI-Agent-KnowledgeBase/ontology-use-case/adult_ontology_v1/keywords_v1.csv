@@ -14,7 +14,7 @@ private show,en,private_show,curated_seed,true,seed_review_required
 group show,en,group_show,curated_seed,true,seed_review_required
 interactive show,en,interactive_show,curated_seed,true,seed_review_required
 tips,en,tips,curated_seed,true,seed_review_required
-tip goal,en,goal_show,curated_seed,true,seed_review_required
+tip goal,en,tip_goal,curated_seed,true,seed_review_required
 adult toy,en,adult_toy,curated_seed,true,seed_review_required
 flirting,en,flirting,curated_seed,true,seed_review_required
 roleplay,en,roleplay,curated_seed,true,seed_review_required

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.org/ontology/taxonomy-v1.1.schema.json",
+  "$id": "https://example.org/ontology/taxonomy-v1.2.schema.json",
   "type": "object",
   "required": [
     "version",
@@ -43,7 +43,13 @@
             ]
           },
           "axis": {
-            "type": "string"
+            "enum": [
+              "content",
+              "format",
+              "interaction",
+              "identity",
+              "commerce"
+            ]
           },
           "level": {
             "type": "integer",

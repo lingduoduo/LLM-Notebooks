@@ -1,19 +1,34 @@
-# Room taxonomy and ontology v1.1
+# Room taxonomy and ontology v1.2
 
 A versioned, multi-label taxonomy for room subjects and up to five tags. The
 hierarchy has L1 categories, L2 concept groups and L3 specific concepts; the
-optional `adult_content` umbrella is L0.
+optional `adult_content` umbrella is L0 for content categories only.
 
-| Category code | Stable L1 concept ID | L2 groups | Example L3 concepts |
-| --- | --- | --- | --- |
-| `BODY` | `body_appearance` | Nudity, clothing, appearance | Full nudity, partial nudity, lingerie, costume |
-| `ACT` | `sexual_activities` | Solo, partnered, intimacy | Solo performance, partnered intimacy |
-| `KINK` | `fetish_kink` | BDSM, roleplay, material interests | Bondage, dominance, submission, latex |
-| `FORMAT` | `performance_format` | Broadcast mode, interaction | Public live, private show, group show |
-| `PRODUCT` | `products_props` | Devices, accessories | Adult toy, interactive device, restraints |
-| `SOCIAL` | `social_interaction` | Conversation, engagement | Flirting, chat, audience requests |
-| `IDENTITY` | `identity_audience` | Self-description, audience | Gender identity, orientation, audience interest |
-| `COMMERCE` | `commercial_context` | Payments, promotions | Tips, subscription, paid session |
+| Category code | Axis | Stable L1 concept ID | L2 groups | Example L3 concepts |
+| --- | --- | --- | --- | --- |
+| `BODY` | content | `body_appearance` | Nudity, clothing, appearance | Full nudity, partial nudity, lingerie, costume |
+| `ACT` | content | `sexual_activities` | Solo, partnered, intimacy | Solo performance, partnered intimacy |
+| `KINK` | content | `fetish_kink` | BDSM, roleplay, material interests | Bondage, dominance, submission, latex |
+| `FORMAT` | format | `performance_format` | Broadcast mode, interaction | Public live, private show, group show |
+| `PRODUCT` | content | `products_props` | Devices, accessories | Adult toy, interactive device, restraints |
+| `SOCIAL` | interaction | `social_interaction` | Conversation, engagement | Flirting, chat, audience requests |
+| `IDENTITY` | identity | `identity_audience` | Self-description, audience | Gender identity, orientation, audience interest |
+| `COMMERCE` | commerce | `commercial_context` | Payments, promotions | Tips, subscription, paid session, tip goal |
+
+## Modeling decisions
+
+- **Independent dimensions stay separate.** Each category belongs to one axis.
+  Only `content` categories are `IS_A adult_content`; FORMAT, SOCIAL, IDENTITY
+  and COMMERCE are standalone L1 roots. A private show is a format and a tip goal
+  is monetization; neither implies adult content or a sexual activity.
+- **Identity descriptors are neutral.** IDENTITY is its own axis, never under the
+  content root, and the room API accepts it only by explicit self-declaration.
+  Orientation or gender identity does not imply explicit content.
+- **Safety classification is separate.** Consent, exploitation, age-related
+  concerns and policy violations are not modeled here. The validator accepts
+  only the five axes above, so policy labels cannot be added to this taxonomy;
+  they belong in a separate policy-label system with additional safeguards.
+  `requires_context_review` flags ambiguous keywords, not policy outcomes.
 
 Codes identify categories; existing concept IDs remain canonical. Each L1–L3
 node carries its category code in `category_id`; L0 has `category_id: null`.
@@ -103,7 +118,8 @@ counts = count_rooms_by_category([room])
 ```
 
 Each result includes `taxonomy_version`, one assignment per directly supported
-concept, `category_ids`, inferred ancestors and context-review flags. Assignments
+concept, `category_ids`, `axes`, inferred ancestors and context-review flags.
+Each assignment carries its `axis`. Assignments
 retain all supporting fields: `text` is the complete original field, and
 `matched_term` is the normalized keyword. These are evidence records, not exact
 character offsets or calibrated probabilities. Ambiguous matches retain
@@ -123,14 +139,17 @@ keyword-evidence extractor and does not enforce this room-assignment rule.
 assignments still needing context review. Duplicate room records are unioned;
 select the desired snapshot before calling it. It rejects mixed taxonomy versions.
 
-The taxonomy release is `1.1.0`. Compatibility filenames (`taxonomy_v1.json`,
-`keywords_v1.csv`) and existing concept IDs are retained. This release adds
-`intimacy` and `chat`, reparents `partnered_intimacy` under `intimacy`, and updates
-display labels to the table above. It adds illustrative vocabulary for chat,
-partnered intimacy and public live. Save each taxonomy release (for example in
+The taxonomy release is `1.2.0`. Compatibility filenames (`taxonomy_v1.json`,
+`keywords_v1.csv`) and existing concept IDs are retained. Release 1.2.0 assigns
+each category an axis, detaches the four non-content categories from
+`adult_content`, adds `tip_goal` under COMMERCE → Payments and maps the keyword
+`tip goal` to it instead of `goal_show`. Room results from 1.1.0 inferred
+`adult_content` for every assignment; recompute them rather than aggregating
+across versions. Release 1.1.0 added `intimacy` and `chat`, reparented
+`partnered_intimacy` under `intimacy`, and updated display labels. Save each taxonomy release (for example in
 version control) with historical room results; recompute derived ancestors after
-an intentional migration. Older taxonomy files need the new `category_id` metadata
-before the current validator can load them. `--init` rebuilds the supplied
+an intentional migration. Older taxonomy files need `category_id` metadata and
+per-category axes before the current validator can load them. `--init` rebuilds the supplied
 fixtures and overwrites curated taxonomy/vocabulary files, so preserve local
 edits before using it.
 

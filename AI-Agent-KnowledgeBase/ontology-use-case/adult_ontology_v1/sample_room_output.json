@@ -1,12 +1,13 @@
 {
   "room_id": "room_123",
-  "taxonomy_version": "1.1.0",
+  "taxonomy_version": "1.2.0",
   "subject": "Private show with cosplay and latex",
   "tags": [],
   "assignments": [
     {
       "concept_id": "costume_roleplay",
       "category_id": "KINK",
+      "axis": "content",
       "level": 3,
       "evidence": [
         {
@@ -21,6 +22,7 @@
     {
       "concept_id": "latex",
       "category_id": "KINK",
+      "axis": "content",
       "level": 3,
       "evidence": [
         {
@@ -35,6 +37,7 @@
     {
       "concept_id": "private_show",
       "category_id": "FORMAT",
+      "axis": "format",
       "level": 3,
       "evidence": [
         {
@@ -58,6 +61,10 @@
   "category_ids": [
     "FORMAT",
     "KINK"
+  ],
+  "axes": [
+    "content",
+    "format"
   ],
   "requires_context_review": true
 }

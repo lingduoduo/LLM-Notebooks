@@ -8,6 +8,7 @@ from pathlib import Path
 from matching import Matcher, match, norm  # noqa: F401 - re-export the existing API.
 from taxonomy import (
     CATEGORIES,
+    CONTENT_AXIS,
     LABELS,
     TAXONOMY_VERSION,
     taxonomy_schema,
@@ -49,7 +50,7 @@ TREE = {
         "audience_description": ["audience_interest"],
     },
     "commercial_context": {
-        "monetization": ["tips", "paid_session", "subscription"],
+        "monetization": ["tips", "paid_session", "subscription", "tip_goal"],
         "promotion": ["special_offer", "scheduled_event"],
     },
 }
@@ -69,7 +70,7 @@ SEEDS = [
     ("group show", "group_show", True),
     ("interactive show", "interactive_show", True),
     ("tips", "tips", True),
-    ("tip goal", "goal_show", True),
+    ("tip goal", "tip_goal", True),
     ("adult toy", "adult_toy", True),
     ("flirting", "flirting", True),
     ("roleplay", "roleplay", True),
@@ -90,30 +91,33 @@ def generate():
             id="adult_content",
             label="Adult Content",
             parent_id=None,
-            axis="topic",
+            axis=CONTENT_AXIS,
             level=0,
             category_id=None,
         )
     )
     for a, branches in TREE.items():
+        axis = CATEGORIES[a]["axis"]
+        is_content = axis == CONTENT_AXIS
         nodes.append(
             dict(
                 id=a,
                 label=CATEGORIES[a]["label"],
-                parent_id="adult_content",
-                axis="topic",
+                parent_id="adult_content" if is_content else None,
+                axis=axis,
                 level=1,
                 category_id=CATEGORIES[a]["code"],
             )
         )
-        edges.append(dict(source=a, predicate="IS_A", target="adult_content"))
+        if is_content:
+            edges.append(dict(source=a, predicate="IS_A", target="adult_content"))
         for b, leaves in branches.items():
             nodes.append(
                 dict(
                     id=b,
                     label=LABELS.get(b, b.replace("_", " ").title()),
                     parent_id=a,
-                    axis="topic",
+                    axis=axis,
                     level=2,
                     category_id=CATEGORIES[a]["code"],
                 )
@@ -125,7 +129,7 @@ def generate():
                         id=c,
                         label=c.replace("_", " ").title(),
                         parent_id=b,
-                        axis="topic",
+                        axis=axis,
                         level=3,
                         category_id=CATEGORIES[a]["code"],
                     )
