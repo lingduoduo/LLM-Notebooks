@@ -3,9 +3,17 @@
 import argparse
 import csv
 import json
-import re
-import unicodedata
 from pathlib import Path
+
+from matching import Matcher, match, norm  # noqa: F401 - re-export the existing API.
+from taxonomy import (
+    CATEGORIES,
+    LABELS,
+    TAXONOMY_VERSION,
+    taxonomy_schema,
+    validate_taxonomy,
+)
+from room_classifier import RoomClassifier, count_rooms_by_category  # noqa: F401
 
 ROOT = Path(__file__).resolve().parent
 TREE = {
@@ -16,7 +24,8 @@ TREE = {
     },
     "sexual_activities": {
         "solo": ["solo_performance", "self_stimulation"],
-        "partnered": ["partnered_intimacy", "partnered_activity"],
+        "partnered": ["partnered_activity"],
+        "intimacy": ["partnered_intimacy"],
     },
     "fetish_kink": {
         "bdsm": ["bondage", "dominance", "submission"],
@@ -32,7 +41,7 @@ TREE = {
         "accessories": ["restraints", "costume_props"],
     },
     "social_interaction": {
-        "conversation": ["flirting", "companionship"],
+        "conversation": ["flirting", "companionship", "chat"],
         "participation": ["audience_requests", "games"],
     },
     "identity_audience": {
@@ -67,11 +76,10 @@ SEEDS = [
     ("solo show", "solo_performance", True),
     ("subscription", "subscription", True),
     ("costume", "costume", True),
+    ("chat", "chat", True),
+    ("partnered intimacy", "partnered_intimacy", True),
+    ("public live", "public_live", True),
 ]
-
-
-def norm(s):
-    return " ".join(unicodedata.normalize("NFKC", s).casefold().split())
 
 
 def generate():
@@ -84,16 +92,18 @@ def generate():
             parent_id=None,
             axis="topic",
             level=0,
+            category_id=None,
         )
     )
     for a, branches in TREE.items():
         nodes.append(
             dict(
                 id=a,
-                label=a.replace("_", " ").title(),
+                label=CATEGORIES[a]["label"],
                 parent_id="adult_content",
                 axis="topic",
                 level=1,
+                category_id=CATEGORIES[a]["code"],
             )
         )
         edges.append(dict(source=a, predicate="IS_A", target="adult_content"))
@@ -101,10 +111,11 @@ def generate():
             nodes.append(
                 dict(
                     id=b,
-                    label=b.replace("_", " ").title(),
+                    label=LABELS.get(b, b.replace("_", " ").title()),
                     parent_id=a,
                     axis="topic",
                     level=2,
+                    category_id=CATEGORIES[a]["code"],
                 )
             )
             edges.append(dict(source=b, predicate="IS_A", target=a))
@@ -116,20 +127,19 @@ def generate():
                         parent_id=b,
                         axis="topic",
                         level=3,
+                        category_id=CATEGORIES[a]["code"],
                     )
                 )
                 edges.append(dict(source=c, predicate="IS_A", target=b))
+    taxonomy = {
+        "version": TAXONOMY_VERSION,
+        "nodes": nodes,
+        "edges": edges,
+        "notes": "Identity labels are descriptive, not inherently NSFW. Safety policy is separate.",
+    }
+    validate_taxonomy(taxonomy)
     (ROOT / "taxonomy_v1.json").write_text(
-        json.dumps(
-            {
-                "version": "1.0.0",
-                "nodes": nodes,
-                "edges": edges,
-                "notes": "Identity labels are descriptive, not inherently NSFW. Safety policy is separate.",
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
+        json.dumps(taxonomy, indent=2), encoding="utf-8"
     )
     with (ROOT / "keywords_v1.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(
@@ -159,157 +169,25 @@ def generate():
 
 
 def generate_schema():
-    schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://example.org/ontology/taxonomy-v1.schema.json",
-        "type": "object",
-        "required": ["version", "nodes", "edges"],
-        "properties": {
-            "version": {"type": "string"},
-            "notes": {"type": "string"},
-            "nodes": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "required": ["id", "label", "parent_id", "axis", "level"],
-                    "properties": {
-                        "id": {"type": "string"},
-                        "label": {"type": "string"},
-                        "parent_id": {"type": ["string", "null"]},
-                        "axis": {"type": "string"},
-                        "level": {"type": "integer", "minimum": 0},
-                    },
-                    "additionalProperties": False,
-                },
-            },
-            "edges": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "required": ["source", "predicate", "target"],
-                    "properties": {
-                        "source": {"type": "string"},
-                        "predicate": {
-                            "enum": [
-                                "IS_A",
-                                "ALIAS_OF",
-                                "RELATED_TO",
-                                "CO_OCCURS_WITH",
-                                "USES_PRODUCT",
-                                "HAS_FORMAT",
-                            ]
-                        },
-                        "target": {"type": "string"},
-                    },
-                    "additionalProperties": False,
-                },
-            },
-        },
-        "additionalProperties": False,
-    }
     (ROOT / "taxonomy_schema.json").write_text(
-        json.dumps(schema, indent=2), encoding="utf-8"
+        json.dumps(taxonomy_schema(), indent=2), encoding="utf-8"
     )
 
 
-def load():
-    """Load editable ontology files without keeping file handles open."""
+def load_taxonomy() -> dict:
+    """Load and validate the versioned taxonomy at the compatibility file path."""
     taxonomy = json.loads((ROOT / "taxonomy_v1.json").read_text(encoding="utf-8"))
-    parents = {}
-    for node in taxonomy["nodes"]:
-        if node["id"] in parents:
-            raise ValueError(f"Duplicate concept ID: {node['id']}")
-        parents[node["id"]] = node["parent_id"]
+    validate_taxonomy(taxonomy)
+    return taxonomy
+
+
+def load():
+    """Load parent mappings and vocabulary for the existing matcher API."""
+    taxonomy = load_taxonomy()
+    parents = {node["id"]: node["parent_id"] for node in taxonomy["nodes"]}
     with (ROOT / "keywords_v1.csv").open(encoding="utf-8", newline="") as stream:
         rows = list(csv.DictReader(stream))
     return parents, rows
-
-
-class Matcher:
-    """Prepare once, then reuse for multiple subjects with stable row ordering."""
-
-    def __init__(self, parents, rows):
-        # Resolve iteratively so deep trees do not hit Python's recursion limit.
-        self._ancestors = {}
-        for concept in parents:
-            path = []
-            visiting = set()
-            current = concept
-            while current is not None and current not in self._ancestors:
-                if current not in parents:
-                    raise ValueError(f"Unknown parent concept: {current}")
-                if current in visiting:
-                    raise ValueError(f"Cycle in taxonomy at: {current}")
-                visiting.add(current)
-                path.append(current)
-                current = parents[current]
-            ancestors = (
-                self._ancestors[current] | {current}
-                if current is not None
-                else frozenset()
-            )
-            for node in reversed(path):
-                self._ancestors[node] = frozenset(ancestors)
-                ancestors = ancestors | {node}
-
-        self._keywords = []
-        for row in rows:
-            keyword = norm(row["keyword"])
-            concept = row["concept_id"]
-            if not keyword:
-                raise ValueError("Keyword must not be empty")
-            if concept not in parents:
-                raise ValueError(f"Unknown keyword concept: {concept}")
-            if row["context_required"] not in ("true", "false"):
-                raise ValueError(f"Invalid context_required for: {keyword}")
-            pattern = re.compile(r"(?<!\w)" + re.escape(keyword) + r"(?!\w)")
-            self._keywords.append(
-                (
-                    pattern,
-                    keyword,
-                    concept,
-                    row["context_required"] == "true",
-                    row["source"],
-                )
-            )
-
-    def match(self, subject, tags):
-        tags = tags[:5]
-        texts = [("subject", subject)] + [
-            (f"tag_{i + 1}", tag) for i, tag in enumerate(tags)
-        ]
-        hits = []
-        for field, raw in texts:
-            text = norm(raw)
-            for pattern, keyword, concept, needs_context, source in self._keywords:
-                # Substring presence is necessary for a match and far cheaper.
-                if keyword in text and pattern.search(text):
-                    hits.append(
-                        {
-                            "field": field,
-                            "term": keyword,
-                            "concept_id": concept,
-                            "context_required": needs_context,
-                            "source": source,
-                        }
-                    )
-        direct = {hit["concept_id"] for hit in hits}
-        inferred = set()
-        for concept in direct:
-            inferred.update(self._ancestors[concept])
-        return {
-            "subject": subject,
-            "tags": tags,
-            "matches": hits,
-            "direct_concepts": sorted(direct),
-            "inferred_ancestors": sorted(inferred - direct),
-            "requires_context_review": any(hit["context_required"] for hit in hits),
-        }
-
-
-def match(subject, tags, parents, rows):
-    """Compatibility wrapper; use Matcher directly when classifying a batch."""
-    return Matcher(parents, rows).match(subject, tags)
 
 
 def import_words(path, language="en"):
@@ -353,10 +231,31 @@ if __name__ == "__main__":
     p.add_argument("--tags", nargs="*", default=["bdsm", "lingerie"])
     p.add_argument("--import-words")
     p.add_argument("--language", default="en")
+    p.add_argument(
+        "--room-id", help="Return versioned room assignments instead of legacy matches"
+    )
+    p.add_argument(
+        "--self-declared-concepts",
+        nargs="*",
+        default=[],
+        help="Explicitly self-declared IDENTITY concept IDs (requires --room-id)",
+    )
     args = p.parse_args()
+    if args.self_declared_concepts and not args.room_id:
+        p.error("--self-declared-concepts requires --room-id")
     if args.init or not (ROOT / "taxonomy_v1.json").exists():
         generate()
     if args.import_words:
         import_words(args.import_words, args.language)
     parents, rows = load()
-    print(json.dumps(match(args.subject, args.tags, parents, rows), indent=2))
+    if args.room_id:
+        classifier = RoomClassifier(load_taxonomy(), rows)
+        result = classifier.classify_room(
+            args.room_id,
+            args.subject,
+            args.tags,
+            self_declared_concepts=args.self_declared_concepts,
+        )
+    else:
+        result = match(args.subject, args.tags, parents, rows)
+    print(json.dumps(result, indent=2))

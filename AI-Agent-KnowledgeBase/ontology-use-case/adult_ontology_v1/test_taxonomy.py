@@ -1,0 +1,186 @@
+"""Three-level taxonomy and evidence-backed, multi-label room classification."""
+
+import copy
+import json
+import unittest
+
+import build
+
+
+CATEGORIES = {
+    "BODY",
+    "ACT",
+    "KINK",
+    "FORMAT",
+    "PRODUCT",
+    "SOCIAL",
+    "IDENTITY",
+    "COMMERCE",
+}
+
+
+class TaxonomyTests(unittest.TestCase):
+    def test_category_codes_and_three_levels(self):
+        taxonomy = build.load_taxonomy()
+        nodes = {node["id"]: node for node in taxonomy["nodes"]}
+        self.assertEqual(
+            {node["category_id"] for node in nodes.values() if node["level"] == 1},
+            CATEGORIES,
+        )
+        self.assertEqual(nodes["adult_content"]["level"], 0)
+        self.assertIsNone(nodes["adult_content"]["category_id"])
+        self.assertEqual(nodes["lingerie"]["parent_id"], "clothing")
+        self.assertEqual(nodes["lingerie"]["category_id"], "BODY")
+        self.assertEqual(nodes["partnered_intimacy"]["parent_id"], "intimacy")
+        self.assertEqual(nodes["chat"]["level"], 3)
+        for node in nodes.values():
+            self.assertIn(node["level"], (0, 1, 2, 3))
+            if node["parent_id"] is not None:
+                parent = nodes[node["parent_id"]]
+                self.assertEqual(node["level"], parent["level"] + 1)
+                if parent["level"]:
+                    self.assertEqual(node["category_id"], parent["category_id"])
+
+    def test_relabeling_and_reparenting_do_not_require_new_ids(self):
+        taxonomy = copy.deepcopy(build.load_taxonomy())
+        node = next(n for n in taxonomy["nodes"] if n["id"] == "lingerie")
+        node["label"] = "Intimate clothing"
+        build.validate_taxonomy(taxonomy)
+        classifier = build.RoomClassifier(taxonomy, build.load()[1])
+        result = classifier.classify_room("one", "lingerie", [])
+        self.assertEqual(result["assignments"][0]["concept_id"], "lingerie")
+
+    def test_invalid_taxonomy_levels_categories_and_edges_rejected(self):
+        original = build.load_taxonomy()
+        for change in ({"level": 4}, {"category_id": "KINK"}, {"parent_id": "missing"}):
+            taxonomy = copy.deepcopy(original)
+            node = next(n for n in taxonomy["nodes"] if n["id"] == "lingerie")
+            node.update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                build.validate_taxonomy(taxonomy)
+        taxonomy = copy.deepcopy(original)
+        taxonomy["edges"] = [
+            edge for edge in taxonomy["edges"] if edge["source"] != "lingerie"
+        ]
+        with self.assertRaises(ValueError):
+            build.validate_taxonomy(taxonomy)
+
+    def test_l0_root_is_optional(self):
+        taxonomy = copy.deepcopy(build.load_taxonomy())
+        taxonomy["nodes"] = [n for n in taxonomy["nodes"] if n["level"] != 0]
+        for node in taxonomy["nodes"]:
+            if node["level"] == 1:
+                node["parent_id"] = None
+        taxonomy["edges"] = [
+            e for e in taxonomy["edges"] if e["target"] != "adult_content"
+        ]
+        build.validate_taxonomy(taxonomy)
+        result = build.RoomClassifier(taxonomy, build.load()[1]).classify_room(
+            "one", "latex", []
+        )
+        self.assertEqual(result["category_ids"], ["KINK"])
+        self.assertNotIn("adult_content", result["inferred_ancestors"])
+
+
+class RoomTests(unittest.TestCase):
+    def setUp(self):
+        self.taxonomy = build.load_taxonomy()
+        self.parents, self.rows = build.load()
+        self.classifier = build.RoomClassifier(self.taxonomy, self.rows)
+
+    def test_multiple_branches_and_grouped_raw_evidence(self):
+        result = self.classifier.classify_room(
+            "one", "Private show with cosplay and LATEX", ["latex"]
+        )
+        assignments = {a["concept_id"]: a for a in result["assignments"]}
+        self.assertEqual(
+            set(assignments), {"private_show", "costume_roleplay", "latex"}
+        )
+        self.assertEqual(result["category_ids"], ["FORMAT", "KINK"])
+        self.assertEqual(result["taxonomy_version"], self.taxonomy["version"])
+        self.assertEqual(len(assignments["latex"]["evidence"]), 2)
+        self.assertEqual(
+            assignments["latex"]["evidence"][0]["text"],
+            "Private show with cosplay and LATEX",
+        )
+        self.assertEqual(assignments["latex"]["evidence"][1]["field"], "tag_1")
+        self.assertTrue(assignments["latex"]["requires_context_review"])
+        self.assertIn("material_interest", result["inferred_ancestors"])
+        self.assertNotIn("full_nudity", assignments)
+
+    def test_broad_assignments_do_not_invent_specific_descendants(self):
+        result = self.classifier.classify_room("one", "bdsm", [])
+        self.assertEqual([a["concept_id"] for a in result["assignments"]], ["bdsm"])
+        self.assertEqual(result["assignments"][0]["level"], 2)
+        self.assertEqual(result["category_ids"], ["KINK"])
+
+    def test_identity_requires_explicit_self_declaration(self):
+        rows = self.rows + [
+            dict(self.rows[0], keyword="identity phrase", concept_id="orientation")
+        ]
+        classifier = build.RoomClassifier(self.taxonomy, rows)
+        self.assertEqual(
+            classifier.classify_room("one", "identity phrase", [])["assignments"], []
+        )
+        result = classifier.classify_room(
+            "one", "", [], self_declared_concepts=["orientation"]
+        )
+        self.assertEqual(result["category_ids"], ["IDENTITY"])
+        self.assertEqual(
+            result["assignments"][0]["evidence"][0]["source"], "self_declared"
+        )
+        with self.assertRaises(ValueError):
+            classifier.classify_room("one", "", [], self_declared_concepts=["latex"])
+
+    def test_category_counts_deduplicate_rooms_and_multiple_concepts(self):
+        rooms = [
+            self.classifier.classify_room("one", "bondage latex", []),
+            self.classifier.classify_room("one", "lingerie", []),
+            self.classifier.classify_room("two", "latex", []),
+        ]
+        counts = build.count_rooms_by_category(rooms)
+        self.assertEqual(counts["KINK"], 2)
+        self.assertEqual(counts["BODY"], 1)
+        self.assertEqual(counts["FORMAT"], 0)
+        self.assertEqual(set(counts), CATEGORIES)
+
+    def test_root_is_not_a_room_classification_concept(self):
+        rows = [dict(self.rows[0], concept_id="adult_content")]
+        with self.assertRaises(ValueError):
+            build.RoomClassifier(self.taxonomy, rows)
+
+    def test_mixed_taxonomy_versions_are_not_silently_aggregated(self):
+        room = self.classifier.classify_room("one", "latex", [])
+        old_room = dict(room, taxonomy_version="1.0.0")
+        with self.assertRaises(ValueError):
+            build.count_rooms_by_category([room, old_room])
+
+    def test_aggregation_requires_a_version_on_every_record(self):
+        room = self.classifier.classify_room("one", "latex", [])
+        for version in (None, "", 4):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                build.count_rooms_by_category(
+                    [dict(room, taxonomy_version=version), room]
+                )
+
+    def test_sample_room_output(self):
+        expected = json.loads(
+            (build.ROOT / "sample_room_output.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            self.classifier.classify_room(
+                expected["room_id"], expected["subject"], expected["tags"]
+            ),
+            expected,
+        )
+
+    def test_room_ids_are_required_and_tags_still_limited_to_five(self):
+        with self.assertRaises(ValueError):
+            self.classifier.classify_room("", "latex", [])
+        result = self.classifier.classify_room("one", "", ["", "", "", "", "", "latex"])
+        self.assertEqual(result["assignments"], [])
+        self.assertEqual(len(result["tags"]), 5)
+
+
+if __name__ == "__main__":
+    unittest.main()

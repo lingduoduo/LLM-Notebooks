@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.org/ontology/taxonomy-v1.schema.json",
+  "$id": "https://example.org/ontology/taxonomy-v1.1.schema.json",
   "type": "object",
   "required": [
     "version",
@@ -9,7 +9,8 @@
   ],
   "properties": {
     "version": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "notes": {
       "type": "string"
@@ -23,14 +24,17 @@
           "label",
           "parent_id",
           "axis",
-          "level"
+          "level",
+          "category_id"
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "label": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "parent_id": {
             "type": [
@@ -43,9 +47,60 @@
           },
           "level": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 3
+          },
+          "category_id": {
+            "enum": [
+              null,
+              "BODY",
+              "ACT",
+              "KINK",
+              "FORMAT",
+              "PRODUCT",
+              "SOCIAL",
+              "IDENTITY",
+              "COMMERCE"
+            ]
           }
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "level": {
+                  "const": 0
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parent_id": {
+                  "type": "null"
+                },
+                "category_id": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "category_id": {
+                  "enum": [
+                    "BODY",
+                    "ACT",
+                    "KINK",
+                    "FORMAT",
+                    "PRODUCT",
+                    "SOCIAL",
+                    "IDENTITY",
+                    "COMMERCE"
+                  ]
+                }
+              }
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },
