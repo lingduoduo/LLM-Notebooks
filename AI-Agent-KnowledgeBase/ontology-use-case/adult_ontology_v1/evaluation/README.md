@@ -3,7 +3,8 @@
 Borrow annotation and evaluation ideas from public Hugging Face dataset cards,
 not their text. The bundled 28 cases are original, non-graphic synthetic examples
 for taxonomy **1.3.0**. No external rows are downloaded or redistributed, no
-access conditions are accepted, and no model or API call runs during evaluation.
+access conditions are accepted. The default evaluator uses no model or API; an
+optional [cached local-model comparison](LOCAL_BASELINE.md) runs explicitly.
 
 ## Sources and what transfers
 
@@ -98,6 +99,6 @@ SHA-256 hashes so results are tied to the exact inputs. On these 28 cases,
 concept micro-F1 is **0.679**, concept exact match is **15/28**, and **8/10**
 taxonomy-negative cases receive candidate labels. Seventeen cases carry a review
 flag. These are deliberate context challenges, not representative deployment
-rates. No semantic model has been run; perfect-prediction unit tests validate
-metric arithmetic only. Re-run the command after changing the fixture or
+rates. This historical keyword summary predates the [local-model comparison](LOCAL_BASELINE.md);
+perfect-prediction unit tests validate metric arithmetic only. Re-run the command after changing the fixture or
 vocabulary rather than treating the historical summary as current results.
