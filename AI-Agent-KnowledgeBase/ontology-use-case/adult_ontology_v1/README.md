@@ -93,7 +93,10 @@ fragments such as `girl on` that match benign titles). `fingering` and
 To record a human review, edit the yellow cells in the workbook, then run
 `python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed`
 (`--dry-run` previews). It validates every decision before writing anything,
-rejects IDENTITY targets, and needs `openpyxl`. Dropped terms are removed from
+rejects IDENTITY targets, and needs `openpyxl`. The workbook is the source of
+truth for the keywords it decides, so re-applying it changes nothing, and
+switching an applied drop or policy move back to accept or change restores the
+keyword in its original position. Dropped terms are removed from
 the vocabulary; a fresh `--import-words` of the same list would offer them again
 as unmapped candidates.
 

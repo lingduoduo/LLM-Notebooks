@@ -162,12 +162,85 @@ class ApplyReviewTests(unittest.TestCase):
             ["dildo", "adult_toy", "change", "missing", None, None, ""],
             ["dildo", "adult_toy", "move to policy", None, "unknown_route", None, ""],
             ["dildo", "adult_toy", "accept", None, None, "yes", ""],
-            ["not a keyword", "adult_toy", "accept", None, None, None, ""],
+            ["dildo", "missing_concept", "accept", None, None, None, ""],
         ):
             with self.subTest(row=row), self.assertRaises(ValueError):
                 self.apply([row], status="model_reviewed")
             for name, data in originals.items():
                 self.assertEqual((self.root / name).read_bytes(), data, name)
+
+    def test_reapplying_the_same_workbook_changes_nothing(self):
+        rows = [
+            ["dildo", "adult_toy", "accept", None, None, "true", ""],
+            [
+                "snowballing",
+                "partnered_activity",
+                "change",
+                "other_reference",
+                None,
+                None,
+                "",
+            ],
+            ["voyeur", "fetish_kink", "move to policy", None, "non_consent", None, ""],
+            ["twink", "crude_slang", "drop", None, None, None, ""],
+        ]
+        self.apply(rows, status="model_reviewed")
+        first = {name: (self.root / name).read_bytes() for name in FILES}
+        summary = self.apply(rows, status="model_reviewed")
+        self.assertEqual(
+            summary, {"accept": 1, "change": 1, "move to policy": 1, "drop": 1}
+        )
+        for name, data in first.items():
+            self.assertEqual((self.root / name).read_bytes(), data, name)
+
+    def test_overriding_an_applied_drop_or_policy_move_restores_the_row(self):
+        self.apply(
+            [
+                ["twink", "crude_slang", "drop", None, None, None, ""],
+                [
+                    "voyeur",
+                    "fetish_kink",
+                    "move to policy",
+                    None,
+                    "non_consent",
+                    None,
+                    "",
+                ],
+            ],
+            status="model_reviewed",
+        )
+        self.apply(
+            [
+                ["twink", "crude_slang", "accept", None, None, "false", ""],
+                ["voyeur", "fetish_kink", "change", "other_reference", None, None, ""],
+            ],
+            status="human_reviewed",
+        )
+        rows = {r["keyword"]: r for r in read_csv(self.root / "keywords_v1.csv")}
+        self.assertEqual(
+            (rows["twink"]["concept_id"], rows["twink"]["context_required"]),
+            ("crude_slang", "false"),
+        )
+        self.assertEqual(rows["voyeur"]["concept_id"], "other_reference")
+        self.assertEqual(rows["voyeur"]["review_status"], "human_reviewed")
+        # Re-created without an original flag: conservatively needs context review.
+        self.assertEqual(rows["voyeur"]["context_required"], "true")
+        policy = [
+            r["keyword"]
+            for r in read_csv(self.root / "policy_candidates_ldnoobw_en.csv")
+        ]
+        self.assertEqual(policy, ["rape"])
+        build.Matcher(*build.load())
+
+    def test_duplicate_keywords_in_workbook_rejected(self):
+        with self.assertRaisesRegex(ValueError, "more than once"):
+            self.apply(
+                [
+                    ["dildo", "adult_toy", "accept", None, None, None, ""],
+                    ["dildo", "adult_toy", "drop", None, None, None, ""],
+                ],
+                status="model_reviewed",
+            )
 
     def test_dry_run_reports_without_writing(self):
         before = (self.root / "keywords_v1.csv").read_bytes()
