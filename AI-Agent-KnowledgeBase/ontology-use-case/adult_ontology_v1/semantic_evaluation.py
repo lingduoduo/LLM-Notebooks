@@ -131,6 +131,17 @@ def _validate_benchmark(benchmark, taxonomy, nodes):
     return cases
 
 
+def select_cases(benchmark: dict, taxonomy: dict, split: str = "test") -> list:
+    """Validate all split boundaries before selecting the inference/evaluation rows."""
+    validate_taxonomy(taxonomy)
+    nodes = {node["id"]: node for node in taxonomy["nodes"]}
+    cases = _validate_benchmark(benchmark, taxonomy, nodes)
+    cases = [case for case in cases if case["split"] == split]
+    if not cases:
+        raise ValueError(f"No cases for split {split}")
+    return cases
+
+
 def evaluate(
     benchmark: dict,
     taxonomy: dict,
@@ -140,12 +151,8 @@ def evaluate(
     split: str = "test",
 ) -> dict:
     """Score either external predictions or the prepared keyword baseline."""
-    validate_taxonomy(taxonomy)
+    cases = select_cases(benchmark, taxonomy, split)
     nodes = {node["id"]: node for node in taxonomy["nodes"]}
-    cases = _validate_benchmark(benchmark, taxonomy, nodes)
-    cases = [case for case in cases if case["split"] == split]
-    if not cases:
-        raise ValueError(f"No cases for split {split}")
     if (predictions is None) == (classifier is None):
         raise ValueError(
             "Provide exactly one prediction source: classifier or predictions"

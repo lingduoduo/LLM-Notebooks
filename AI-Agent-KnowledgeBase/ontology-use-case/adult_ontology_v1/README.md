@@ -214,6 +214,24 @@ per-case errors. The keyword baseline is not a semantic model; flags requiring
 review do not establish semantic correctness. External semantic-model predictions
 can be compared using the same fixture without making API calls in this tool.
 
+## Local semantic-model baseline
+
+A cached MiniLM model can now be compared with the keyword matcher using the
+same held-out cases. It scores taxonomy-label prototypes with cosine similarity;
+it is not trained on room labels. No model files are downloaded by the command.
+
+```bash
+python compare_semantic.py --output-dir /tmp/room-semantic-comparison
+# Re-score the recorded predictions without torch or model weights:
+python semantic_evaluation.py --predictions evaluation/local_semantic_predictions.jsonl
+```
+
+The recorded comparison has mixed results: concept F1 is 0.383 for MiniLM versus
+0.679 for keywords; paraphrase F1 is 0.400 versus 0, while taxonomy-negative
+candidate false positives fall from 8/10 to 3/10. MiniLM still produces more extra
+labels overall (12 versus 9) and misses more gold labels. Thresholds were not
+selected on this test fixture. See [model setup, hashes, results and limitations](evaluation/LOCAL_BASELINE.md).
+
 ## Verify
 
 From this directory:
