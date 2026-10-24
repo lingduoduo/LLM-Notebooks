@@ -1,488 +1,573 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "nodes": [
     {
       "id": "adult_content",
       "label": "Adult Content",
       "parent_id": null,
       "axis": "topic",
-      "level": 0
+      "level": 0,
+      "category_id": null
     },
     {
       "id": "body_appearance",
-      "label": "Body Appearance",
+      "label": "Body & Appearance",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "BODY"
     },
     {
       "id": "nudity",
       "label": "Nudity",
       "parent_id": "body_appearance",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "BODY"
     },
     {
       "id": "full_nudity",
       "label": "Full Nudity",
       "parent_id": "nudity",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "partial_nudity",
       "label": "Partial Nudity",
       "parent_id": "nudity",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "implied_nudity",
       "label": "Implied Nudity",
       "parent_id": "nudity",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "clothing",
       "label": "Clothing",
       "parent_id": "body_appearance",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "BODY"
     },
     {
       "id": "lingerie",
       "label": "Lingerie",
       "parent_id": "clothing",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "costume",
       "label": "Costume",
       "parent_id": "clothing",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "swimwear",
       "label": "Swimwear",
       "parent_id": "clothing",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "appearance",
       "label": "Appearance",
       "parent_id": "body_appearance",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "BODY"
     },
     {
       "id": "tattoos",
       "label": "Tattoos",
       "parent_id": "appearance",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "hair_style",
       "label": "Hair Style",
       "parent_id": "appearance",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "BODY"
     },
     {
       "id": "sexual_activities",
-      "label": "Sexual Activities",
+      "label": "Sexual Activity",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "ACT"
     },
     {
       "id": "solo",
       "label": "Solo",
       "parent_id": "sexual_activities",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "ACT"
     },
     {
       "id": "solo_performance",
       "label": "Solo Performance",
       "parent_id": "solo",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "ACT"
     },
     {
       "id": "self_stimulation",
       "label": "Self Stimulation",
       "parent_id": "solo",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "ACT"
     },
     {
       "id": "partnered",
       "label": "Partnered",
       "parent_id": "sexual_activities",
       "axis": "topic",
-      "level": 2
-    },
-    {
-      "id": "partnered_intimacy",
-      "label": "Partnered Intimacy",
-      "parent_id": "partnered",
-      "axis": "topic",
-      "level": 3
+      "level": 2,
+      "category_id": "ACT"
     },
     {
       "id": "partnered_activity",
       "label": "Partnered Activity",
       "parent_id": "partnered",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "ACT"
+    },
+    {
+      "id": "intimacy",
+      "label": "Intimacy",
+      "parent_id": "sexual_activities",
+      "axis": "topic",
+      "level": 2,
+      "category_id": "ACT"
+    },
+    {
+      "id": "partnered_intimacy",
+      "label": "Partnered Intimacy",
+      "parent_id": "intimacy",
+      "axis": "topic",
+      "level": 3,
+      "category_id": "ACT"
     },
     {
       "id": "fetish_kink",
-      "label": "Fetish Kink",
+      "label": "Fetish & Kink",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "KINK"
     },
     {
       "id": "bdsm",
       "label": "Bdsm",
       "parent_id": "fetish_kink",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "KINK"
     },
     {
       "id": "bondage",
       "label": "Bondage",
       "parent_id": "bdsm",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "dominance",
       "label": "Dominance",
       "parent_id": "bdsm",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "submission",
       "label": "Submission",
       "parent_id": "bdsm",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "roleplay",
       "label": "Roleplay",
       "parent_id": "fetish_kink",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "KINK"
     },
     {
       "id": "costume_roleplay",
       "label": "Costume Roleplay",
       "parent_id": "roleplay",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "fantasy_roleplay",
       "label": "Fantasy Roleplay",
       "parent_id": "roleplay",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "material_interest",
-      "label": "Material Interest",
+      "label": "Material Interests",
       "parent_id": "fetish_kink",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "KINK"
     },
     {
       "id": "latex",
       "label": "Latex",
       "parent_id": "material_interest",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "leather",
       "label": "Leather",
       "parent_id": "material_interest",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "footwear",
       "label": "Footwear",
       "parent_id": "material_interest",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "KINK"
     },
     {
       "id": "performance_format",
       "label": "Performance Format",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "FORMAT"
     },
     {
       "id": "broadcast_mode",
       "label": "Broadcast Mode",
       "parent_id": "performance_format",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "FORMAT"
     },
     {
       "id": "public_live",
       "label": "Public Live",
       "parent_id": "broadcast_mode",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "FORMAT"
     },
     {
       "id": "private_show",
       "label": "Private Show",
       "parent_id": "broadcast_mode",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "FORMAT"
     },
     {
       "id": "group_show",
       "label": "Group Show",
       "parent_id": "broadcast_mode",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "FORMAT"
     },
     {
       "id": "audience_engagement",
-      "label": "Audience Engagement",
+      "label": "Interaction",
       "parent_id": "performance_format",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "FORMAT"
     },
     {
       "id": "interactive_show",
       "label": "Interactive Show",
       "parent_id": "audience_engagement",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "FORMAT"
     },
     {
       "id": "request_show",
       "label": "Request Show",
       "parent_id": "audience_engagement",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "FORMAT"
     },
     {
       "id": "goal_show",
       "label": "Goal Show",
       "parent_id": "audience_engagement",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "FORMAT"
     },
     {
       "id": "products_props",
-      "label": "Products Props",
+      "label": "Products & Props",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "PRODUCT"
     },
     {
       "id": "devices",
       "label": "Devices",
       "parent_id": "products_props",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "PRODUCT"
     },
     {
       "id": "adult_toy",
       "label": "Adult Toy",
       "parent_id": "devices",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "PRODUCT"
     },
     {
       "id": "interactive_device",
       "label": "Interactive Device",
       "parent_id": "devices",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "PRODUCT"
     },
     {
       "id": "accessories",
       "label": "Accessories",
       "parent_id": "products_props",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "PRODUCT"
     },
     {
       "id": "restraints",
       "label": "Restraints",
       "parent_id": "accessories",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "PRODUCT"
     },
     {
       "id": "costume_props",
       "label": "Costume Props",
       "parent_id": "accessories",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "PRODUCT"
     },
     {
       "id": "social_interaction",
       "label": "Social Interaction",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "SOCIAL"
     },
     {
       "id": "conversation",
       "label": "Conversation",
       "parent_id": "social_interaction",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "SOCIAL"
     },
     {
       "id": "flirting",
       "label": "Flirting",
       "parent_id": "conversation",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "SOCIAL"
     },
     {
       "id": "companionship",
       "label": "Companionship",
       "parent_id": "conversation",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "SOCIAL"
+    },
+    {
+      "id": "chat",
+      "label": "Chat",
+      "parent_id": "conversation",
+      "axis": "topic",
+      "level": 3,
+      "category_id": "SOCIAL"
     },
     {
       "id": "participation",
-      "label": "Participation",
+      "label": "Engagement",
       "parent_id": "social_interaction",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "SOCIAL"
     },
     {
       "id": "audience_requests",
       "label": "Audience Requests",
       "parent_id": "participation",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "SOCIAL"
     },
     {
       "id": "games",
       "label": "Games",
       "parent_id": "participation",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "SOCIAL"
     },
     {
       "id": "identity_audience",
-      "label": "Identity Audience",
+      "label": "Identity & Audience",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "IDENTITY"
     },
     {
       "id": "self_description",
-      "label": "Self Description",
+      "label": "Self-description",
       "parent_id": "identity_audience",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "IDENTITY"
     },
     {
       "id": "gender_identity",
       "label": "Gender Identity",
       "parent_id": "self_description",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "IDENTITY"
     },
     {
       "id": "orientation",
       "label": "Orientation",
       "parent_id": "self_description",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "IDENTITY"
     },
     {
       "id": "audience_description",
-      "label": "Audience Description",
+      "label": "Audience",
       "parent_id": "identity_audience",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "IDENTITY"
     },
     {
       "id": "audience_interest",
       "label": "Audience Interest",
       "parent_id": "audience_description",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "IDENTITY"
     },
     {
       "id": "commercial_context",
-      "label": "Commercial Context",
+      "label": "Monetization",
       "parent_id": "adult_content",
       "axis": "topic",
-      "level": 1
+      "level": 1,
+      "category_id": "COMMERCE"
     },
     {
       "id": "monetization",
-      "label": "Monetization",
+      "label": "Payments",
       "parent_id": "commercial_context",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "COMMERCE"
     },
     {
       "id": "tips",
       "label": "Tips",
       "parent_id": "monetization",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "COMMERCE"
     },
     {
       "id": "paid_session",
       "label": "Paid Session",
       "parent_id": "monetization",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "COMMERCE"
     },
     {
       "id": "subscription",
       "label": "Subscription",
       "parent_id": "monetization",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "COMMERCE"
     },
     {
       "id": "promotion",
-      "label": "Promotion",
+      "label": "Promotions",
       "parent_id": "commercial_context",
       "axis": "topic",
-      "level": 2
+      "level": 2,
+      "category_id": "COMMERCE"
     },
     {
       "id": "special_offer",
       "label": "Special Offer",
       "parent_id": "promotion",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "COMMERCE"
     },
     {
       "id": "scheduled_event",
       "label": "Scheduled Event",
       "parent_id": "promotion",
       "axis": "topic",
-      "level": 3
+      "level": 3,
+      "category_id": "COMMERCE"
     }
   ],
   "edges": [
@@ -572,14 +657,19 @@
       "target": "sexual_activities"
     },
     {
-      "source": "partnered_intimacy",
+      "source": "partnered_activity",
       "predicate": "IS_A",
       "target": "partnered"
     },
     {
-      "source": "partnered_activity",
+      "source": "intimacy",
       "predicate": "IS_A",
-      "target": "partnered"
+      "target": "sexual_activities"
+    },
+    {
+      "source": "partnered_intimacy",
+      "predicate": "IS_A",
+      "target": "intimacy"
     },
     {
       "source": "fetish_kink",
@@ -738,6 +828,11 @@
     },
     {
       "source": "companionship",
+      "predicate": "IS_A",
+      "target": "conversation"
+    },
+    {
+      "source": "chat",
       "predicate": "IS_A",
       "target": "conversation"
     },

@@ -1,12 +1,35 @@
-# Adult Content Ontology v1
+# Room taxonomy and ontology v1.1
 
-A minimal, extensible multi-label ontology and keyword matcher for room subjects and up to five tags.
+A versioned, multi-label taxonomy for room subjects and up to five tags. The
+hierarchy has L1 categories, L2 concept groups and L3 specific concepts; the
+optional `adult_content` umbrella is L0.
+
+| Category code | Stable L1 concept ID | L2 groups | Example L3 concepts |
+| --- | --- | --- | --- |
+| `BODY` | `body_appearance` | Nudity, clothing, appearance | Full nudity, partial nudity, lingerie, costume |
+| `ACT` | `sexual_activities` | Solo, partnered, intimacy | Solo performance, partnered intimacy |
+| `KINK` | `fetish_kink` | BDSM, roleplay, material interests | Bondage, dominance, submission, latex |
+| `FORMAT` | `performance_format` | Broadcast mode, interaction | Public live, private show, group show |
+| `PRODUCT` | `products_props` | Devices, accessories | Adult toy, interactive device, restraints |
+| `SOCIAL` | `social_interaction` | Conversation, engagement | Flirting, chat, audience requests |
+| `IDENTITY` | `identity_audience` | Self-description, audience | Gender identity, orientation, audience interest |
+| `COMMERCE` | `commercial_context` | Payments, promotions | Tips, subscription, paid session |
+
+Codes identify categories; existing concept IDs remain canonical. Each L1–L3
+node carries its category code in `category_id`; L0 has `category_id: null`.
+For example, `lingerie → clothing → body_appearance` all carry `BODY`. Keep
+IDs unchanged when labels or parents change, and never reuse retired IDs for
+different concepts. Reparenting across categories requires updating the subtree's
+category metadata and corresponding edges. A room can hold assignments from
+several branches even though each taxonomy concept has one parent.
 
 ## Run
 
 ```bash
 python build.py --init
 python build.py --subject 'Private show with cosplay' --tags bdsm lingerie
+python build.py --room-id room_123 --subject 'Private show with cosplay and latex' --tags
+python build.py --room-id room_123 --subject '' --tags --self-declared-concepts orientation
 python build.py --import-words /path/to/LDNOOBW/en --language en
 ```
 
@@ -18,7 +41,11 @@ Importing a dictionary creates `candidate_terms.csv` with *unmapped* terms. Revi
 - `taxonomy_schema.json`: JSON Schema for taxonomy file.
 - `keywords_v1.csv`: small curated *illustrative* starter vocabulary; not a comprehensive NSFW list.
 - `sample_output.json`: sample classifier output.
-- `build.py`: generator, simple matcher, and candidate importer.
+- `build.py`: generator, compatibility exports, CLI, and candidate importer.
+- `taxonomy.py`: category metadata, schema builder and graph validation.
+- `matching.py`: prepared keyword matching (the existing API).
+- `room_classifier.py`: versioned room assignments and distinct-room aggregation.
+- `sample_room_output.json`: evidence-backed room classification example.
 
 ## Limitations
 
@@ -45,9 +72,12 @@ ontology or vocabulary.
 
 Invalid parent references, cycles, duplicate node IDs when loading, empty keywords,
 unknown keyword concepts, and invalid `context_required` flags raise `ValueError`.
-This validation does not replace full JSON Schema or ontology-edge validation.
+`load_taxonomy()` additionally validates L0–L3 levels, the eight L1 category
+codes, inherited category membership, parent references and exact agreement
+between `IS_A` edges and parents. The generated JSON Schema describes the file
+structure; the runtime graph checks enforce relationships across nodes.
 
-A local comparison over 1,000 generated records using the supplied 22 keywords
+A historical comparison over 1,000 generated records using the original 22 keywords
 produced identical results to the original implementation. Best of five runs:
 original 71 ms, reused matcher 28 ms (approximately 2.5× faster), compatibility
 wrapper 68 ms. These measurements exclude file loading and matcher preparation
@@ -57,6 +87,52 @@ only when the keyword occurs as a substring. Over 5,000 randomized records this
 gave identical output and cut a reused-matcher batch of 1,000 from 38 ms to
 12 ms (approximately 3.2× faster). Cached ancestor sets use
 memory proportional to the sum of node depths, which suits this small taxonomy.
+
+## Versioned room classification
+
+```python
+from build import RoomClassifier, count_rooms_by_category, load, load_taxonomy
+
+_, rows = load()
+classifier = RoomClassifier(load_taxonomy(), rows)
+room = classifier.classify_room(
+    'room_123', 'Private show with cosplay and latex', ['latex']
+)
+counts = count_rooms_by_category([room])
+# counts['FORMAT'] == 1; counts['KINK'] == 1, despite several KINK concepts.
+```
+
+Each result includes `taxonomy_version`, one assignment per directly supported
+concept, `category_ids`, inferred ancestors and context-review flags. Assignments
+retain all supporting fields: `text` is the complete original field, and
+`matched_term` is the normalized keyword. These are evidence records, not exact
+character offsets or calibrated probabilities. Ambiguous matches retain
+`requires_context_review: true`; downstream review decides whether to accept them.
+`bdsm` can be assigned at L2 without inventing any L3 descendants. `cosplay`
+does not imply nudity or sexual activity.
+
+The room API ignores keyword-derived IDENTITY concepts. Use the explicit
+`self_declared_concepts=['orientation']` argument to record a self-declared
+identity concept; it accepts only IDs from the IDENTITY branch. This API records
+the concept, not a specific personal identity value. The application must obtain
+the declaration from the room owner. Identity and audience descriptions are not
+safety classifications. The lower-level legacy `Matcher` remains a generic
+keyword-evidence extractor and does not enforce this room-assignment rule.
+
+`count_rooms_by_category` counts distinct `room_id` values per category, including
+assignments still needing context review. Duplicate room records are unioned;
+select the desired snapshot before calling it. It rejects mixed taxonomy versions.
+
+The taxonomy release is `1.1.0`. Compatibility filenames (`taxonomy_v1.json`,
+`keywords_v1.csv`) and existing concept IDs are retained. This release adds
+`intimacy` and `chat`, reparents `partnered_intimacy` under `intimacy`, and updates
+display labels to the table above. It adds illustrative vocabulary for chat,
+partnered intimacy and public live. Save each taxonomy release (for example in
+version control) with historical room results; recompute derived ancestors after
+an intentional migration. Older taxonomy files need the new `category_id` metadata
+before the current validator can load them. `--init` rebuilds the supplied
+fixtures and overwrites curated taxonomy/vocabulary files, so preserve local
+edits before using it.
 
 ## Verify
 

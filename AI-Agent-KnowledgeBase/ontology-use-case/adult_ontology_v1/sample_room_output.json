@@ -1,0 +1,63 @@
+{
+  "room_id": "room_123",
+  "taxonomy_version": "1.1.0",
+  "subject": "Private show with cosplay and latex",
+  "tags": [],
+  "assignments": [
+    {
+      "concept_id": "costume_roleplay",
+      "category_id": "KINK",
+      "level": 3,
+      "evidence": [
+        {
+          "field": "subject",
+          "text": "Private show with cosplay and latex",
+          "matched_term": "cosplay",
+          "source": "curated_seed"
+        }
+      ],
+      "requires_context_review": true
+    },
+    {
+      "concept_id": "latex",
+      "category_id": "KINK",
+      "level": 3,
+      "evidence": [
+        {
+          "field": "subject",
+          "text": "Private show with cosplay and latex",
+          "matched_term": "latex",
+          "source": "curated_seed"
+        }
+      ],
+      "requires_context_review": true
+    },
+    {
+      "concept_id": "private_show",
+      "category_id": "FORMAT",
+      "level": 3,
+      "evidence": [
+        {
+          "field": "subject",
+          "text": "Private show with cosplay and latex",
+          "matched_term": "private show",
+          "source": "curated_seed"
+        }
+      ],
+      "requires_context_review": true
+    }
+  ],
+  "inferred_ancestors": [
+    "adult_content",
+    "broadcast_mode",
+    "fetish_kink",
+    "material_interest",
+    "performance_format",
+    "roleplay"
+  ],
+  "category_ids": [
+    "FORMAT",
+    "KINK"
+  ],
+  "requires_context_review": true
+}
