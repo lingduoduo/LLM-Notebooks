@@ -317,7 +317,7 @@ class VocabularyTests(unittest.TestCase):
             ]
         )
 
-    def test_duplicate_vocabulary_rows_across_files_rejected(self):
+    def test_duplicate_vocabulary_rows_rejected(self):
         with self.assertRaisesRegex(ValueError, "Duplicate vocabulary row"):
             build.check_vocabulary(self.rows + self.rows[:1])
 
