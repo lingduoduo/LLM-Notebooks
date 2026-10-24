@@ -1,6 +1,7 @@
 """Three-level taxonomy and evidence-backed, multi-label room classification."""
 
 import copy
+import csv
 import json
 import unittest
 
@@ -16,6 +17,7 @@ CATEGORIES = {
     "SOCIAL",
     "IDENTITY",
     "COMMERCE",
+    "GENERIC",
 }
 
 
@@ -252,6 +254,72 @@ class RoomTests(unittest.TestCase):
         result = self.classifier.classify_room("one", "", ["", "", "", "", "", "latex"])
         self.assertEqual(result["assignments"], [])
         self.assertEqual(len(result["tags"]), 5)
+
+
+class VocabularyTests(unittest.TestCase):
+    def setUp(self):
+        self.taxonomy = build.load_taxonomy()
+        self.nodes = {node["id"]: node for node in self.taxonomy["nodes"]}
+        self.parents, self.rows = build.load()
+        self.classifier = build.RoomClassifier(self.taxonomy, self.rows)
+
+    def test_generic_category_is_standalone_three_level_branch(self):
+        root = self.nodes["generic_reference"]
+        self.assertEqual(
+            (root["category_id"], root["axis"], root["parent_id"]),
+            ("GENERIC", "generic", None),
+        )
+        for leaf in ("explicit_general", "profanity", "brand_reference"):
+            self.assertEqual(self.nodes[leaf]["level"], 3)
+            self.assertEqual(self.nodes[leaf]["category_id"], "GENERIC")
+
+    def test_ldnoobw_terms_map_to_related_categories_or_generic(self):
+        for subject, concept, review in (
+            ("dildo", "adult_toy", False),
+            ("shibari", "bondage", False),
+            ("ass", "nudity", True),
+            ("porn", "explicit_general", False),
+            ("bullshit", "profanity", False),
+        ):
+            with self.subTest(subject=subject):
+                result = self.classifier.classify_room("one", subject, [])
+                (assignment,) = result["assignments"]
+                self.assertEqual(assignment["concept_id"], concept)
+                self.assertEqual(assignment["requires_context_review"], review)
+                self.assertEqual(assignment["evidence"][0]["source"], "ldnoobw_en")
+        result = self.classifier.classify_room("one", "porn", [])
+        self.assertNotIn("adult_content", result["inferred_ancestors"])
+
+    def test_policy_terms_are_kept_out_of_the_matching_vocabulary(self):
+        path = build.ROOT / "policy_candidates_ldnoobw_en.csv"
+        with path.open(encoding="utf-8", newline="") as stream:
+            policy = list(csv.DictReader(stream))
+        self.assertTrue(policy)
+        keywords = {build.norm(row["keyword"]) for row in self.rows}
+        for row in policy:
+            self.assertEqual(row["review_status"], "policy_review_required")
+            self.assertNotIn(build.norm(row["keyword"]), keywords)
+        self.assertEqual(
+            self.classifier.classify_room("one", "jailbait", [])["assignments"], []
+        )
+
+    def test_vocabulary_has_no_duplicates_or_identity_mappings(self):
+        keys = [
+            (build.norm(r["keyword"]), r["language"], r["concept_id"])
+            for r in self.rows
+        ]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertFalse(
+            [
+                r
+                for r in self.rows
+                if self.nodes[r["concept_id"]]["category_id"] == "IDENTITY"
+            ]
+        )
+
+    def test_duplicate_vocabulary_rows_across_files_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Duplicate vocabulary row"):
+            build.check_vocabulary(self.rows + self.rows[:1])
 
 
 if __name__ == "__main__":

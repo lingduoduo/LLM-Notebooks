@@ -53,7 +53,16 @@ TREE = {
         "monetization": ["tips", "paid_session", "subscription", "tip_goal"],
         "promotion": ["special_offer", "scheduled_event"],
     },
+    "generic_reference": {
+        "explicit_reference": ["explicit_general"],
+        "crude_language": ["profanity", "crude_slang"],
+        "media_reference": ["brand_reference", "shock_reference"],
+        "unrelated": ["other_reference"],
+    },
 }
+# keywords_v1.csv is generated from SEEDS; other files are curated imports.
+# policy_candidates_*.csv are deliberately not vocabulary files.
+VOCABULARY_FILES = ("keywords_v1.csv", "keywords_ldnoobw_en.csv")
 SEEDS = [
     ("nude", "full_nudity", False),
     ("nudity", "full_nudity", False),
@@ -189,9 +198,22 @@ def load():
     """Load parent mappings and vocabulary for the existing matcher API."""
     taxonomy = load_taxonomy()
     parents = {node["id"]: node["parent_id"] for node in taxonomy["nodes"]}
-    with (ROOT / "keywords_v1.csv").open(encoding="utf-8", newline="") as stream:
-        rows = list(csv.DictReader(stream))
+    rows = []
+    for name in VOCABULARY_FILES:
+        with (ROOT / name).open(encoding="utf-8", newline="") as stream:
+            rows.extend(csv.DictReader(stream))
+    check_vocabulary(rows)
     return parents, rows
+
+
+def check_vocabulary(rows):
+    """Reject a keyword mapped to the same concept twice, e.g. across files."""
+    seen = set()
+    for row in rows:
+        key = (norm(row["keyword"]), row["language"], row["concept_id"])
+        if key in seen:
+            raise ValueError(f"Duplicate vocabulary row: {key}")
+        seen.add(key)
 
 
 def import_words(path, language="en"):

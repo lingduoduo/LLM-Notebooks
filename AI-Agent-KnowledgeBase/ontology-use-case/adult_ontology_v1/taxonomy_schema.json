@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.org/ontology/taxonomy-v1.2.schema.json",
+  "$id": "https://example.org/ontology/taxonomy-v1.3.schema.json",
   "type": "object",
   "required": [
     "version",
@@ -48,7 +48,8 @@
               "format",
               "interaction",
               "identity",
-              "commerce"
+              "commerce",
+              "generic"
             ]
           },
           "level": {
@@ -66,7 +67,8 @@
               "PRODUCT",
               "SOCIAL",
               "IDENTITY",
-              "COMMERCE"
+              "COMMERCE",
+              "GENERIC"
             ]
           }
         },
@@ -100,7 +102,8 @@
                     "PRODUCT",
                     "SOCIAL",
                     "IDENTITY",
-                    "COMMERCE"
+                    "COMMERCE",
+                    "GENERIC"
                   ]
                 }
               }

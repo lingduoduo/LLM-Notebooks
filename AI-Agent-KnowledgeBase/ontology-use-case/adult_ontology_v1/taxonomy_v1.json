@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "nodes": [
     {
       "id": "adult_content",
@@ -576,6 +576,94 @@
       "axis": "commerce",
       "level": 3,
       "category_id": "COMMERCE"
+    },
+    {
+      "id": "generic_reference",
+      "label": "Generic",
+      "parent_id": null,
+      "axis": "generic",
+      "level": 1,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "explicit_reference",
+      "label": "Explicit Reference",
+      "parent_id": "generic_reference",
+      "axis": "generic",
+      "level": 2,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "explicit_general",
+      "label": "Explicit General",
+      "parent_id": "explicit_reference",
+      "axis": "generic",
+      "level": 3,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "crude_language",
+      "label": "Crude Language",
+      "parent_id": "generic_reference",
+      "axis": "generic",
+      "level": 2,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "profanity",
+      "label": "Profanity",
+      "parent_id": "crude_language",
+      "axis": "generic",
+      "level": 3,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "crude_slang",
+      "label": "Crude Slang",
+      "parent_id": "crude_language",
+      "axis": "generic",
+      "level": 3,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "media_reference",
+      "label": "Media Reference",
+      "parent_id": "generic_reference",
+      "axis": "generic",
+      "level": 2,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "brand_reference",
+      "label": "Brand Reference",
+      "parent_id": "media_reference",
+      "axis": "generic",
+      "level": 3,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "shock_reference",
+      "label": "Shock Reference",
+      "parent_id": "media_reference",
+      "axis": "generic",
+      "level": 3,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "unrelated",
+      "label": "Unrelated",
+      "parent_id": "generic_reference",
+      "axis": "generic",
+      "level": 2,
+      "category_id": "GENERIC"
+    },
+    {
+      "id": "other_reference",
+      "label": "Other Reference",
+      "parent_id": "unrelated",
+      "axis": "generic",
+      "level": 3,
+      "category_id": "GENERIC"
     }
   ],
   "edges": [
@@ -913,6 +1001,56 @@
       "source": "scheduled_event",
       "predicate": "IS_A",
       "target": "promotion"
+    },
+    {
+      "source": "explicit_reference",
+      "predicate": "IS_A",
+      "target": "generic_reference"
+    },
+    {
+      "source": "explicit_general",
+      "predicate": "IS_A",
+      "target": "explicit_reference"
+    },
+    {
+      "source": "crude_language",
+      "predicate": "IS_A",
+      "target": "generic_reference"
+    },
+    {
+      "source": "profanity",
+      "predicate": "IS_A",
+      "target": "crude_language"
+    },
+    {
+      "source": "crude_slang",
+      "predicate": "IS_A",
+      "target": "crude_language"
+    },
+    {
+      "source": "media_reference",
+      "predicate": "IS_A",
+      "target": "generic_reference"
+    },
+    {
+      "source": "brand_reference",
+      "predicate": "IS_A",
+      "target": "media_reference"
+    },
+    {
+      "source": "shock_reference",
+      "predicate": "IS_A",
+      "target": "media_reference"
+    },
+    {
+      "source": "unrelated",
+      "predicate": "IS_A",
+      "target": "generic_reference"
+    },
+    {
+      "source": "other_reference",
+      "predicate": "IS_A",
+      "target": "unrelated"
     }
   ],
   "notes": "Identity labels are descriptive, not inherently NSFW. Safety policy is separate."
