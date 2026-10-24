@@ -1,17 +1,20 @@
 """Write reviewer decisions from the mapping-review workbook back to the vocabulary.
 
-Each decided row on the workbook's "Review" sheet is matched to its
-keywords_v1.csv row by (keyword, mapped concept_id) among imported rows:
+The workbook is the source of truth for every keyword it decides. Each decided
+row sets the outcome for that imported keyword (source ldnoobw_en by default):
 
-- accept: keep the mapping and set review_status.
-- change: map the keyword to "Corrected concept_id" and set review_status.
-- move to policy: remove it from the vocabulary and append it to
+- accept: keep it under "Mapped concept_id" with the given review_status.
+- change: keep it under "Corrected concept_id" with the given review_status.
+- move to policy: keep it out of the vocabulary and list it in
   policy_candidates_ldnoobw_en.csv with its "Policy route".
-- drop: remove it from the vocabulary.
+- drop: keep it out of the vocabulary and the policy candidates.
 
-"Set context_required" (true/false) optionally overrides the flag on kept rows.
-Rows without a decision are left untouched. Every decision is validated before
-any file is written, so an invalid workbook changes nothing.
+Because outcomes are set rather than edited, re-applying a workbook changes
+nothing, and overriding an applied drop or policy move re-creates the keyword
+in place. "Set context_required" (true/false) overrides the flag on kept rows;
+a re-created row otherwise uses the workbook's "context_required" column, or
+"true" when that column is absent. Rows without a decision are left untouched,
+and every decision is validated before any file is written.
 
 Install: pip install openpyxl
 Run: python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed
@@ -42,6 +45,8 @@ COLUMNS = {
     "route": "Policy route",
     "context": "Set context_required",
 }
+# Optional: the original flag, used when a keyword has to be re-created.
+OPTIONAL_COLUMNS = {"original_context": "context_required"}
 
 
 def read_decisions(workbook_path):
@@ -55,6 +60,11 @@ def read_decisions(workbook_path):
         if missing:
             raise ValueError(f"Review sheet is missing columns: {missing}")
         index = {key: header.index(name) for key, name in COLUMNS.items()}
+        index.update(
+            (key, header.index(name))
+            for key, name in OPTIONAL_COLUMNS.items()
+            if name in header
+        )
         decided = []
         for row in rows:
             record = {
@@ -74,7 +84,7 @@ def read_csv(path):
         return reader.fieldnames, list(reader)
 
 
-def apply_review(workbook_path, status, dry_run=False):
+def apply_review(workbook_path, status, dry_run=False, source="ldnoobw_en"):
     """Validate every decision, then rewrite the vocabulary and policy files."""
     taxonomy = build.load_taxonomy()
     nodes = {node["id"]: node for node in taxonomy["nodes"]}
@@ -82,65 +92,85 @@ def apply_review(workbook_path, status, dry_run=False):
     policy_path = build.ROOT / POLICY_FILE
     vocab_fields, vocabulary = read_csv(vocab_path)
     policy_fields, policy = read_csv(policy_path)
-    imported = {
-        (norm(row["keyword"]), row["concept_id"]): row
-        for row in vocabulary
-        if row["source"] != build.SEED_SOURCE
-    }
+    current = {norm(r["keyword"]): r for r in vocabulary if r["source"] == source}
 
-    removed, added_policy = set(), []
+    outcomes = {}  # normalized keyword -> vocabulary row, policy row, or None
     summary = {decision: 0 for decision in DECISIONS}
     for d in read_decisions(workbook_path):
-        key = (norm(d["keyword"]), d["concept"])
+        keyword = norm(d["keyword"])
         where = f"{d['keyword']!r} ({d['concept']})"
+        if not keyword:
+            raise ValueError("Decided rows need a keyword")
+        if keyword in outcomes:
+            raise ValueError(f"Keyword decided more than once: {where}")
         if d["decision"] not in DECISIONS:
             raise ValueError(f"Unknown decision {d['decision']!r} for {where}")
-        if key not in imported:
-            raise ValueError(f"No imported vocabulary row for {where}")
         if d["context"] not in ("", "true", "false"):
             raise ValueError(f"Set context_required must be true or false for {where}")
-        row = imported[key]
-        if d["decision"] == "change":
-            target = nodes.get(d["corrected"])
+        concept = d["corrected"] if d["decision"] == "change" else d["concept"]
+        if d["decision"] in ("accept", "change"):
+            target = nodes.get(concept)
             if target is None or target["level"] == 0:
-                raise ValueError(
-                    f"Corrected concept_id must be an L1-L3 concept for {where}"
-                )
+                raise ValueError(f"Concept must be an L1-L3 concept for {where}")
             if target["category_id"] == "IDENTITY":
                 raise ValueError(f"Keywords may not map to IDENTITY concepts: {where}")
-            row["concept_id"] = d["corrected"]
-        if d["decision"] == "move to policy":
+            previous = current.get(keyword, {})
+            context = (
+                d["context"]
+                or previous.get("context_required")
+                or d.get("original_context")
+                or "true"
+            )
+            outcomes[keyword] = (
+                "vocabulary",
+                {
+                    "keyword": previous.get("keyword", keyword),
+                    "language": previous.get("language", "en"),
+                    "concept_id": concept,
+                    "source": source,
+                    "context_required": context,
+                    "review_status": status,
+                },
+            )
+        elif d["decision"] == "move to policy":
             if d["route"] not in POLICY_ROUTES:
                 raise ValueError(
                     f"Policy route must be one of {POLICY_ROUTES} for {where}"
                 )
-            added_policy.append(
+            outcomes[keyword] = (
+                "policy",
                 {
-                    "keyword": row["keyword"],
-                    "language": row["language"],
+                    "keyword": current.get(keyword, {}).get("keyword", keyword),
+                    "language": "en",
                     "policy_route": d["route"],
-                    "source": row["source"],
+                    "source": source,
                     "review_status": "policy_review_required",
-                }
+                },
             )
-        if d["decision"] in ("move to policy", "drop"):
-            removed.add(id(row))
         else:
-            row["review_status"] = status
-            if d["context"]:
-                row["context_required"] = d["context"]
+            outcomes[keyword] = ("drop", None)
         summary[d["decision"]] += 1
 
-    kept = [row for row in vocabulary if id(row) not in removed]
-    build.check_vocabulary(kept)
-    parents = {node_id: node["parent_id"] for node_id, node in nodes.items()}
-    Matcher(parents, kept)
-    known_policy = {(norm(r["keyword"]), r["language"]) for r in policy}
-    new_policy = [
-        r
-        for r in added_policy
-        if (norm(r["keyword"]), r["language"]) not in known_policy
-    ]
+    def settle(rows, kind):
+        """Replace decided rows in place; append decided rows not yet present."""
+        settled, seen = [], set()
+        for row in rows:
+            key = norm(row["keyword"])
+            if row["source"] != source or key not in outcomes:
+                settled.append(row)
+                continue
+            seen.add(key)
+            where, new = outcomes[key]
+            if where == kind:
+                settled.append({**row, **new})
+        for key, (where, new) in outcomes.items():
+            if where == kind and key not in seen:
+                settled.append(new)
+        return settled
+
+    vocabulary, policy = settle(vocabulary, "vocabulary"), settle(policy, "policy")
+    build.check_vocabulary(vocabulary)
+    Matcher({i: n["parent_id"] for i, n in nodes.items()}, vocabulary)
     print(
         ("Would apply" if dry_run else "Applied"),
         ", ".join(f"{count} {decision}" for decision, count in summary.items()),
@@ -151,11 +181,11 @@ def apply_review(workbook_path, status, dry_run=False):
     with vocab_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=vocab_fields)
         writer.writeheader()
-        writer.writerows(kept)
+        writer.writerows(vocabulary)
     with policy_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=policy_fields, lineterminator="\n")
         writer.writeheader()
-        writer.writerows(policy + new_policy)
+        writer.writerows(policy)
     return summary
 
 
@@ -168,5 +198,6 @@ if __name__ == "__main__":
         help="review_status for accepted and changed rows",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--source", default="ldnoobw_en")
     args = parser.parse_args()
-    apply_review(args.workbook, args.status, args.dry_run)
+    apply_review(args.workbook, args.status, args.dry_run, args.source)
