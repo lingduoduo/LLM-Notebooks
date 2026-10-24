@@ -15,12 +15,9 @@ from dataclasses import dataclass, field
 import time
 from openai import OpenAI
 from config import ChunkingConfig, LLMConfig
+from chunking import DocumentChunker
+from llm_utils import reasoning_safe_temperature as _reasoning_safe_temperature
 
-
-def _reasoning_safe_temperature(model, requested=1.0):
-    """GPT-5 models only accept temperature=1."""
-    m = str(model or "").lower().replace("/", "-")
-    return 1 if "gpt-5" in m else requested
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -79,6 +76,7 @@ class ContextualChunker:
             use_contextual: Whether to generate contextual chunks (for comparison)
         """
         self.chunking_config = chunking_config or ChunkingConfig()
+        self._basic_chunker = DocumentChunker(self.chunking_config)
         self.llm_config = llm_config or LLMConfig()
         self.use_contextual = use_contextual
         
@@ -177,112 +175,16 @@ class ContextualChunker:
         return chunks
     
     def _chunk_by_paragraphs(self, text: str, doc_id: str) -> List[Dict[str, Any]]:
-        """Chunk text respecting paragraph boundaries"""
-        paragraphs = text.split('\n\n')
-        chunks = []
-        current_chunk = []
-        current_size = 0
-        
-        for para in paragraphs:
-            para = para.strip()
-            if not para:
-                continue
-            
-            para_size = len(para)
-            
-            # Handle oversized paragraphs
-            if para_size > self.chunking_config.max_chunk_size:
-                if current_chunk:
-                    chunk_text = '\n\n'.join(current_chunk)
-                    chunks.append(self._create_basic_chunk(chunk_text, doc_id, len(chunks)))
-                    current_chunk = []
-                    current_size = 0
-                
-                # Split large paragraph into sentences
-                sentences = self._split_into_sentences(para)
-                for sent in sentences:
-                    if len(sent) > self.chunking_config.max_chunk_size:
-                        # Force split very long sentences
-                        for i in range(0, len(sent), self.chunking_config.chunk_size):
-                            sub_chunk = sent[i:i + self.chunking_config.chunk_size]
-                            chunks.append(self._create_basic_chunk(sub_chunk, doc_id, len(chunks)))
-                    else:
-                        chunks.append(self._create_basic_chunk(sent, doc_id, len(chunks)))
-                continue
-            
-            # Check if adding this paragraph exceeds chunk size
-            if current_size + para_size > self.chunking_config.chunk_size and current_chunk:
-                chunk_text = '\n\n'.join(current_chunk)
-                chunks.append(self._create_basic_chunk(chunk_text, doc_id, len(chunks)))
-                
-                # Start new chunk with overlap
-                if self.chunking_config.chunk_overlap > 0 and current_chunk:
-                    current_chunk = [current_chunk[-1], para]
-                    current_size = len(current_chunk[0]) + para_size
-                else:
-                    current_chunk = [para]
-                    current_size = para_size
-            else:
-                current_chunk.append(para)
-                current_size += para_size
-        
-        # Save final chunk
-        if current_chunk:
-            chunk_text = '\n\n'.join(current_chunk)
-            if len(chunk_text) >= self.chunking_config.min_chunk_size:
-                chunks.append(self._create_basic_chunk(chunk_text, doc_id, len(chunks)))
-        
-        return chunks
+        return self._basic_chunker._chunk_by_paragraphs(text, doc_id)
     
     def _chunk_by_size(self, text: str, doc_id: str) -> List[Dict[str, Any]]:
-        """Simple size-based chunking"""
-        chunks = []
-        
-        for i in range(0, len(text), self.chunking_config.chunk_size - self.chunking_config.chunk_overlap):
-            chunk_text = text[i:i + self.chunking_config.chunk_size]
-            
-            if len(chunk_text) >= self.chunking_config.min_chunk_size:
-                chunks.append(self._create_basic_chunk(chunk_text, doc_id, len(chunks)))
-        
-        return chunks
+        return self._basic_chunker._chunk_by_size(text, doc_id)
     
     def _split_into_sentences(self, text: str) -> List[str]:
-        """Split text into sentences"""
-        import re
-        
-        # Handle both English and Chinese sentence endings
-        # \u3002\uff01\uff1f are the CJK full stop, exclamation and question marks;
-        # they are sentence terminators in Chinese text and must stay.
-        sentences = re.split(r'([\u3002\uff01\uff1f\.!?]+)', text)
-        
-        # Reconstruct sentences with their endings
-        result = []
-        # Step to the end of the list: re.split with a capturing group yields
-        # [text, delim, text, delim, ..., trailing_text], so stopping at
-        # len(sentences) - 1 dropped the trailing fragment whenever the text
-        # did not end in terminal punctuation (and returned [] for text with
-        # none at all). The strip-and-filter below still discards the empty
-        # tail that re.split produces when the text does end in punctuation.
-        for i in range(0, len(sentences), 2):
-            if i + 1 < len(sentences):
-                result.append(sentences[i] + sentences[i + 1])
-            else:
-                result.append(sentences[i])
-        
-        return [s.strip() for s in result if s.strip()]
+        return self._basic_chunker._split_into_sentences(text)
     
     def _create_basic_chunk(self, text: str, doc_id: str, chunk_index: int) -> Dict[str, Any]:
-        """Create a basic chunk dictionary"""
-        chunk_id = f"{doc_id}_chunk_{chunk_index}"
-        
-        return {
-            "chunk_id": chunk_id,
-            "doc_id": doc_id,
-            "text": text,
-            "chunk_index": chunk_index,
-            "char_count": len(text),
-            "hash": hashlib.md5(text.encode()).hexdigest()
-        }
+        return self._basic_chunker._create_chunk(text, doc_id, chunk_index)
     
     def _generate_contextual_chunks(self,
                                    basic_chunks: List[Dict[str, Any]],

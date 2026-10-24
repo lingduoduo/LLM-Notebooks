@@ -1,15 +1,5 @@
-#!/bin/bash
-
-# Stop all retrieval pipeline services
-
-echo "Stopping all retrieval pipeline services..."
-
-# Kill processes on ports
-for port in 4240 4241 4242; do
-    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null ; then
-        echo "Stopping service on port $port..."
-        lsof -ti:$port | xargs kill -9 2>/dev/null
-    fi
-done
-
-echo "All services stopped."
+#!/usr/bin/env bash
+# Compatibility entry point; all service behavior lives in ../services.py.
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec "${PYTHON:-python3}" "$SCRIPT_DIR/../services.py" stop "$@"

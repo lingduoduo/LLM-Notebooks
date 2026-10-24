@@ -42,7 +42,7 @@ Python 3.8+, macOS M1/M2 (or adjust device), ≥8GB RAM, ~5GB disk for models.
 ### Installation
 
 ```bash
-cd chapter3/retrieval-pipeline
+cd AI-Agent-KnowledgeBase/retrieval-pipeline
 pip install -r requirements.txt
 # First run downloads: BGE-M3 ~2.3GB, BGE-Reranker-v2-M3 ~1.1GB
 ```
@@ -60,7 +60,7 @@ Or individually:
 # Terminal 1
 cd ../dense-embedding && python main.py --port 4240
 # Terminal 2
-cd ../sparse-embedding && python server.py --port 4241
+cd ../sparse-embedding && python server.py 4241
 # Terminal 3
 cd ../retrieval-pipeline && python main.py --port 4242
 ```
@@ -176,149 +176,15 @@ Ports 4240–4242 free; models downloaded; Python 3.8+. OOM → smaller batches,
 
 Educational project for learning purposes.
 
----
+## Shared service controller
 
-## Quick Reference
+From the parent directory, use `python services.py start --dry-run` to inspect the
+canonical ports and commands; `start`, `status`, `stop` and `restart` manage the
+services. The existing shell scripts delegate to this controller. It records
+process identities under `.runtime/services/` and never kills arbitrary port
+occupants. Real startup can download model weights. See the [parent guide](../README.md#retrieval-services)
+for separate Python environments and startup/shutdown behavior.
 
-A condensed version of the sections above.
-
-### Educational goals
-
-1. **Dense vs sparse**: where each one wins
-2. **Hybrid retrieval**: the routes complement each other
-3. **Neural reranking**: reorder candidates with a transformer
-4. **Parallel processing**: indexing/searching across several services
-5. **Engineering patterns**: API design and error handling
-
-### Architecture
-
-(Same as the English section: Pipeline 4242, Dense 4240, Sparse 4241.)
-
-### Key concepts
-
-**Dense (BGE-M3)**: semantics, cross-lingual matching, synonyms; can miss exact codes; more expensive to compute.
-**Sparse (BM25)**: exact terms and IDs; no semantics; fast.
-**Fusion (`fusion.py`)**: RRF (`k=60`), or min-max normalization followed by a weighted sum.
-**Reranking**: the service uses BGE-Reranker-v2-M3; `evaluate.py` uses `BAAI/bge-reranker-base`.
-
-### Requirements and installation
-
-Python 3.8+, at least 8GB of RAM recommended, and about 5GB of disk for models.
-
-```bash
-cd chapter3/retrieval-pipeline
-pip install -r requirements.txt
-```
-
-### Starting the services
-
-```bash
-./start_all_services.sh
-```
-
-Or one at a time:
-
-```bash
-cd ../dense-embedding && python main.py --port 4240
-cd ../sparse-embedding && python server.py --port 4241
-cd ../retrieval-pipeline && python main.py --port 4242
-```
-
-### Testing against the services
-
-```bash
-python test_client.py
-python demo.py
-# http://localhost:4242/docs
-```
-
-### Offline evaluation CLI (`evaluate.py`)
-
-Runs chunk -> embed -> retrieve -> fuse -> rerank in a **single process that can work offline**.
-
-```bash
-python evaluate.py --help
-python evaluate.py
-python evaluate.py --no-dense
-python evaluate.py --no-rerank
-python evaluate.py --query "XR-7003"
-python evaluate.py --embed-model BAAI/bge-m3 --pooling cls
-python evaluate.py --output result.json
-```
-
-| Stage | Default component | Offline? |
-|-------|-------------------|----------|
-| chunk | character-window splitting | ✅ pure Python |
-| sparse | BM25 | ✅ no model download |
-| dense | MiniLM-L6-v2 (~90MB) | ✅ HF cache |
-| fuse | RRF + weighted | ✅ pure Python |
-| rerank | bge-reranker-base | ✅ cached after first download |
-
-> `--no-dense` needs no ML model at all. On Apple Silicon, if MPS produces `NaN` the code falls back to CPU automatically.
-
-### Reading the actual output
-
-Near-duplicate codes break dense retrieval; paraphrases with zero lexical overlap break BM25. **Hybrid-RRF scoring 1.00 across the board** is the core result of experiment 3-6. Weighted fusion is more sensitive to score scale. On a small corpus RRF is already strong; reranking earns its keep with a larger candidate pool and natural-language queries.
-
-Single-query trace:
-
-```
-$ python evaluate.py --query "XR-7003"
-[BM25 (sparse)]
-  1. xr_7003        ...
-[Dense]
-  1. xr_7001        ...   # dense ranks a sibling code first
-  2. xr_7003        ...
-[Hybrid-RRF]
-  1. xr_7003        ...   # fusion pushes the exact match back to rank 1
-```
-
-### Teaching test cases (services required)
-
-Semantics / exact person names / multilingual / technical codes / concept words -- watch dense or sparse win on each.
-
-### API
-
-```bash
-POST /index
-{"text": "Document content", "doc_id": "optional_id", "metadata": {"category": "example"}}
-
-POST /search
-{"query": "search terms", "mode": "hybrid", "top_k": 20, "rerank_top_k": 10}
-
-GET /stats
-GET /documents?limit=10&offset=0
-```
-
-The response includes the raw dense/sparse rankings, the reranked results, rank changes and overlap statistics.
-
-### Project layout
-
-```
-retrieval-pipeline/
-├── config.py, document_store.py, retrieval_client.py
-├── reranker.py, fusion.py, retrieval_pipeline.py
-├── evaluate.py, main.py, test_client.py, demo.py
-├── requirements.txt, start_all_services.sh, stop_all_services.sh
-└── README.md
-```
-
-### Performance notes
-
-- Latency, order of magnitude: dense 50-100ms, sparse 10-30ms, reranking about 100-200ms (20 documents)
-- Roughly 4GB of memory for the models
-- There is no single best method; hybrid is usually better, and reranking improves relevance
-
-### Troubleshooting
-
-Check ports 4240-4242 and that the models downloaded. On OOM, reduce the batch size, switch to CPU, or enable FP16.
-
-### Further reading and license
-
-[BGE-M3](https://arxiv.org/abs/2402.03216) · [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) · teaching project.
-
----
-
-## Notes
-
-- Upstream services: [`../dense-embedding/`](../dense-embedding/) (4240), [`../sparse-embedding/`](../sparse-embedding/) (4241).
+The shared offline test runner is `python ../run_checks.py --suite retrieval-pipeline`.
+Live examples remain available as `python test_client.py`, `python test_pipeline.py`
+and `python demo.py` after the services are running.
