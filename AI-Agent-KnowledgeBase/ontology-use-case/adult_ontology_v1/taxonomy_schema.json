@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/ontology/taxonomy-v1.schema.json",
+  "type": "object",
+  "required": [
+    "version",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "parent_id",
+          "axis",
+          "level"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "axis": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "predicate",
+          "target"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "predicate": {
+            "enum": [
+              "IS_A",
+              "ALIAS_OF",
+              "RELATED_TO",
+              "CO_OCCURS_WITH",
+              "USES_PRODUCT",
+              "HAS_FORMAT"
+            ]
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

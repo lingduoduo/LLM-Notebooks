@@ -1,0 +1,62 @@
+{
+  "subject": "Private show with cosplay and latex",
+  "tags": [
+    "bdsm",
+    "lingerie"
+  ],
+  "matches": [
+    {
+      "field": "subject",
+      "term": "cosplay",
+      "concept_id": "costume_roleplay",
+      "context_required": true,
+      "source": "curated_seed"
+    },
+    {
+      "field": "subject",
+      "term": "latex",
+      "concept_id": "latex",
+      "context_required": true,
+      "source": "curated_seed"
+    },
+    {
+      "field": "subject",
+      "term": "private show",
+      "concept_id": "private_show",
+      "context_required": true,
+      "source": "curated_seed"
+    },
+    {
+      "field": "tag_1",
+      "term": "bdsm",
+      "concept_id": "bdsm",
+      "context_required": false,
+      "source": "curated_seed"
+    },
+    {
+      "field": "tag_2",
+      "term": "lingerie",
+      "concept_id": "lingerie",
+      "context_required": false,
+      "source": "curated_seed"
+    }
+  ],
+  "direct_concepts": [
+    "bdsm",
+    "costume_roleplay",
+    "latex",
+    "lingerie",
+    "private_show"
+  ],
+  "inferred_ancestors": [
+    "adult_content",
+    "body_appearance",
+    "broadcast_mode",
+    "clothing",
+    "fetish_kink",
+    "material_interest",
+    "performance_format",
+    "roleplay"
+  ],
+  "requires_context_review": true
+}
