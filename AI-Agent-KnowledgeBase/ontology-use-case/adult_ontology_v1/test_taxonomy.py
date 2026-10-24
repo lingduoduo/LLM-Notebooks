@@ -277,7 +277,7 @@ class VocabularyTests(unittest.TestCase):
         for subject, concept, review in (
             ("dildo", "adult_toy", False),
             ("shibari", "bondage", False),
-            ("ass", "nudity", True),
+            ("ass", "profanity", True),
             ("porn", "explicit_general", False),
             ("bullshit", "profanity", False),
         ):
