@@ -303,6 +303,29 @@ class VocabularyTests(unittest.TestCase):
             self.classifier.classify_room("one", "jailbait", [])["assignments"], []
         )
 
+    def test_excluded_rows_are_neither_matched_nor_policy(self):
+        vocab = dict(self.rows[0])
+        excluded = dict(
+            vocab,
+            keyword="dropped term",
+            concept_id="",
+            policy_route="",
+            context_required="",
+            review_status="excluded",
+        )
+        keywords, policy = build.split_keyword_rows([vocab, excluded])
+        self.assertEqual((keywords, policy), ([vocab], []))
+        for bad in (
+            dict(excluded, review_status="mapped_unreviewed"),  # neither kind
+            dict(excluded, concept_id="latex"),  # excluded but mapped
+            dict(excluded, policy_route="hate_slur"),  # excluded but routed
+        ):
+            with self.subTest(row=bad), self.assertRaises(ValueError):
+                build.split_keyword_rows([bad])
+        clash = dict(excluded, keyword=vocab["keyword"])
+        with self.assertRaisesRegex(ValueError, "excluded"):
+            build.split_keyword_rows([vocab, clash])
+
     def test_keywords_file_rows_must_be_exactly_one_kind(self):
         vocab = dict(self.rows[0])
         policy = dict(build.load_policy_candidates()[0])

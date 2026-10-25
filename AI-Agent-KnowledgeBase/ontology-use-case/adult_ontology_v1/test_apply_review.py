@@ -120,10 +120,10 @@ class ApplyReviewTests(unittest.TestCase):
         self.assertEqual(
             summary, {"accept": 2, "change": 1, "move to policy": 1, "drop": 1}
         )
-        rows = {  # keyword rows only; policy candidates have a policy_route
+        rows = {  # keyword rows only: policy and excluded rows have no concept
             (r["keyword"], r["source"]): r
             for r in read_csv(self.root / "keywords.csv")
-            if not r["policy_route"]
+            if r["concept_id"]
         }
         self.assertEqual(
             rows[("dildo", "ldnoobw_en")]["review_status"], "model_reviewed"
@@ -136,6 +136,16 @@ class ApplyReviewTests(unittest.TestCase):
         )
         self.assertNotIn(("voyeur", "ldnoobw_en"), rows)
         self.assertNotIn(("twink", "ldnoobw_en"), rows)
+        excluded = [
+            r for r in read_csv(self.root / "keywords.csv") if r["keyword"] == "twink"
+        ]
+        self.assertEqual(
+            [
+                (r["concept_id"], r["policy_route"], r["review_status"])
+                for r in excluded
+            ],
+            [("", "", "excluded")],
+        )
         self.assertEqual(
             rows[("latex", "curated_seed")]["review_status"], "seed_review_required"
         )

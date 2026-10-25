@@ -7,7 +7,9 @@ row sets the outcome for that imported keyword (source ldnoobw_en by default):
 - change: keep it under "Corrected concept_id" with the given review_status.
 - move to policy: keep it as a policy candidate in keywords.csv (empty
   concept_id, "Policy route" set), so the matcher never loads it.
-- drop: remove it from keywords.csv entirely.
+- drop: keep it as an excluded row in keywords.csv (no concept_id or
+  policy_route, review_status "excluded"), so it is never matched and future
+  imports skip it.
 
 Because outcomes are set rather than edited, re-applying a workbook changes
 nothing, and overriding an applied drop or policy move re-creates the keyword
@@ -83,7 +85,7 @@ def apply_review(workbook_path, status, dry_run=False, source="ldnoobw_en"):
     fields, rows = read_csv(path)
     current = {norm(r["keyword"]): r for r in rows if r["source"] == source}
 
-    outcomes = {}  # normalized keyword -> new row, or None to drop it
+    outcomes = {}  # normalized keyword -> its new row (keyword, policy or excluded)
     summary = {decision: 0 for decision in DECISIONS}
     for d in read_decisions(workbook_path):
         keyword = norm(d["keyword"])
@@ -134,10 +136,18 @@ def apply_review(workbook_path, status, dry_run=False, source="ldnoobw_en"):
                 "policy_route": d["route"],
             }
         else:
-            outcomes[keyword] = None
+            outcomes[keyword] = {
+                "keyword": current.get(keyword, {}).get("keyword", keyword),
+                "language": current.get(keyword, {}).get("language", "en"),
+                "concept_id": "",
+                "source": source,
+                "context_required": "",
+                "review_status": build.EXCLUDED_STATUS,
+                "policy_route": "",
+            }
         summary[d["decision"]] += 1
 
-    # Replace decided rows in place, drop them, or append ones not yet present.
+    # Replace decided rows in place, or append ones not yet present.
     settled, seen = [], set()
     for row in rows:
         key = norm(row["keyword"])
@@ -145,9 +155,8 @@ def apply_review(workbook_path, status, dry_run=False, source="ldnoobw_en"):
             settled.append(row)
             continue
         seen.add(key)
-        if outcomes[key] is not None:
-            settled.append(outcomes[key])
-    settled += [new for key, new in outcomes.items() if new and key not in seen]
+        settled.append(outcomes[key])
+    settled += [new for key, new in outcomes.items() if key not in seen]
     keywords, _ = build.split_keyword_rows(settled)
     Matcher({i: n["parent_id"] for i, n in nodes.items()}, keywords)
     print(
