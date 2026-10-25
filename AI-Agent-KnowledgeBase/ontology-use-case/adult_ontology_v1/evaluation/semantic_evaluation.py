@@ -6,11 +6,10 @@ import json
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from matching import norm
-from taxonomy import validate_taxonomy
+from utils import norm
+from utils import validate_taxonomy
 
-ROOT = Path(__file__).resolve().parent
-DEFAULT_BENCHMARK = ROOT / "evaluation" / "semantic_cases.json"
+DEFAULT_BENCHMARK = Path(__file__).resolve().parent / "semantic_cases.json"
 SPLITS = ("train", "validation", "test")
 
 
@@ -285,7 +284,7 @@ def main(argv=None):
         "--output", type=Path, help="Write full metrics and per-case errors as JSON"
     )
     args = parser.parse_args(argv)
-    from build import RoomClassifier, load, load_taxonomy
+    from utils import RoomClassifier, load, load_taxonomy
 
     try:
         taxonomy = load_taxonomy()

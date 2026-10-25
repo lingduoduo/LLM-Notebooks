@@ -30,10 +30,10 @@ to downloads. Use an existing environment containing the dependencies:
 ```bash
 # From the ontology directory, using your model-enabled Python:
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
-python compare_semantic.py --output-dir /tmp/room-semantic-comparison
+python -m evaluation.compare_semantic --output-dir /tmp/room-semantic-comparison
 
 # Alternatively, supply a complete local MiniLM-compatible mean-pooling folder:
-python compare_semantic.py --model-path /path/to/local/model --output-dir /tmp/room-semantic-comparison
+python -m evaluation.compare_semantic --model-path /path/to/local/model --output-dir /tmp/room-semantic-comparison
 ```
 
 Explicit local folders are identified by file hashes rather than an asserted Hub
@@ -84,7 +84,7 @@ bundling model weights or machine-specific cache paths. The recorded predictions
 can be scored by the standard-library evaluator:
 
 ```bash
-python semantic_evaluation.py --predictions evaluation/local_semantic_predictions.jsonl
+python -m evaluation.semantic_evaluation --predictions evaluation/local_semantic_predictions.jsonl
 ```
 
 ## Observed results

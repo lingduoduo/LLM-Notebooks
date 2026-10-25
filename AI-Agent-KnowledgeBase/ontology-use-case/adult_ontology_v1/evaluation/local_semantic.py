@@ -3,7 +3,7 @@
 import math
 from typing import Iterable, Sequence
 
-from taxonomy import validate_taxonomy
+from utils import validate_taxonomy
 
 DEFAULT_THRESHOLD = 0.5
 DEFAULT_MAX_LABELS = 3

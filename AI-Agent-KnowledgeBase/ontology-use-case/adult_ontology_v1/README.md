@@ -18,16 +18,18 @@ optional `adult_content` umbrella is L0 for content categories only.
 
 ## Quick start
 
-Everything runs from this folder with Python 3.10+ and the standard library.
-Optional extras: `pip install openpyxl matplotlib numpy` for the review check and
-the chart; `torch transformers huggingface_hub` plus a cached MiniLM model for
-the live semantic comparison. Stages whose extras are missing are skipped.
+The code is two files: **`utils.py`** (the library) and **`main.py`** (one
+command per step below). Everything runs from this folder with Python 3.10+ and
+the standard library. Optional extras: `pip install openpyxl matplotlib numpy`
+for the review check and the chart; `torch transformers huggingface_hub` plus a
+cached MiniLM model for the live semantic comparison. Steps whose extras are
+missing are skipped.
 
 **1. Generate and check the whole use case**
 
 ```bash
 cd AI-Agent-KnowledgeBase/ontology-use-case/adult_ontology_v1
-python run_all.py                  # add --tests to run the unit tests too
+python main.py all                 # add --tests to run the unit tests too
 ```
 
 ```text
@@ -37,35 +39,35 @@ OK       review       Would apply 304 accept, 10 change, 7 move to policy, 7 dro
 OK       evaluate     keyword_baseline: concept micro-F1 0.679 on 28 cases -> out/keyword_evaluation.json
 OK       minilm       external_predictions: concept micro-F1 0.383 on 28 cases -> out/minilm_recorded_evaluation.json
 OK       explorer     out/taxonomy_explorer.html
-OK       semicircle   out/taxonomy_semicircle.png and .svg
+OK       chart        out/taxonomy_semicircle.png and .svg
 SKIPPED  minilm-live  not requested
 SKIPPED  tests        not requested
 ```
 
-Reports and visuals go to `out/` (git-ignored). The `build` stage rewrites the
-taxonomy, schema and seed keyword rows in place; every other `keywords.csv` row
-is kept, so on a clean checkout nothing changes. The `review` stage only
-validates the workbook, so it never overwrites a human review. Each stage is a
-plain command you can also run on its own:
+Reports and visuals go to `out/` (git-ignored). The `build` step rewrites the
+taxonomy, schema and seed keyword rows in place and keeps every other
+`keywords.csv` row, so on a clean checkout nothing changes. The `review` step
+only validates the workbook, so it never overwrites a human review. Each step
+can also run on its own:
 
-| Stage | Command |
+| Step | Command |
 | --- | --- |
-| `build` | `python build.py --init` |
-| `fixtures` | compares `build.match(...)` and `RoomClassifier.classify_room(...)` with `sample_output.json` and `sample_room_output.json` |
-| `review` | `python apply_review.py review/ldnoobw_mapping_review.xlsx --status model_reviewed --dry-run` |
-| `evaluate` | `python semantic_evaluation.py --output out/keyword_evaluation.json` |
-| `minilm` | `python semantic_evaluation.py --predictions evaluation/local_semantic_predictions.jsonl` |
-| `explorer` | `python build_taxonomy_explorer.py --output out/taxonomy_explorer.html` |
-| `semicircle` | `python semicircle_taxonomy.py --output out/taxonomy_semicircle` |
-| `minilm-live` | `python compare_semantic.py --output-dir out/semantic_comparison` (with `--with-minilm`) |
-| `tests` | `python -W error::ResourceWarning -m unittest discover` (with `--tests`) |
+| `build` | `python main.py build` |
+| `fixtures` | part of `python main.py all`; compares rebuilt samples with `sample_output.json` and `sample_room_output.json` |
+| `review` | `python main.py review --status model_reviewed --dry-run` |
+| `evaluate` | `python -m evaluation.semantic_evaluation --output out/keyword_evaluation.json` |
+| `minilm` | `python -m evaluation.semantic_evaluation --predictions evaluation/local_semantic_predictions.jsonl` |
+| `explorer` | `python main.py explorer --output out/taxonomy_explorer.html` |
+| `chart` | `python main.py chart --output out/taxonomy_semicircle` |
+| `minilm-live` | `python -m evaluation.compare_semantic --output-dir out/semantic_comparison` (`all --with-minilm`) |
+| `tests` | `python -m unittest discover` (`all --tests`) |
 
 **2. Classify a room**
 
 ```bash
-python build.py --room-id room_123 --subject 'Private show with cosplay and latex' --tags
-python build.py --room-id room_123 --subject '' --tags --self-declared-concepts orientation
-python build.py --subject 'Private show with cosplay' --tags bdsm lingerie   # legacy match output
+python main.py classify --room-id room_123 --subject 'Private show with cosplay and latex' --tags
+python main.py classify --room-id room_123 --subject '' --tags --self-declared-concepts orientation
+python main.py classify --subject 'Private show with cosplay' --tags bdsm lingerie   # legacy match output
 ```
 
 For many rooms, prepare the classifier once in Python (see
@@ -74,21 +76,21 @@ For many rooms, prepare the classifier once in Python (see
 **3. Add new vocabulary**
 
 ```bash
-python build.py --import-words /path/to/wordlist.txt --language en
+python main.py import-words /path/to/wordlist.txt --language en
 ```
 
 New terms land in `candidate_terms.csv` as unmapped candidates; terms already in
 `keywords.csv` are skipped. Map each reviewed term to a concept (or a policy
-route) as a row in `keywords.csv`, then run `python run_all.py --tests`.
+route) as a row in `keywords.csv`, then run `python main.py all --tests`.
 
 **4. Review keyword mappings**
 
 Edit the yellow cells in `review/ldnoobw_mapping_review.xlsx`, then:
 
 ```bash
-python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed --dry-run
-python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed
-python run_all.py --tests
+python main.py review --status human_reviewed --dry-run
+python main.py review --status human_reviewed
+python main.py all --tests
 ```
 
 ## Modeling decisions
@@ -122,18 +124,18 @@ one of three kinds, and the loader rejects a row that fits none or several:
 | Kind | Rows | `concept_id` | `policy_route` | Loaded by |
 | --- | --- | --- | --- | --- |
 | Keyword | 339 | set | empty | `load()`, so the matcher sees only these |
-| Policy candidate | 76 | empty | one of `build.POLICY_ROUTES` | `load_policy_candidates()`; **never matched** |
+| Policy candidate | 76 | empty | one of `utils.POLICY_ROUTES` | `load_policy_candidates()`; **never matched** |
 | Excluded | 7 | empty | empty, with `review_status: excluded` | Neither loader; **never matched**, but imports skip it |
 
 The `source` column records provenance:
 
 | `source` | Rows | Origin | Maintained by |
 | --- | --- | --- | --- |
-| `curated_seed` | 25 keywords | `SEEDS` in `build.py` | Regenerated by `--init` |
-| `ldnoobw_en` | 314 keywords + 76 policy candidates + 7 excluded | English [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) terms (CC BY 4.0) | Curated; preserved verbatim by `--init` |
+| `curated_seed` | 25 keywords | `SEEDS` in `utils.py` | Regenerated by `main.py build` |
+| `ldnoobw_en` | 314 keywords + 76 policy candidates + 7 excluded | English [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) terms (CC BY 4.0) | Curated; preserved verbatim by `main.py build` |
 
 The loader also rejects a keyword mapped to the same concept twice and a term
-that appears as more than one kind. `--init` rewrites only the
+that appears as more than one kind. `main.py build` rewrites only the
 `curated_seed` rows and keeps every other row, so reviewed imports can be
 appended to the same file.
 
@@ -163,7 +165,7 @@ fragments such as `girl on` that match benign titles). `fingering` and
 `hardcore` are now flagged for context review.
 
 To record a human review, edit the yellow cells in the workbook, then run
-`python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed`
+`python main.py review --status human_reviewed`
 (`--dry-run` previews). It validates every decision before writing anything,
 rejects IDENTITY targets, and needs `openpyxl`. The workbook is the source of
 truth for the keywords it decides, so re-applying it changes nothing, and
@@ -188,19 +190,17 @@ candidate, are skipped and counted, so reviewed terms are not offered again. Rev
 
 ## Files
 
-- `taxonomy_v1.json`: concept nodes and IS_A edges.
-- `taxonomy_schema.json`: JSON Schema for taxonomy file.
-- `keywords.csv`: every term in one file: keywords (illustrative seed terms plus mapped LDNOOBW terms) and policy candidates that are never matched (see Vocabulary); not a comprehensive NSFW list.
-- `review/ldnoobw_mapping_review.xlsx` + `apply_review.py`: mapping-review workbook and the script that writes its decisions back (see Mapping review).
-- `sample_output.json`: sample classifier output.
-- `build.py`: generator, compatibility exports, CLI, and candidate importer.
-- `taxonomy.py`: category metadata, schema builder and graph validation.
-- `build_taxonomy_explorer.py` + `visuals/explorer.template.html`: builds a single-file, offline, searchable explorer of the validated taxonomy (`python build_taxonomy_explorer.py`, written to `visuals/taxonomy_explorer.html`). Labels render as text, and embedded JSON escapes `<`.
-- `matching.py`: prepared keyword matching (the existing API).
-- `room_classifier.py`: versioned room assignments and distinct-room aggregation.
-- `sample_room_output.json`: evidence-backed room classification example.
-- `run_all.py`: one command that regenerates and checks the whole use case (see Quick start); writes to the git-ignored `out/`.
-- `semicircle_taxonomy.py`: semicircular sunburst (L1 → L2 → L3) of keyword rows per concept. Optional; needs `matplotlib` and `numpy`. Run `python semicircle_taxonomy.py --output taxonomy_semicircle` to write PNG and SVG.
+| File | Contents |
+| --- | --- |
+| `main.py` | Command line: `all`, `build`, `classify`, `import-words`, `review`, `explorer`, `chart` (see Quick start). |
+| `utils.py` | The library: taxonomy definition and validation, keyword matching, building and loading, room classification, mapping review, explorer and chart. |
+| `test_utils.py`, `test_main.py` | Unit tests for the two files. |
+| `taxonomy_v1.json`, `taxonomy_schema.json` | Concept nodes and IS_A edges; JSON Schema for the taxonomy file. Generated by `main.py build`. |
+| `keywords.csv` | Every term: keywords, policy candidates and excluded terms (see Vocabulary). Not a comprehensive NSFW list. |
+| `sample_output.json`, `sample_room_output.json` | Legacy match and room-classification examples, checked by `main.py all`. |
+| `review/ldnoobw_mapping_review.xlsx` | Mapping-review workbook applied by `main.py review` (see Mapping review). |
+| `visuals/explorer.template.html` | Template for the offline explorer page; labels render as text and embedded JSON escapes `<`. |
+| `evaluation/` | Semantic benchmark, the keyword-vs-MiniLM comparison code (`python -m evaluation.<module>`) and its tests and reports. |
 
 ## Limitations
 
@@ -211,7 +211,7 @@ This is a deterministic baseline, not a trained classifier. Keyword matches are 
 Load files and prepare a matcher once, then reuse it across records:
 
 ```python
-from build import Matcher, load
+from utils import Matcher, load
 
 parents, rows = load()
 matcher = Matcher(parents, rows)
@@ -246,7 +246,7 @@ memory proportional to the sum of node depths, which suits this small taxonomy.
 ## Versioned room classification
 
 ```python
-from build import RoomClassifier, count_rooms_by_category, load, load_taxonomy
+from utils import RoomClassifier, count_rooms_by_category, load, load_taxonomy
 
 _, rows = load()
 classifier = RoomClassifier(load_taxonomy(), rows)
@@ -292,7 +292,7 @@ across versions. Release 1.1.0 added `intimacy` and `chat`, reparented
 `partnered_intimacy` under `intimacy`, and updated display labels. Save each taxonomy release (for example in
 version control) with historical room results; recompute derived ancestors after
 an intentional migration. Older taxonomy files need `category_id` metadata and
-per-category axes before the current validator can load them. `--init` rebuilds the supplied
+per-category axes before the current validator can load them. `main.py build` rebuilds the supplied
 fixtures and overwrites the taxonomy and the seed vocabulary rows (other
 `keywords.csv` rows are kept), so preserve local edits before using it.
 
@@ -305,8 +305,8 @@ paraphrases, negation, benign meanings and multi-axis labels against independent
 gold. No taxonomy, vocabulary or policy behavior changes for this benchmark.
 
 ```bash
-python semantic_evaluation.py --output /tmp/room-evaluation.json
-python semantic_evaluation.py --predictions /path/to/model-predictions.jsonl
+python -m evaluation.semantic_evaluation --output /tmp/room-evaluation.json
+python -m evaluation.semantic_evaluation --predictions /path/to/model-predictions.jsonl
 ```
 
 Reports include concept/category/hierarchical scores, per-label and per-slice
@@ -322,9 +322,9 @@ same held-out cases. It scores taxonomy-label prototypes with cosine similarity;
 it is not trained on room labels. No model files are downloaded by the command.
 
 ```bash
-python compare_semantic.py --output-dir /tmp/room-semantic-comparison
+python -m evaluation.compare_semantic --output-dir /tmp/room-semantic-comparison
 # Re-score the recorded predictions without torch or model weights:
-python semantic_evaluation.py --predictions evaluation/local_semantic_predictions.jsonl
+python -m evaluation.semantic_evaluation --predictions evaluation/local_semantic_predictions.jsonl
 ```
 
 The recorded comparison has mixed results: concept F1 is 0.383 for MiniLM versus
@@ -340,7 +340,7 @@ From this directory:
 ```bash
 python3 -W error::ResourceWarning -m unittest discover -v
 # or, with the rest of the pipeline:
-python run_all.py --tests
+python main.py all --tests
 ```
 
 Tests cover the supplied sample output, Unicode and word boundaries, the tag
