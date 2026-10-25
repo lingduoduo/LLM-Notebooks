@@ -263,12 +263,20 @@ def check_vocabulary(rows):
 
 
 def import_words(path, language="en"):
-    """Stream dictionary lines into unmapped candidates, deduplicated per language."""
+    """Stream dictionary lines into unmapped candidates, deduplicated per language.
+
+    Terms already in keywords.csv (as a keyword or a policy candidate) for the
+    same language are skipped, so reviewed terms are not offered again.
+    """
     source = Path(path)
     dest = ROOT / "candidate_terms.csv"
     if dest.exists() and source.samefile(dest):
         raise ValueError("Import source and candidate destination are the same file")
+    known = set()
+    if (ROOT / VOCABULARY_FILE).exists():
+        known = {(norm(r["keyword"]), r["language"]) for r in load_keyword_rows()}
     existing = set()
+    skipped = 0
     if dest.exists():
         with dest.open(encoding="utf-8", newline="") as f:
             existing = {(r["keyword"], r["language"]) for r in csv.DictReader(f)}
@@ -283,7 +291,9 @@ def import_words(path, language="en"):
             entries = (entry for line in stream for entry in line.splitlines())
             for entry in entries:
                 word = norm(entry)
-                if word and (word, language) not in existing:
+                if word and (word, language) in known:
+                    skipped += 1
+                elif word and (word, language) not in existing:
                     w.writerow(
                         {
                             "keyword": word,
@@ -293,7 +303,11 @@ def import_words(path, language="en"):
                         }
                     )
                     existing.add((word, language))
-    print("Candidates:", len(existing), "(not automatically classified)")
+    print(
+        "Candidates:",
+        len(existing),
+        f"(not automatically classified); skipped {skipped} already in {VOCABULARY_FILE}",
+    )
 
 
 if __name__ == "__main__":

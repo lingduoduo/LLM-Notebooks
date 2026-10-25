@@ -103,8 +103,8 @@ rejects IDENTITY targets, and needs `openpyxl`. The workbook is the source of
 truth for the keywords it decides, so re-applying it changes nothing, and
 switching an applied drop or policy move back to accept or change restores the
 keyword in its original position. Dropped terms are removed from
-the vocabulary; a fresh `--import-words` of the same list would offer them again
-as unmapped candidates.
+`keywords.csv`, so a fresh `--import-words` of the same list offers only those
+(7 for LDNOOBW English) as unmapped candidates.
 
 Terms indicating minors, non-consent, bestiality, incest, violence or extremism,
 solicitation, and slurs are kept out of the taxonomy (modeling decision 3).
@@ -116,7 +116,9 @@ Matching uses whole-word boundaries, so `class`, `Assassin` and `Scunthorpe`
 do not match `ass` or `cunt`. With about 350 keywords a reused matcher classifies
 1,000 short records in about 39 ms locally (12 ms with the 25 seed keywords).
 
-Importing a dictionary creates `candidate_terms.csv` with *unmapped* terms. Review and assign sexual-content concept IDs before adding terms to `keywords.csv`. This prevents profanity, identity words, and benign ambiguous terms from being automatically treated as adult content.
+Importing a dictionary creates `candidate_terms.csv` with *unmapped* terms. Terms
+already in `keywords.csv` for the same language, as a keyword or a policy
+candidate, are skipped and counted, so reviewed terms are not offered again. Review and assign sexual-content concept IDs before adding terms to `keywords.csv`. This prevents profanity, identity words, and benign ambiguous terms from being automatically treated as adult content.
 
 ## Files
 
