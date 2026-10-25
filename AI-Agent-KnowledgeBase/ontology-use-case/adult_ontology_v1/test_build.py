@@ -128,6 +128,33 @@ class FileTests(unittest.TestCase):
                     build.import_words(source)
                 self.assertEqual(destination.read_text(encoding="utf-8"), original)
 
+    def test_candidate_import_skips_terms_already_in_keywords_file(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            build, "ROOT", Path(directory)
+        ):
+            (build.ROOT / "keywords.csv").write_text(
+                ",".join(build.FIELDS)
+                + "\r\nlatex,en,latex,curated_seed,true,seed_review_required,"
+                + "\r\nrape,en,,ldnoobw_en,,policy_review_required,non_consent\r\n",
+                encoding="utf-8",
+            )
+            words = build.ROOT / "words.txt"
+            words.write_text("LATEX\nrape\nnewterm\n", encoding="utf-8")
+            with redirect_stdout(io.StringIO()) as out:
+                build.import_words(words)
+                build.import_words(words, "fr")
+            with (build.ROOT / "candidate_terms.csv").open(
+                encoding="utf-8", newline=""
+            ) as stream:
+                rows = [(r["keyword"], r["language"]) for r in csv.DictReader(stream)]
+        # Known English terms (keyword or policy row) are skipped; other
+        # languages are independent.
+        self.assertEqual(
+            rows,
+            [("newterm", "en"), ("latex", "fr"), ("rape", "fr"), ("newterm", "fr")],
+        )
+        self.assertIn("skipped 2 already in keywords.csv", out.getvalue())
+
     def test_candidate_import_normalizes_and_deduplicates_per_language(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(
             build, "ROOT", Path(directory)
