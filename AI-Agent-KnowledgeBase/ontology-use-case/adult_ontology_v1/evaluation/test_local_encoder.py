@@ -6,7 +6,7 @@ import types
 import unittest
 from unittest.mock import patch
 
-from local_encoder import MODEL_ID, MODEL_REVISION, resolve_cached_model
+from evaluation.local_encoder import MODEL_ID, MODEL_REVISION, resolve_cached_model
 
 
 class EncoderTests(unittest.TestCase):

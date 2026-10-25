@@ -6,9 +6,9 @@ import io
 import unittest
 from unittest.mock import patch
 
-import build
-from compare_semantic import main, run_comparison
-from semantic_evaluation import load_benchmark
+import utils
+from evaluation.compare_semantic import main, run_comparison
+from evaluation.semantic_evaluation import load_benchmark
 
 
 class FixedEncoder:
@@ -20,16 +20,16 @@ class FixedEncoder:
 
 class ComparisonTests(unittest.TestCase):
     def test_predictions_do_not_depend_on_gold_labels(self):
-        taxonomy = build.load_taxonomy()
+        taxonomy = utils.load_taxonomy()
         benchmark = load_benchmark()
         benchmark["cases"] = benchmark["cases"][:1]
         first, predictions, prototypes = run_comparison(
-            benchmark, taxonomy, build.load()[1], FixedEncoder()
+            benchmark, taxonomy, utils.load()[1], FixedEncoder()
         )
         changed = copy.deepcopy(benchmark)
         changed["cases"][0]["expected_concepts"] = []
         second, other_predictions, other_prototypes = run_comparison(
-            changed, taxonomy, build.load()[1], FixedEncoder()
+            changed, taxonomy, utils.load()[1], FixedEncoder()
         )
         self.assertEqual(predictions, other_predictions)
         self.assertEqual(prototypes, other_prototypes)
@@ -41,9 +41,9 @@ class ComparisonTests(unittest.TestCase):
         )
 
     def test_invalid_settings_fail_before_model_loading(self):
-        with patch("compare_semantic.CachedMiniLMEncoder") as encoder, redirect_stderr(
-            io.StringIO()
-        ):
+        with patch(
+            "evaluation.compare_semantic.CachedMiniLMEncoder"
+        ) as encoder, redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as error:
                 main(["--threshold", "nan", "--output-dir", "/unused"])
         self.assertEqual(error.exception.code, 2)

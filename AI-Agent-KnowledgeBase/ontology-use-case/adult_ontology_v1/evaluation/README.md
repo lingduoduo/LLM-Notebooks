@@ -51,9 +51,9 @@ split groups. This tiny synthetic fixture establishes none of those properties.
 From the parent ontology directory:
 
 ```bash
-python semantic_evaluation.py
-python semantic_evaluation.py --output /tmp/room-semantic-baseline.json
-python semantic_evaluation.py --predictions /path/to/predictions.jsonl --output /tmp/model-report.json
+python -m evaluation.semantic_evaluation
+python -m evaluation.semantic_evaluation --output /tmp/room-semantic-baseline.json
+python -m evaluation.semantic_evaluation --predictions /path/to/predictions.jsonl --output /tmp/model-report.json
 ```
 
 Default input paths resolve relative to the script. `--benchmark` accepts another

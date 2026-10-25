@@ -6,21 +6,20 @@ import json
 from pathlib import Path
 import platform
 
-from local_encoder import CachedMiniLMEncoder, sha256_file
-from local_semantic import (
+from evaluation.local_encoder import CachedMiniLMEncoder, sha256_file
+from evaluation.local_semantic import (
     DEFAULT_MAX_LABELS,
     DEFAULT_THRESHOLD,
     SemanticBaseline,
     validate_settings,
 )
-from semantic_evaluation import (
+import utils
+from evaluation.semantic_evaluation import (
     DEFAULT_BENCHMARK,
     evaluate,
     load_benchmark,
     select_cases,
 )
-
-ROOT = Path(__file__).resolve().parent
 
 
 def _json_hash(value):
@@ -42,7 +41,7 @@ def run_comparison(
     max_labels=DEFAULT_MAX_LABELS,
 ) -> tuple:
     """Prepare label prototypes once, predict from inputs only, then score gold."""
-    from room_classifier import RoomClassifier
+    from utils import RoomClassifier
 
     cases = select_cases(benchmark, taxonomy, split)
     model = SemanticBaseline(
@@ -120,7 +119,7 @@ def main(argv=None):
         help="Write comparison JSON, predictions JSONL and prototype JSON here",
     )
     args = parser.parse_args(argv)
-    from build import load, load_taxonomy
+    from utils import load, load_taxonomy
 
     try:
         validate_settings(args.threshold, args.max_labels)
@@ -144,7 +143,7 @@ def main(argv=None):
             model=encoder.metadata,
             python=platform.python_version(),
             benchmark_sha256=sha256_file(args.benchmark),
-            vocabulary_sha256=sha256_file(ROOT / "keywords.csv"),
+            vocabulary_sha256=sha256_file(utils.ROOT / "keywords.csv"),
         )
         args.output_dir.mkdir(parents=True, exist_ok=True)
         (args.output_dir / "semantic_comparison.json").write_text(

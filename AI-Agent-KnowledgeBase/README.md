@@ -13,7 +13,7 @@ Existing per-example CLI commands and HTTP APIs remain available.
 | [Contextual retrieval](contextual-retrieval/README.md) | Compare raw chunks with context-prefixed chunks | `cd contextual-retrieval && python compare_retrieval.py` | NumPy, rank-bm25; optional jieba; no API for comparison |
 | [Structured index](structured-index/README.md) | RAPTOR trees and GraphRAG relationships | `python structured-index/main.py demo` | Standard library for the demo; models/API for building indexes |
 | [User memory](user-memory/README.md) | Cross-session facts, deduplication and conflict resolution | `python user-memory/memory_cli.py demo` | Per-example requirements; no API for demo |
-| [Ontology](ontology-use-case/adult_ontology_v1/README.md) | Curated taxonomy, keyword matching, ancestor inference | `python ontology-use-case/adult_ontology_v1/build.py` | Standard library; Spark SQL example is separate |
+| [Ontology](ontology-use-case/adult_ontology_v1/README.md) | Curated taxonomy, keyword matching, ancestor inference | `python ontology-use-case/adult_ontology_v1/main.py all` | Standard library; Spark SQL example is separate |
 
 ## Structure and shared code
 

@@ -3,13 +3,13 @@
 import copy
 import unittest
 
-import build
-from semantic_evaluation import evaluate, load_benchmark, score_labels
+import utils
+from evaluation.semantic_evaluation import evaluate, load_benchmark, score_labels
 
 
 class EvaluationTests(unittest.TestCase):
     def setUp(self):
-        self.taxonomy = build.load_taxonomy()
+        self.taxonomy = utils.load_taxonomy()
         self.benchmark = load_benchmark()
 
     def test_label_metrics_count_false_positives_and_misses(self):
@@ -103,7 +103,7 @@ class EvaluationTests(unittest.TestCase):
                 evaluate(benchmark, self.taxonomy, predictions=[])
 
     def test_baseline_runs_without_model_downloads(self):
-        classifier = build.RoomClassifier(self.taxonomy, build.load()[1])
+        classifier = utils.RoomClassifier(self.taxonomy, utils.load()[1])
         report = evaluate(self.benchmark, self.taxonomy, classifier=classifier)
         self.assertEqual(report["count"], len(self.benchmark["cases"]))
         self.assertEqual(report["prediction_source"], "keyword_baseline")

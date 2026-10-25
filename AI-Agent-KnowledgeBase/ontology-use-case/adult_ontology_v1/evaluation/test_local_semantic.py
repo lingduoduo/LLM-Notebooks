@@ -3,8 +3,8 @@
 import math
 import unittest
 
-import build
-from local_semantic import SemanticBaseline, build_prototypes
+import utils
+from evaluation.local_semantic import SemanticBaseline, build_prototypes
 
 
 class SmallEncoder:
@@ -25,7 +25,7 @@ class SmallEncoder:
 
 class SemanticTests(unittest.TestCase):
     def setUp(self):
-        self.taxonomy = build.load_taxonomy()
+        self.taxonomy = utils.load_taxonomy()
         self.prototypes = [
             {"concept_id": "private_show", "text": "Private Show"},
             {"concept_id": "lingerie", "text": "Lingerie"},
