@@ -16,6 +16,81 @@ optional `adult_content` umbrella is L0 for content categories only.
 | `COMMERCE` | commerce | `commercial_context` | Payments, promotions | Tips, subscription, paid session, tip goal |
 | `GENERIC` | generic | `generic_reference` | Explicit reference, crude language, media reference, unrelated | Explicit (general), profanity, crude slang, brand, shock meme, other |
 
+## Quick start
+
+Everything runs from this folder with Python 3.10+ and the standard library.
+Optional extras: `pip install openpyxl matplotlib numpy` for the review check and
+the chart; `torch transformers huggingface_hub` plus a cached MiniLM model for
+the live semantic comparison. Stages whose extras are missing are skipped.
+
+**1. Generate and check the whole use case**
+
+```bash
+cd AI-Agent-KnowledgeBase/ontology-use-case/adult_ontology_v1
+python run_all.py                  # add --tests to run the unit tests too
+```
+
+```text
+OK       build        taxonomy 1.3.0 (83 concepts); keywords.csv: 339 keywords, 76 policy, 7 excluded
+OK       fixtures     both samples match the committed fixtures; copies in out/
+OK       review       Would apply 304 accept, 10 change, 7 move to policy, 7 drop
+OK       evaluate     keyword_baseline: concept micro-F1 0.679 on 28 cases -> out/keyword_evaluation.json
+OK       minilm       external_predictions: concept micro-F1 0.383 on 28 cases -> out/minilm_recorded_evaluation.json
+OK       explorer     out/taxonomy_explorer.html
+OK       semicircle   out/taxonomy_semicircle.png and .svg
+SKIPPED  minilm-live  not requested
+SKIPPED  tests        not requested
+```
+
+Reports and visuals go to `out/` (git-ignored). The `build` stage rewrites the
+taxonomy, schema and seed keyword rows in place; every other `keywords.csv` row
+is kept, so on a clean checkout nothing changes. The `review` stage only
+validates the workbook, so it never overwrites a human review. Each stage is a
+plain command you can also run on its own:
+
+| Stage | Command |
+| --- | --- |
+| `build` | `python build.py --init` |
+| `fixtures` | compares `build.match(...)` and `RoomClassifier.classify_room(...)` with `sample_output.json` and `sample_room_output.json` |
+| `review` | `python apply_review.py review/ldnoobw_mapping_review.xlsx --status model_reviewed --dry-run` |
+| `evaluate` | `python semantic_evaluation.py --output out/keyword_evaluation.json` |
+| `minilm` | `python semantic_evaluation.py --predictions evaluation/local_semantic_predictions.jsonl` |
+| `explorer` | `python build_taxonomy_explorer.py --output out/taxonomy_explorer.html` |
+| `semicircle` | `python semicircle_taxonomy.py --output out/taxonomy_semicircle` |
+| `minilm-live` | `python compare_semantic.py --output-dir out/semantic_comparison` (with `--with-minilm`) |
+| `tests` | `python -W error::ResourceWarning -m unittest discover` (with `--tests`) |
+
+**2. Classify a room**
+
+```bash
+python build.py --room-id room_123 --subject 'Private show with cosplay and latex' --tags
+python build.py --room-id room_123 --subject '' --tags --self-declared-concepts orientation
+python build.py --subject 'Private show with cosplay' --tags bdsm lingerie   # legacy match output
+```
+
+For many rooms, prepare the classifier once in Python (see
+[Versioned room classification](#versioned-room-classification)).
+
+**3. Add new vocabulary**
+
+```bash
+python build.py --import-words /path/to/wordlist.txt --language en
+```
+
+New terms land in `candidate_terms.csv` as unmapped candidates; terms already in
+`keywords.csv` are skipped. Map each reviewed term to a concept (or a policy
+route) as a row in `keywords.csv`, then run `python run_all.py --tests`.
+
+**4. Review keyword mappings**
+
+Edit the yellow cells in `review/ldnoobw_mapping_review.xlsx`, then:
+
+```bash
+python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed --dry-run
+python apply_review.py review/ldnoobw_mapping_review.xlsx --status human_reviewed
+python run_all.py --tests
+```
+
 ## Modeling decisions
 
 - **Independent dimensions stay separate.** Each category belongs to one axis.
@@ -38,16 +113,6 @@ IDs unchanged when labels or parents change, and never reuse retired IDs for
 different concepts. Reparenting across categories requires updating the subtree's
 category metadata and corresponding edges. A room can hold assignments from
 several branches even though each taxonomy concept has one parent.
-
-## Run
-
-```bash
-python build.py --init
-python build.py --subject 'Private show with cosplay' --tags bdsm lingerie
-python build.py --room-id room_123 --subject 'Private show with cosplay and latex' --tags
-python build.py --room-id room_123 --subject '' --tags --self-declared-concepts orientation
-python build.py --import-words /path/to/LDNOOBW/en --language en
-```
 
 ## Vocabulary
 
@@ -134,6 +199,7 @@ candidate, are skipped and counted, so reviewed terms are not offered again. Rev
 - `matching.py`: prepared keyword matching (the existing API).
 - `room_classifier.py`: versioned room assignments and distinct-room aggregation.
 - `sample_room_output.json`: evidence-backed room classification example.
+- `run_all.py`: one command that regenerates and checks the whole use case (see Quick start); writes to the git-ignored `out/`.
 - `semicircle_taxonomy.py`: semicircular sunburst (L1 → L2 → L3) of keyword rows per concept. Optional; needs `matplotlib` and `numpy`. Run `python semicircle_taxonomy.py --output taxonomy_semicircle` to write PNG and SVG.
 
 ## Limitations
@@ -273,6 +339,8 @@ From this directory:
 
 ```bash
 python3 -W error::ResourceWarning -m unittest discover -v
+# or, with the rest of the pipeline:
+python run_all.py --tests
 ```
 
 Tests cover the supplied sample output, Unicode and word boundaries, the tag
