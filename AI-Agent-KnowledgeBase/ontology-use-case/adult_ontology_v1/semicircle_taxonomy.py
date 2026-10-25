@@ -1,7 +1,7 @@
 """Semicircular hierarchical sunburst of the room taxonomy's keyword coverage.
 
 Rings are L1 category, L2 group and L3 concept; each wedge's angle is the number
-of keyword rows in keywords_v1.csv mapped to it. Keywords mapped directly to an
+of keyword rows in keywords.csv mapped to it. Keywords mapped directly to an
 L1 category or L2 group get a "Category-level" / "Direct to ..." wedge so every
 row is counted once. Angles stay proportional: a category too thin to label gets
 an outside callout, and a category with no keywords (IDENTITY, which is

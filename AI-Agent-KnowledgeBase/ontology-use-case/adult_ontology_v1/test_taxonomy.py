@@ -1,7 +1,6 @@
 """Three-level taxonomy and evidence-backed, multi-label room classification."""
 
 import copy
-import csv
 import json
 import unittest
 
@@ -291,17 +290,32 @@ class VocabularyTests(unittest.TestCase):
         self.assertNotIn("adult_content", result["inferred_ancestors"])
 
     def test_policy_terms_are_kept_out_of_the_matching_vocabulary(self):
-        path = build.ROOT / "policy_candidates_ldnoobw_en.csv"
-        with path.open(encoding="utf-8", newline="") as stream:
-            policy = list(csv.DictReader(stream))
+        policy = build.load_policy_candidates()
         self.assertTrue(policy)
         keywords = {build.norm(row["keyword"]) for row in self.rows}
         for row in policy:
             self.assertEqual(row["review_status"], "policy_review_required")
+            self.assertIn(row["policy_route"], build.POLICY_ROUTES)
+            self.assertEqual(row["concept_id"], "")
             self.assertNotIn(build.norm(row["keyword"]), keywords)
+        self.assertTrue(all(row["policy_route"] == "" for row in self.rows))
         self.assertEqual(
             self.classifier.classify_room("one", "jailbait", [])["assignments"], []
         )
+
+    def test_keywords_file_rows_must_be_exactly_one_kind(self):
+        vocab = dict(self.rows[0])
+        policy = dict(build.load_policy_candidates()[0])
+        for row in (
+            dict(vocab, policy_route="hate_slur"),  # both a concept and a route
+            dict(vocab, concept_id=""),  # neither
+            dict(policy, policy_route="unknown_route"),
+        ):
+            with self.subTest(row=row), self.assertRaises(ValueError):
+                build.split_keyword_rows([row])
+        clash = dict(policy, keyword=vocab["keyword"], language=vocab["language"])
+        with self.assertRaisesRegex(ValueError, "both a keyword and a policy"):
+            build.split_keyword_rows([vocab, clash])
 
     def test_vocabulary_has_no_duplicates_or_identity_mappings(self):
         keys = [

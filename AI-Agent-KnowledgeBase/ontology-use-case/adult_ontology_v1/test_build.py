@@ -63,7 +63,7 @@ class FileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(
             build, "ROOT", Path(directory)
         ):
-            vocabulary = build.ROOT / "keywords_v1.csv"
+            vocabulary = build.ROOT / "keywords.csv"
             build.generate()
             for name in ("taxonomy_v1.json", "taxonomy_schema.json"):
                 self.assertEqual(
@@ -75,7 +75,7 @@ class FileTests(unittest.TestCase):
             self.assertEqual(len(rows), len(build.SEEDS))
             self.assertTrue(all(r["source"] == "curated_seed" for r in rows))
             # Regenerating restores edited seed rows and keeps imported rows.
-            original = (source / "keywords_v1.csv").read_bytes()
+            original = (source / "keywords.csv").read_bytes()
             vocabulary.write_bytes(
                 original.replace(b"nude,en,full_nudity", b"nude,en,lingerie", 1)
             )
