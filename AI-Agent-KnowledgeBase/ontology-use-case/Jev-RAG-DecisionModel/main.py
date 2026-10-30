@@ -193,10 +193,12 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, env_paths: list[Path] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    load_env(HERE.parents[2] / ".env")  # repo root
-    load_env(HERE / ".env")
+    if env_paths is None:
+        env_paths = [HERE.parents[2] / ".env", HERE / ".env"]  # repo root, then local
+    for path in env_paths:
+        load_env(path)
     factory, transport = make_judge_factory(args.fake)
     if factory is None:
         print(NO_KEY, file=sys.stderr)

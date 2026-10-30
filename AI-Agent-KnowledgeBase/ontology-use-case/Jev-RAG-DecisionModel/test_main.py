@@ -28,17 +28,35 @@ def clean_env(**extra):
     return env
 
 
-def run(argv):
+def run(argv, env_paths=()):
+    # Hermetic: never load the real .env unless a test passes its own paths.
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = cli.main(argv)
+        code = cli.main(argv, env_paths=list(env_paths))
     return code, out.getvalue(), err.getvalue()
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {}, clear=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_main_does_not_load_real_env_in_tests(self):
+        with mock.patch.dict(os.environ, clean_env(), clear=True):
+            code, _, _ = run(["tag", "x", "--fake"])
+            self.assertEqual(code, 0)
+            self.assertNotIn("TYPESAFE_API_KEY", os.environ)
+
+    def test_main_loads_given_env_paths(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / ".env"
+            p.write_text("TYPESAFE_API_KEY=fromfile\n")
+            with mock.patch.dict(os.environ, clean_env(), clear=True):
+                run(["tag", "x", "--fake"], env_paths=[p])
+                self.assertEqual(os.environ["TYPESAFE_API_KEY"], "fromfile")
     def test_missing_key_exits_2(self):
-        with mock.patch.dict(os.environ, clean_env(), clear=True), \
-             mock.patch.object(cli, "load_env"):
+        with mock.patch.dict(os.environ, clean_env(), clear=True):
             code, _, err = run(["tag", "x"])
         self.assertEqual(code, 2)
         self.assertIn("No Jev API key: set TYPESAFE_API_KEY or OPENROUTER_API_KEY "
@@ -94,7 +112,7 @@ class CliTests(unittest.TestCase):
             self.assertTrue(path.with_suffix(".md").exists())
 
     def test_demo_fake_runs(self):
-        self.assertEqual(cli.main(["demo", "--fake"]), 0)
+        self.assertEqual(cli.main(["demo", "--fake"], env_paths=[]), 0)
 
 
     def test_eval_jev_error_mid_run_writes_partial_report(self):
