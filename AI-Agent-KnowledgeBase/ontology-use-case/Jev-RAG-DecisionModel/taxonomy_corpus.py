@@ -76,7 +76,7 @@ def tag_room(root: Node, judge, config: NavigationConfig, subject: str, tags: Se
     if mode == "navigate":
         res = navigate(root, query, judge, config)
     elif mode in ("flat", "separate"):
-        units = [n for n in walk(root) if is_returnable(n)]
+        units = [n for n in walk(root) if config.returnable(n)]
         res = score_units(units, query, judge, config, separate=(mode == "separate"))
     else:
         raise ValueError(f"unknown mode: {mode!r}")

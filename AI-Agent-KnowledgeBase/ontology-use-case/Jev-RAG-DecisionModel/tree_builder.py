@@ -137,7 +137,8 @@ def _groups(idx: list[int], vectors, kmeans, k: int, seed: int) -> list[list[int
 def build_keyword_tree(rows: list[dict], embed: Callable, kmeans: Callable,
                        describe: Callable, *, clusters: int = 20,
                        leaf_size: int = 5, split_over: int = 8,
-                       seed: int = 0) -> dict:
+                       seed: int = 0,
+                       csv_sha256: str | None = None) -> dict:
     keywords = [r["keyword"] for r in rows]
     vectors = embed(keywords) if keywords else []
     counts = {"keywords": len(rows), "clusters": 0, "subclusters": 0,
@@ -174,7 +175,8 @@ def build_keyword_tree(rows: list[dict], embed: Callable, kmeans: Callable,
         top = [cluster_node(f"c{i}", g, True) for i, g in enumerate(groups)]
     return {
         "meta": {"counts": counts, "clusters": clusters, "leaf_size": leaf_size,
-                 "split_over": split_over, "seed": seed},
+                 "split_over": split_over, "seed": seed,
+                 "keywords_sha256": csv_sha256},
         "tree": {"id": ROOT_ID, "description": ROOT_DESCRIPTION,
                  "description_source": "fallback", "children": top},
     }
