@@ -8,7 +8,7 @@ from pathlib import Path
 
 ONTOLOGY_DIR = Path(__file__).resolve().parent.parent / "adult_ontology_v1"
 if str(ONTOLOGY_DIR) not in sys.path:
-    sys.path.insert(0, str(ONTOLOGY_DIR))
+    sys.path.append(str(ONTOLOGY_DIR))
 
 import utils  # noqa: E402
 
