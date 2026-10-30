@@ -59,6 +59,32 @@ cd AI-Agent-KnowledgeBase/ontology-use-case/Jev-RAG-DecisionModel
 
 8. **Rerun for free.** Repeating the same command is served from `.cache/jev/`, and the last line should show `0 misses`. The reported cost stays nonzero because it is nominal (see [Cache](#cache)). To force fresh calls, delete `.cache/jev/typesafe/`.
 
+9. **Try the auto-built keyword tree** (optional). Build it, then tag a room against it:
+
+   ```
+   python3 main.py build-tree        # needs sentence-transformers + scikit-learn; OPENAI_API_KEY optional
+   python3 main.py tag "bdsm dungeon" --tags bdsm --tree keywords
+   ```
+
+   See [Auto-built keyword tree](#auto-built-keyword-tree). `build-tree --fake` checks the wiring offline.
+
+## Auto-built keyword tree
+
+Instead of the hand-written taxonomy, the navigator can walk a tree built automatically from `keywords.csv` (all rows except `review_status == "excluded"`). `build-tree` embeds the keywords, clusters them with k-means (20 top clusters, large ones split again), and writes one description per cluster. Leaves are the keywords; each keeps its `concept_id` only so the evaluator can score the result. The taxonomy is never used to build the tree.
+
+```
+python3 main.py build-tree [--clusters 20] [--leaf-size 5] [--out PATH] [--llm-model gpt-4.1-mini] [--fake]
+python3 main.py tag "bdsm dungeon" --tags bdsm --tree keywords
+python3 main.py eval --mode all
+```
+
+- `build-tree` writes `trees/keyword_tree.json` (`out/keyword_tree.fake.json` with `--fake`). It needs no Jev key. `meta` records the sha256 of `keywords.csv`, the embedding model, the LLM model (`none` if unused), the describe prompt and the build date. It prints cluster counts, how many descriptions used the fallback, and OpenAI token totals.
+- `OPENAI_API_KEY` is optional. With it, an OpenAI model writes each cluster description. Without it, or if the key is rejected (401/403), the build still completes and each node's description falls back to `Terms such as: <first 8 keywords>`.
+- Real builds need extra dependencies, used only by `build-tree`: `sentence-transformers` (model `intfloat/e5-base-v2`), `scikit-learn` and `numpy`. The tests and every other command stay stdlib-only; `--fake` uses offline stand-ins.
+- `tag --tree keywords` prints each keyword with its concept in brackets. If the tree file is missing it exits 2 and tells you to run `build-tree`.
+- `eval --mode all` adds `decisionrag-keyword-tree-navigate` and `decisionrag-keyword-flat` when the tree file exists, and otherwise prints a skip note.
+- If `keywords.csv` changed after the build, `tag` and `eval` warn `keyword tree is stale (keywords.csv changed); run: python main.py build-tree` and carry on.
+
 ## Setup
 
 Python 3.10+, no dependencies.

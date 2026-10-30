@@ -186,3 +186,105 @@ class FakeTransportOK:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeywordTreeCliTests(unittest.TestCase):
+    def build_fake(self, d, name="kt.json"):
+        path = Path(d) / name
+        with mock.patch.dict(os.environ, clean_env(), clear=True):
+            code, out, err = run(["build-tree", "--fake", "--out", str(path)])
+        self.assertEqual(code, 0, err)
+        return path, out
+
+    def test_build_tree_fake_writes_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = self.build_fake(d)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            meta = data["meta"]
+            self.assertEqual(meta["llm_model"], "none")
+            self.assertEqual(len(meta["keywords_sha256"]), 64)
+            for key in ("embed_model", "describe_prompt", "built_at"):
+                self.assertTrue(meta[key])
+            self.assertEqual(data["tree"]["id"], "__root__")
+            self.assertIn("fallback", out)
+            self.assertIn("clusters", out)
+
+    def test_build_tree_needs_no_jev_key(self):
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.dict(os.environ, clean_env(), clear=True), \
+                    mock.patch.object(cli, "make_judge_factory",
+                                      side_effect=AssertionError("no jev factory")):
+                code, _, _ = run(["build-tree", "--fake", "--out", str(Path(d) / "t.json")])
+            self.assertEqual(code, 0)
+
+    def test_build_tree_fake_default_out(self):
+        self.assertEqual(cli.FAKE_TREE_PATH.name, "keyword_tree.fake.json")
+
+    def test_tag_keywords_missing_tree_exits_2(self):
+        missing = Path("/nonexistent-dir/keyword_tree.json")
+        with mock.patch.object(cli, "KEYWORD_TREE_PATH", missing):
+            code, out, err = run(["tag", "x", "--tree", "keywords", "--fake"])
+        self.assertEqual(code, 2)
+        self.assertIn(f"keyword tree not found at {missing}; run: python main.py build-tree", err)
+
+    def test_tag_keywords_prints_concepts_in_brackets(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path):
+                code, out, err = run(["tag", "bdsm dungeon", "--tags", "bdsm",
+                                      "--tree", "keywords", "--fake"])
+            self.assertEqual(code, 0, err)
+            self.assertNotIn("is stale", err)
+            self.assertRegex(out, r"\[[^\]]*\]")
+
+    def test_tag_keywords_stale_warns(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["meta"]["keywords_sha256"] = "0" * 64
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path):
+                code, _, err = run(["tag", "x", "--tree", "keywords", "--fake"])
+            self.assertEqual(code, 0)
+            self.assertIn("keyword tree is stale (keywords.csv changed); "
+                          "run: python main.py build-tree", err)
+
+    def test_eval_all_skips_keyword_runs_without_tree(self):
+        missing = Path("/nonexistent-dir/keyword_tree.json")
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(cli, "KEYWORD_TREE_PATH", missing):
+            code, out, err = run(["eval", "--mode", "all", "--fake",
+                                  "--output", str(Path(d) / "r.json")])
+        self.assertEqual(code, 0)
+        self.assertIn(f"skipping keyword-tree runs: {missing} not found", out + err)
+        self.assertNotIn("decisionrag-keyword-tree-navigate", out)
+
+    def test_eval_all_includes_keyword_runs_with_tree(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path):
+                code, out, _ = run(["eval", "--mode", "all", "--fake",
+                                    "--output", str(Path(d) / "r.json")])
+            self.assertEqual(code, 0)
+            self.assertIn("decisionrag-keyword-tree-navigate", out)
+            self.assertIn("decisionrag-keyword-flat", out)
+
+    def test_flat_keyword_judge_uses_default_per_request(self):
+        seen = []
+
+        def factory(**kw):
+            seen.append(kw)
+            return FakeJudge()
+
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path), \
+                    mock.patch.object(cli, "make_judge_factory", return_value=(factory, None)):
+                run(["eval", "--mode", "all", "--fake", "--output", str(Path(d) / "r.json")])
+        self.assertEqual(seen[-2:], [{}, {}])
+        self.assertIn({"max_per_request": cli.FLAT_MAX_PER_REQUEST}, seen)
+
+    def test_tag_default_tree_is_taxonomy(self):
+        args = cli.build_parser().parse_args(["tag", "x"])
+        self.assertEqual(args.tree, "taxonomy")
+

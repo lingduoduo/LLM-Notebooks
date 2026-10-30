@@ -16,10 +16,16 @@ DEMO_QUESTION = "Is the information needed to answer the user's question in Cand
 NO_KEY = "No Jev API key: set TYPESAFE_API_KEY or OPENROUTER_API_KEY (or put it in .env), or pass --fake"
 FLAT_MAX_PER_REQUEST = 10_000  # flat mode judges every unit in one shared context
 
+FAKE_TREE_PATH = HERE / "out" / "keyword_tree.fake.json"
+TREE_MISSING = "keyword tree not found at {path}; run: python main.py build-tree"
+TREE_STALE = "keyword tree is stale (keywords.csv changed); run: python main.py build-tree"
+
 from jev import JevError  # noqa: E402
+from keyword_corpus import KEYWORD_TREE_PATH, KEYWORDS_CSV  # noqa: E402
 from judge import FakeJudge  # noqa: E402
 from navigate import NavigationConfig, navigate  # noqa: E402
 from tree import Node  # noqa: E402
+from tree_builder import DEFAULT_LLM_MODEL  # noqa: E402
 
 
 def load_env(path) -> None:
@@ -91,7 +97,44 @@ def fmt(x) -> str:
     return "-" if x is None else f"{x:.3f}"
 
 
+def check_keyword_tree(path):
+    """Load the built keyword tree; (meta, root), or None if missing. Warns on stale."""
+    from keyword_corpus import is_stale, load_keyword_tree
+    try:
+        meta, root = load_keyword_tree(path)
+    except FileNotFoundError:
+        return None
+    if is_stale(meta, KEYWORDS_CSV):
+        print(TREE_STALE, file=sys.stderr)
+    return meta, root
+
+
+def cmd_tag_keywords(args, factory) -> int:
+    from keyword_corpus import keyword_config
+    from taxonomy_corpus import tag_room
+    loaded = check_keyword_tree(KEYWORD_TREE_PATH)
+    if loaded is None:
+        print(TREE_MISSING.format(path=KEYWORD_TREE_PATH), file=sys.stderr)
+        return 2
+    _, root = loaded
+    from tree import walk
+    leaves = {n.id: n for n in walk(root) if n.is_leaf}
+    judge = factory(**judge_kwargs(args.mode))
+    res = tag_room(root, judge, keyword_config(use_choice=not args.no_choice), args.subject,
+                   args.tags, self_declared=args.declared, mode=args.mode)
+    print("keyword [concept]  p_bin  p_mul  source")
+    for r in res.ranked:
+        leaf = leaves.get(r.id)
+        label = f"{leaf.description} [{leaf.payload.get('concept_id', '')}]" if leaf else r.id
+        print(f"{label}  {fmt(r.p_bin)}  {fmt(r.p_mul)}  {r.source}")
+    print_trace(res.trace)
+    print_usage(judge)
+    return 0
+
+
 def cmd_tag(args, factory) -> int:
+    if args.tree == "keywords":
+        return cmd_tag_keywords(args, factory)
     from taxonomy_corpus import load_tree, tag_room, taxonomy_config
     _, root = load_tree()
     config = taxonomy_config(use_choice=not args.no_choice)
@@ -132,6 +175,22 @@ def cmd_demo(args, factory) -> int:
     return 0
 
 
+def keyword_tree_runs(factory) -> list[dict]:
+    from evaluate import run_keyword_tree
+    from keyword_corpus import keyword_config
+    if check_keyword_tree(KEYWORD_TREE_PATH) is None:
+        print(f"skipping keyword-tree runs: {KEYWORD_TREE_PATH} not found")
+        return []
+    config = keyword_config()
+    return [
+        run_keyword_tree(factory(), config, mode="navigate",
+                         name="decisionrag-keyword-tree-navigate", tree_path=KEYWORD_TREE_PATH),
+        # flat keeps the default 50 units per request (no FLAT_MAX_PER_REQUEST override)
+        run_keyword_tree(factory(), config, mode="flat",
+                         name="decisionrag-keyword-flat", tree_path=KEYWORD_TREE_PATH),
+    ]
+
+
 def cmd_eval(args, factory) -> int:
     from evaluate import run_baselines, run_decisionrag, write_report
     from taxonomy_corpus import taxonomy_config
@@ -145,6 +204,8 @@ def cmd_eval(args, factory) -> int:
         for mode, choice, name in plan:
             runs.append(run_decisionrag(factory(**judge_kwargs(mode)),
                                         taxonomy_config(use_choice=choice), mode=mode, name=name))
+        if args.mode == "all":
+            runs += keyword_tree_runs(factory)
     except JevError:
         write_report(runs, args.output)  # keep the runs that finished
         print(f"wrote partial report ({len(runs)} runs) to {args.output}", file=sys.stderr)
@@ -161,6 +222,62 @@ def cmd_eval(args, factory) -> int:
     return 0
 
 
+def _fake_embed(keywords):
+    return [[float(len(k)), float(ord(k[0]))] for k in keywords]
+
+
+def _fake_kmeans(vectors, k, seed):
+    return [i % k for i in range(len(vectors))]
+
+
+def _fake_describe(keywords):
+    return "Keywords about " + keywords[0]
+
+
+def _no_describer(keywords):
+    from tree_builder import DescriberUnavailable
+    raise DescriberUnavailable("no OPENAI_API_KEY")
+
+
+def cmd_build_tree(args, factory=None) -> int:
+    import csv
+    import datetime
+    import hashlib
+    import tree_builder as tb
+    describer = None
+    if args.fake:
+        embed, kmeans, describe = _fake_embed, _fake_kmeans, _fake_describe
+        embed_model, llm_model = "fake", "none"
+    else:
+        embed, kmeans = tb.E5Embedder(), tb.sklearn_kmeans
+        embed_model = embed.model
+        key = os.environ.get("OPENAI_API_KEY")
+        if key:
+            describer = describe = tb.OpenAIDescriber(key, args.llm_model)
+            llm_model = args.llm_model
+        else:
+            print("OPENAI_API_KEY not set: using keyword-list descriptions for every node")
+            describe, llm_model = _no_describer, "none"
+    out = Path(args.out) if args.out else (FAKE_TREE_PATH if args.fake else KEYWORD_TREE_PATH)
+    raw = Path(KEYWORDS_CSV).read_bytes()
+    rows = tb.load_keyword_rows(csv.DictReader(raw.decode("utf-8-sig").splitlines()))
+    tree = tb.build_keyword_tree(rows, embed, kmeans, describe, clusters=args.clusters,
+                                 leaf_size=args.leaf_size,
+                                 csv_sha256=hashlib.sha256(raw).hexdigest())
+    meta = tree["meta"]
+    meta.update(embed_model=embed_model, llm_model=llm_model, describe_prompt=tb.DESCRIBE_PROMPT,
+                built_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"))
+    tb.write_tree(tree, out)
+    c = meta["counts"]
+    print(f"{c['keywords']} keywords -> {c['clusters']} clusters, {c['subclusters']} sub-clusters")
+    print(f"fallback descriptions: {c['fallback_descriptions']}")
+    if describer is not None:
+        print(f"OpenAI tokens: {describer.prompt_tokens} prompt, "
+              f"{describer.completion_tokens} completion")
+    print(f"wrote {out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="main.py", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -174,6 +291,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--declared", nargs="*", default=[])
     t.add_argument("--mode", choices=["navigate", "flat", "separate"], default="navigate")
     t.add_argument("--no-choice", action="store_true")
+    t.add_argument("--tree", choices=["taxonomy", "keywords"], default="taxonomy")
     common(t)
     t.set_defaults(func=cmd_tag)
 
@@ -187,6 +305,14 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     common(e)
     e.set_defaults(func=cmd_eval)
+
+    b = sub.add_parser("build-tree", help="build the keyword tree from keywords.csv (no Jev key)")
+    b.add_argument("--clusters", type=int, default=20)
+    b.add_argument("--leaf-size", type=int, default=5)
+    b.add_argument("--out", type=Path, default=None)
+    b.add_argument("--llm-model", default=DEFAULT_LLM_MODEL)
+    common(b)
+    b.set_defaults(func=cmd_build_tree)
     return p
 
 
@@ -196,6 +322,8 @@ def main(argv: list[str] | None = None, env_paths: list[Path] | None = None) -> 
         env_paths = [HERE.parents[2] / ".env", HERE / ".env"]  # repo root, then local
     for path in env_paths:
         load_env(path)
+    if args.command == "build-tree":
+        return args.func(args)  # offline build: no Jev key needed
     factory, transport = make_judge_factory(args.fake)
     if factory is None:
         print(NO_KEY, file=sys.stderr)
