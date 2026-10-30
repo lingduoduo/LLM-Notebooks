@@ -67,6 +67,15 @@ class NavigateTest(unittest.TestCase):
         r = navigate(tree(), "q", FakeJudge({"A": .9, "a1": .8, "a2": .1}), cfg)
         self.assertEqual(ids(r), ["a1"])
 
+    def test_unjudged_children_do_not_block_tagging_at_zero_threshold(self):
+        cfg = NavigationConfig(k=1, tag_threshold=0.0, use_choice=False,
+                               returnable=lambda n: n.is_leaf or n.id in ("A", "B"))
+        j = FakeJudge({"A": .9, "B": .8, "a1": .5, "a2": .5})
+        r = navigate(tree(), "q", j, cfg)
+        self.assertIn("B", ids(r))
+        self.assertNotIn("A", ids(r))
+        self.assertFalse({i for _, c in j.calls for i in c} & {"b1"})
+
     def test_choice_reorders_only_top_m(self):
         j = ChoiceStub({"A": .9, "a1": .9, "a2": .8, "c": .7}, {"a2": .7, "a1": .3})
         r = navigate(tree(), "q", j, NavigationConfig(m=2))

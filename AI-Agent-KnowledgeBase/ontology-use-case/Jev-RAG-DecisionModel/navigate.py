@@ -115,7 +115,7 @@ def _tag_and_choose(units: list[Node], scores: dict[str, float], query: str, jud
     th = config.tag_threshold
     tags = [
         u for u in units
-        if scores[u.id] >= th and not any(scores.get(c.id, 0) >= th for c in u.children)
+        if scores[u.id] >= th and not any(c.id in scores and scores[c.id] >= th for c in u.children)
     ]
     tags.sort(key=lambda u: -scores[u.id])  # stable: judged (tree) order on ties
     if config.r is not None:
