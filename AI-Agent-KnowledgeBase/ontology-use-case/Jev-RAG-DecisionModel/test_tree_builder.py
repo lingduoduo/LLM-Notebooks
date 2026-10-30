@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -248,13 +249,18 @@ class BackendsTest(unittest.TestCase):
                 d(["a"])
         self.assertEqual(d.disabled_code, 403)
 
-    def test_e5_loads_local_files_only(self):
+    def test_e5_loads_offline_with_model_id_only(self):
         st = mock.MagicMock()
         st.return_value.encode.return_value = [[1.0, 0.0]]
         fake_mod = mock.MagicMock(SentenceTransformer=st)
-        with mock.patch.dict(sys.modules, {"sentence_transformers": fake_mod}):
+        with mock.patch.dict(sys.modules, {"sentence_transformers": fake_mod}), \
+                mock.patch.dict(os.environ):  # restored on exit
+            os.environ.pop("HF_HUB_OFFLINE", None)
+            os.environ.pop("TRANSFORMERS_OFFLINE", None)
             self.assertEqual(E5Embedder()(["a"]), [[1.0, 0.0]])
-        st.assert_called_once_with("intfloat/e5-base-v2", local_files_only=True)
+            self.assertEqual(os.environ["HF_HUB_OFFLINE"], "1")
+            self.assertEqual(os.environ["TRANSFORMERS_OFFLINE"], "1")
+        st.assert_called_once_with("intfloat/e5-base-v2")
         st.return_value.encode.assert_called_once_with(["passage: a"], normalize_embeddings=True)
 
     def test_build_with_unavailable_describer_completes(self):

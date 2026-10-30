@@ -37,8 +37,12 @@ class E5Embedder:
 
     def __call__(self, texts: list[str]) -> list[list[float]]:
         if self._st is None:
+            # The model is cached; stay offline on any sentence-transformers version
+            # (2.7 has no local_files_only). Must be set before the hub is imported.
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
             from sentence_transformers import SentenceTransformer
-            self._st = SentenceTransformer(self.model, local_files_only=True)  # cached; no network
+            self._st = SentenceTransformer(self.model)
         vecs = self._st.encode(["passage: " + t for t in texts],
                                normalize_embeddings=True)
         return [[float(x) for x in v] for v in vecs]
