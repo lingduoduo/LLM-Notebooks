@@ -218,6 +218,6 @@ if use_choice and len(tags) >= 2: q = judge.choice(query, tags[:m] nodes, choice
 
 - [ ] **Step 1:** Confirm `OPENROUTER_API_KEY` is set; if not, stop and ask the user to export it (do not proceed with `--fake`).
 - [ ] **Step 2:** `python3 main.py tag "Private show with cosplay and latex" --tags bdsm lingerie` → ranked tags print; `usage` cost is a fraction of a cent.
-- [ ] **Step 3:** `python3 main.py eval --mode all` → `out/report.md`. Rerun once and confirm the cache reports only hits (cost 0).
+- [ ] **Step 3:** `python3 main.py eval --mode all` → `out/report.md`. Rerun once and confirm the cache reports only hits (misses == 0; reported cost is nominal and stays nonzero).
 - [ ] **Step 4:** Write `RESULTS.md`: the comparison table copied from `out/report.md`, per-slice notes (paraphrase, negation, benign_context), the `neutral-identity` case outcome, cost and latency, and the statement that defaults were fixed before the run. Any threshold sweep goes in a separate section labeled "tuned on test, not held out".
 - [ ] **Step 5: Commit** `git add RESULTS.md && git commit -m "docs(decisionrag): record first live Jev results"`
