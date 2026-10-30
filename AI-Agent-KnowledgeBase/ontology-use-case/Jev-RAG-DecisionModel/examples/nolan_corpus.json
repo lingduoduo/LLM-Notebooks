@@ -1,0 +1,18 @@
+{"documents": [
+  {"id": "nolan", "title": "Christopher Nolan", "passages": [
+    {"id": "nolan/1", "text": "Christopher Nolan is a British-American director known for intricate plots and non-linear storytelling."},
+    {"id": "nolan/2", "text": "His second feature, a thriller about memory loss, brought him wide critical attention in 2000."},
+    {"id": "nolan/3", "text": "Later he directed a trilogy of superhero films about Gotham's vigilante, then space and dream-heist epics."}
+  ]},
+  {"id": "memento", "title": "Memento (film)", "passages": [
+    {"id": "memento/1", "text": "Memento is a 2000 psychological thriller written and directed by Christopher Nolan."},
+    {"id": "memento/2", "text": "The main character is Leonard Shelby, a man who cannot form new memories and hunts for his wife's killer."},
+    {"id": "memento/3", "text": "Scenes alternate between colour sequences told in reverse and black-and-white sequences told forward."},
+    {"id": "memento/4", "text": "Leonard relies on tattoos, notes and instant photographs to keep track of what he has learned."}
+  ]},
+  {"id": "gladiator", "title": "Gladiator (2000 film)", "passages": [
+    {"id": "gladiator/1", "text": "Gladiator is a 2000 historical epic directed by Ridley Scott, not by Christopher Nolan."},
+    {"id": "gladiator/2", "text": "The hero is Maximus, a Roman general who is betrayed and enslaved, then fights in the arena."},
+    {"id": "gladiator/3", "text": "The story follows his quest for vengeance against the emperor Commodus."}
+  ]}
+]}
