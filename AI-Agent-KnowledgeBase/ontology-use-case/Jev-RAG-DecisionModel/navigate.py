@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from judge import Judge
 from tree import Node
@@ -124,7 +124,7 @@ def _tag_and_choose(units: list[Node], scores: dict[str, float], query: str, jud
         u for u in units
         if scores[u.id] >= th and not any(c.id in scores and scores[c.id] >= th for c in u.children)
     ]
-    tags.sort(key=lambda u: -scores[u.id])  # stable: judged (tree) order on ties
+    tags.sort(key=lambda u: -scores[u.id])  # stable sort: ties keep judged order
     if config.r is not None:
         tags = tags[: config.r]
     ranked = [Ranked(u.id, scores[u.id]) for u in tags]

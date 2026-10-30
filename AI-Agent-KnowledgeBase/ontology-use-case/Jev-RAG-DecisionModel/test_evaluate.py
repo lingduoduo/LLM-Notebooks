@@ -3,7 +3,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import taxonomy_corpus  # noqa: F401  (puts ontology dir on sys.path)
 from evaluate import prediction_row, rank_metrics, run_baselines, run_decisionrag, write_report
 from judge import FakeJudge
 from navigate import Ranked, Result
