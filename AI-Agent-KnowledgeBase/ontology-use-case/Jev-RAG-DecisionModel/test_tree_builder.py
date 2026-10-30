@@ -184,10 +184,38 @@ class BackendsTest(unittest.TestCase):
 
     def test_openai_other_error_is_runtime_error(self):
         d = OpenAIDescriber("k")
-        with mock.patch("urllib.request.urlopen", side_effect=http_error(500)):
+        with mock.patch("urllib.request.urlopen", side_effect=http_error(400)) as u:
             with self.assertRaises(RuntimeError):
                 d(["a"])
+        self.assertEqual(u.call_count, 1)
         self.assertFalse(d.disabled)
+
+    def test_openai_retries_429_then_succeeds(self):
+        d = OpenAIDescriber("k")
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=[http_error(429), _Resp(ok_payload("Ok."))]) as u, \
+                mock.patch("time.sleep") as sl:
+            self.assertEqual(d(["a"]), "Ok.")
+        self.assertEqual(u.call_count, 2)
+        sl.assert_called_once_with(1)
+
+    def test_openai_503_exhausts_retries(self):
+        d = OpenAIDescriber("k")
+        with mock.patch("urllib.request.urlopen", side_effect=lambda *a, **k: (_ for _ in ()).throw(http_error(503))) as u, \
+                mock.patch("time.sleep"):
+            with self.assertRaises(RuntimeError) as cm:
+                d(["a"])
+        self.assertEqual(u.call_count, 4)
+        self.assertNotIsInstance(cm.exception, DescriberUnavailable)
+
+    def test_openai_401_not_retried(self):
+        d = OpenAIDescriber("k")
+        with mock.patch("urllib.request.urlopen", side_effect=http_error(401)) as u, \
+                mock.patch("time.sleep") as sl:
+            with self.assertRaises(DescriberUnavailable):
+                d(["a"])
+        self.assertEqual(u.call_count, 1)
+        sl.assert_not_called()
 
     def test_build_with_unavailable_describer_completes(self):
         d = OpenAIDescriber("k")

@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
 from pathlib import Path
+
+from jev import RETRY_DELAYS
 
 ROOT_ID = "__root__"
 ROOT_DESCRIPTION = "All keywords"
@@ -70,23 +73,35 @@ class OpenAIDescriber:
         req = urllib.request.Request(
             OPENAI_URL, data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
             method="POST", headers=self._headers)
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                self.disabled = True
-                raise DescriberUnavailable(f"OpenAI returned HTTP {e.code}") from e
-            raise RuntimeError(f"OpenAI HTTP {e.code}") from e
-        except (OSError, ValueError) as e:
-            raise RuntimeError(f"OpenAI request failed: {type(e).__name__}") from e
+        payload = None
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            last = attempt == len(RETRY_DELAYS)
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    raw = resp.read()
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    self.disabled = True
+                    raise DescriberUnavailable(f"OpenAI returned HTTP {e.code}") from e
+                if last or not (e.code == 429 or e.code >= 500):
+                    raise RuntimeError(f"OpenAI HTTP {e.code}") from e
+            except OSError as e:  # URLError, timeouts, resets
+                if last:
+                    raise RuntimeError(f"OpenAI request failed: {type(e).__name__}") from e
+            else:
+                try:
+                    payload = json.loads(raw.decode("utf-8"))
+                except ValueError as e:
+                    raise RuntimeError("invalid JSON in OpenAI response") from e
+                break
+            time.sleep(RETRY_DELAYS[attempt])
         try:
             text = payload["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
             raise RuntimeError("unexpected OpenAI response shape") from e
         usage = payload.get("usage") or {}
-        self.prompt_tokens += usage.get("prompt_tokens", 0)
-        self.completion_tokens += usage.get("completion_tokens", 0)
+        self.prompt_tokens += (usage.get("prompt_tokens") or 0)
+        self.completion_tokens += (usage.get("completion_tokens") or 0)
         return (text or "").strip()
 
 
