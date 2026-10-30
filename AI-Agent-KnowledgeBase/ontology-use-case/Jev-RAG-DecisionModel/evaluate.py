@@ -63,6 +63,9 @@ def run_decisionrag(judge, config, mode: str = "navigate") -> dict:
         "rows": rows,
         "cost_usd": getattr(judge, "cost_usd", 0.0),
         "requests": getattr(judge, "requests", 0),
+        "provider": getattr(judge, "provider", "") or None,
+        "models_seen": sorted(getattr(judge, "models_seen", ())),
+        "cost_estimated": getattr(judge, "cost_estimated", False),
     }
 
 
@@ -105,8 +108,10 @@ def write_report(runs: list[dict], out_path: Path) -> None:
         lat = [row["latency_s"] for row in rows if "latency_s" in row]
         return sum(lat) / len(lat) if lat else None
 
+    estimated = any(r.get("cost_estimated") for r in runs)
+    cost_label = "estimated cost (¢)" if estimated else "nominal cost (¢)"
     lines = ["| name | micro-F1 | macro-F1 | exact match | negative FP rate | Hit@1 | MRR "
-             "| latency (s/room) | nominal cost (¢) | requests |",
+             "| latency (s/room) | " + cost_label + " | requests |",
              "|---|---|---|---|---|---|---|---|---|---|"]
     for r in runs:
         c, rk = r["report"]["concepts"], r["rank"]
@@ -122,5 +127,13 @@ def write_report(runs: list[dict], out_path: Path) -> None:
     for s in slices:
         cells = [f(r["report"]["slices"].get(s, {}).get("concepts", {}).get("micro_f1")) for r in runs]
         lines.append(f"| {s} | " + " | ".join(cells) + " |")
-    lines += ["", "Nominal cost includes cached responses; real spend is the cache misses."]
+    models = sorted({m for r in runs for m in r.get("models_seen") or []})
+    providers = sorted({r["provider"] for r in runs if r.get("provider")})
+    if models:
+        lines += ["", f"Provider: {', '.join(providers)}; resolved model version(s): {', '.join(models)}"]
+    note = "Nominal cost includes cached responses; real spend is the cache misses."
+    if estimated:
+        note = ("Estimated cost = input tokens x $0.042 per 1M (the API reported no cost); it "
+                "includes cached responses, real spend is the cache misses.")
+    lines += ["", note]
     out_path.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")

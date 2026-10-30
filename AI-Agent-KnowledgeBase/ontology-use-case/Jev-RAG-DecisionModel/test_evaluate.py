@@ -70,6 +70,18 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(kw[col], "-")
         self.assertEqual(dr[header.index("nominal cost (¢)")], "1.23")
 
+    def test_write_report_estimated_cost_and_models(self):
+        report = run_baselines()[0]["report"]
+        runs = [{"name": "dr", "report": report, "rank": None, "cost_usd": 0.01, "requests": 3,
+                 "rows": [], "provider": "typesafe", "models_seen": ["jev-1.13.0"],
+                 "cost_estimated": True}]
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "r.json"
+            write_report(runs, out)
+            md = out.with_suffix(".md").read_text()
+        self.assertIn("estimated cost (¢)", md.splitlines()[0])
+        self.assertIn("jev-1.13.0", md)
+
 
 if __name__ == "__main__":
     unittest.main()

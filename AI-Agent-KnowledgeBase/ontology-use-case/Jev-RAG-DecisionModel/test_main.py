@@ -21,6 +21,13 @@ class StatsTransport:
     hits, misses = 3, 4
 
 
+def clean_env(**extra):
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY")}
+    env.update(extra)
+    return env
+
+
 def run(argv):
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -30,11 +37,48 @@ def run(argv):
 
 class CliTests(unittest.TestCase):
     def test_missing_key_exits_2(self):
-        env = {k: v for k, v in os.environ.items() if k != "OPENROUTER_API_KEY"}
-        with mock.patch.dict(os.environ, env, clear=True):
+        with mock.patch.dict(os.environ, clean_env(), clear=True), \
+             mock.patch.object(cli, "load_env"):
             code, _, err = run(["tag", "x"])
         self.assertEqual(code, 2)
-        self.assertIn("OPENROUTER_API_KEY is not set", err)
+        self.assertIn("No Jev API key: set TYPESAFE_API_KEY or OPENROUTER_API_KEY "
+                      "(or put it in .env), or pass --fake", err)
+
+    def test_provider_selection_typesafe_preferred(self):
+        env = clean_env(TYPESAFE_API_KEY="t", OPENROUTER_API_KEY="o")
+        with mock.patch.dict(os.environ, env, clear=True):
+            factory, transport = cli.make_judge_factory(False)
+        self.assertEqual(factory().model, "jev-latest")
+        self.assertEqual(factory().provider, "typesafe")
+        self.assertEqual(transport.inner.endpoint, jev.TYPESAFE_ENDPOINT)
+        self.assertEqual(transport.cache_dir, cli.CACHE_DIR / "typesafe")
+
+    def test_provider_selection_openrouter_fallback(self):
+        with mock.patch.dict(os.environ, clean_env(OPENROUTER_API_KEY="o"), clear=True):
+            factory, transport = cli.make_judge_factory(False)
+        self.assertEqual(factory().model, "typesafe/jev-1.13")
+        self.assertEqual(factory().provider, "openrouter")
+        self.assertEqual(transport.inner.endpoint, jev.ENDPOINT)
+        self.assertEqual(transport.cache_dir, cli.CACHE_DIR / "openrouter")
+
+    def test_provider_selection_none_returns_2(self):
+        with mock.patch.dict(os.environ, clean_env(), clear=True):
+            factory, transport = cli.make_judge_factory(False)
+        self.assertIsNone(factory)
+
+    def test_load_env_parses_and_does_not_override(self):
+        text = ("# comment\n\nA_KEY=one\nexport B_KEY=\"two words\"\n"
+                "C_KEY='three'\nD_KEY=keep\nnot a line\n")
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / ".env"
+            path.write_text(text)
+            with mock.patch.dict(os.environ, {"D_KEY": "already"}, clear=True):
+                cli.load_env(path)
+                self.assertEqual(os.environ["A_KEY"], "one")
+                self.assertEqual(os.environ["B_KEY"], "two words")
+                self.assertEqual(os.environ["C_KEY"], "three")
+                self.assertEqual(os.environ["D_KEY"], "already")
+                cli.load_env(Path(d) / "missing.env")
 
     def test_tag_fake_prints_tags(self):
         code, out, _ = run(["tag", "bdsm dungeon", "--tags", "bdsm", "--fake"])
@@ -90,7 +134,7 @@ class CliTests(unittest.TestCase):
         self.assertGreaterEqual(cli.FLAT_MAX_PER_REQUEST, 10_000)
 
     def test_real_judge_factory_flat_judge_is_unsplit(self):
-        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "k"}):
+        with mock.patch.dict(os.environ, clean_env(OPENROUTER_API_KEY="k"), clear=True):
             factory, transport = cli.make_judge_factory(False)
         self.assertEqual(factory().max_per_request, 50)
         self.assertEqual(factory(max_per_request=10_000).max_per_request, 10_000)

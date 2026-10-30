@@ -15,6 +15,10 @@ from tree import Node
 
 ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 MODEL = "typesafe/jev-1.13"
+TYPESAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+TYPESAFE_MODEL = "jev-latest"  # unpinned alias; the resolved version is in each response
+USER_AGENT = "jev-decisionrag-prototype/0.1"
+USD_PER_INPUT_TOKEN = 0.042e-6  # estimate used when a response reports no usage.cost
 CHOICE_KEY = "most_relevant"
 BINARY_RULE = ("Present: the candidate is actually present in or relevant to the query. "
                "Absent/negated: it is absent, only mentioned negated, or unrelated.")
@@ -106,12 +110,15 @@ def validate_response(body: dict, response: dict) -> None:
         if q.get("type") == "noul":
             _noul(response, key)
         elif q.get("type") == "choice":
-            _probabilities(response, key)
+            for opt, value in _probabilities(response, key).items():
+                _prob(value, f"answer {key!r} probability of {opt!r}")
 
 
 class HttpTransport:
-    def __init__(self, api_key: str, timeout: float = 60):
+    def __init__(self, api_key: str, timeout: float = 60,
+                 endpoint: str = ENDPOINT):
         self.api_key = api_key
+        self.endpoint = endpoint
         self.timeout = timeout
 
     def __call__(self, body: dict) -> dict:
@@ -120,9 +127,10 @@ class HttpTransport:
         attempt = 0
         while True:
             req = urllib.request.Request(
-                ENDPOINT, data=data, method="POST",
+                self.endpoint, data=data, method="POST",
                 headers={"Authorization": f"Bearer {self.api_key}",
-                         "Content-Type": "application/json"})
+                         "Content-Type": "application/json",
+                         "User-Agent": USER_AGENT})
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                     status, raw = resp.status, resp.read()
@@ -194,13 +202,17 @@ class JevJudge:
     """Judge over the Jev decision model. `requests` counts requests sent, cache hits included."""
 
     def __init__(self, transport: Transport, model: str = MODEL,
-                 max_per_request: int = 50, max_workers: int = 8):
+                 max_per_request: int = 50, max_workers: int = 8,
+                 provider: str = ""):
+        self.provider = provider
         self.transport = transport
         self.model = model
         self.max_per_request = max_per_request
         self.max_workers = max_workers
         self.requests = 0
         self.cost_usd = 0.0
+        self.cost_estimated = False
+        self.models_seen: set[str] = set()
         self._lock = threading.Lock()
 
     def binary(self, query: str, candidates: Sequence[Node], question: str) -> dict[str, float]:
@@ -225,8 +237,18 @@ class JevJudge:
             response = self.transport(body)
             with self._lock:
                 self.requests += 1
-                usage = response.get("usage") or {} if isinstance(response, dict) else {}
-                self.cost_usd += float(usage.get("cost") or 0.0)
+                resp = response if isinstance(response, dict) else {}
+                usage = resp.get("usage") or {}
+                cost = usage.get("cost")
+                if isinstance(cost, (int, float)) and not isinstance(cost, bool):
+                    self.cost_usd += float(cost)
+                else:
+                    tokens = usage.get("input_tokens")
+                    if isinstance(tokens, (int, float)) and not isinstance(tokens, bool):
+                        self.cost_usd += tokens * USD_PER_INPUT_TOKEN
+                    self.cost_estimated = True
+                if isinstance(resp.get("model"), str):
+                    self.models_seen.add(resp["model"])
             return parse(response, chunk)
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:

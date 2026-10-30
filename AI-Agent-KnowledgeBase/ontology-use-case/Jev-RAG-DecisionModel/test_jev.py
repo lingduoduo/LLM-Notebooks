@@ -209,6 +209,21 @@ class HttpTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in sl.call_args_list], [1, 2, 4])
 
 
+class EndpointTests(unittest.TestCase):
+    def test_http_transport_uses_endpoint_and_user_agent(self):
+        ok = FakeResp({"answers": {}})
+        with mock.patch("urllib.request.urlopen", return_value=ok) as uo:
+            jev.HttpTransport("k", endpoint=jev.TYPESAFE_ENDPOINT)({"a": 1})
+            jev.HttpTransport("k")({"a": 1})
+        first, second = (c.args[0] for c in uo.call_args_list)
+        self.assertEqual(first.full_url, "https://api.typesafe.ai/v1/systemone")
+        self.assertEqual(second.full_url, jev.ENDPOINT)
+        for req in (first, second):
+            self.assertEqual(req.get_header("User-agent"), "jev-decisionrag-prototype/0.1")
+            self.assertEqual(req.get_header("Authorization"), "Bearer k")
+        self.assertEqual(jev.TYPESAFE_MODEL, "jev-latest")
+
+
 class CacheTests(unittest.TestCase):
     def test_cache_hit_skips_inner(self):
         with tempfile.TemporaryDirectory() as d:
@@ -265,6 +280,37 @@ class CacheTests(unittest.TestCase):
 
 
 class CostTests(unittest.TestCase):
+    def test_cost_estimated_from_tokens_when_no_cost(self):
+        def t(body):
+            return {"model": "jev-1.13.0", "usage": {"input_tokens": 1000000},
+                    "answers": {"c1": {"type": "noul", "noul": 0.5}}}
+        j = jev.JevJudge(t)
+        j.binary("q", nodes(1), "{n}")
+        self.assertAlmostEqual(j.cost_usd, 0.042)
+        self.assertTrue(j.cost_estimated)
+
+    def test_reported_cost_is_not_estimated(self):
+        j = jev.JevJudge(FakeTransport(cost=0.001))
+        j.binary("q", nodes(1), "{n}")
+        self.assertFalse(j.cost_estimated)
+
+    def test_models_seen_records_resolved_version(self):
+        def t(body):
+            return {"model": "jev-1.13.0", "answers": {"c1": {"type": "noul", "noul": 0.5}}}
+        j = jev.JevJudge(t)
+        j.binary("q", nodes(1), "{n}")
+        self.assertEqual(j.models_seen, {"jev-1.13.0"})
+
+    def test_bad_choice_probability_value_not_cached(self):
+        with tempfile.TemporaryDirectory() as d:
+            def inner(b):
+                return {"answers": {jev.CHOICE_KEY: {"type": "choice",
+                                                     "probabilities": {"a": 1.5, "b": 0.2}}}}
+            c = jev.CachedTransport(inner, Path(d))
+            with self.assertRaises(jev.JevError):
+                jev.JevJudge(c).choice("q", [Node("a", "x"), Node("b", "y")], "Which?")
+            self.assertEqual(list(Path(d).glob("*")), [])
+
     def test_cost_accumulates(self):
         t = FakeTransport(cost=0.001)
         j = jev.JevJudge(t)

@@ -13,7 +13,7 @@ DEFAULT_OUTPUT = HERE / "out" / "report.json"
 DEMO_CORPUS = HERE / "examples" / "nolan_corpus.json"
 DEMO_QUERY = "Who is the main character in Christopher Nolan's film from the year 2000?"
 DEMO_QUESTION = "Is the information needed to answer the user's question in Candidate {n}?"
-NO_KEY = "OPENROUTER_API_KEY is not set; export it or pass --fake"
+NO_KEY = "No Jev API key: set TYPESAFE_API_KEY or OPENROUTER_API_KEY (or put it in .env), or pass --fake"
 FLAT_MAX_PER_REQUEST = 10_000  # flat mode judges every unit in one shared context
 
 from jev import JevError  # noqa: E402
@@ -22,17 +22,44 @@ from navigate import NavigationConfig, navigate  # noqa: E402
 from tree import Node  # noqa: E402
 
 
+def load_env(path) -> None:
+    """Load KEY=VALUE lines from `path` into os.environ without overriding existing variables."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        key, sep, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if not sep or not key:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
 def make_judge_factory(fake: bool):
     """Return (factory, transport_or_None); factory(**judge_kwargs) builds a fresh judge.
     None if key missing."""
     if fake:
         return (lambda **kw: FakeJudge()), None
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if not key:
-        return None, None
+    import jev
     from jev import CachedTransport, HttpTransport, JevJudge
-    transport = CachedTransport(HttpTransport(key), CACHE_DIR)
-    return (lambda **kw: JevJudge(transport, **kw)), transport
+    if os.environ.get("TYPESAFE_API_KEY"):
+        provider, key = "typesafe", os.environ["TYPESAFE_API_KEY"]
+        endpoint, model = jev.TYPESAFE_ENDPOINT, jev.TYPESAFE_MODEL
+    elif os.environ.get("OPENROUTER_API_KEY"):
+        provider, key = "openrouter", os.environ["OPENROUTER_API_KEY"]
+        endpoint, model = jev.ENDPOINT, jev.MODEL
+    else:
+        return None, None
+    transport = CachedTransport(HttpTransport(key, endpoint=endpoint), CACHE_DIR / provider)
+    return (lambda **kw: JevJudge(transport, model=model, provider=provider, **kw)), transport
 
 
 def judge_kwargs(mode: str) -> dict:
@@ -41,7 +68,10 @@ def judge_kwargs(mode: str) -> dict:
 
 def print_usage(judge) -> None:
     if hasattr(judge, "cost_usd"):
-        print(f"nominal cost: ${judge.cost_usd:.4f} (cached responses included; real spend = "
+        label = "estimated cost" if judge.cost_estimated else "nominal cost"
+        models = ", ".join(sorted(judge.models_seen)) or "unknown"
+        print(f"provider: {judge.provider or 'unknown'}  model: {judge.model} (resolved: {models})")
+        print(f"{label}: ${judge.cost_usd:.4f} (cached responses included; real spend = "
               f"cache misses)  requests: {judge.requests}")
 
 
@@ -127,7 +157,8 @@ def cmd_eval(args, factory) -> int:
     write_report(runs, args.output)
     for r in runs:
         c = r["report"]["concepts"]
-        print(f"{r['name']}: micro-F1={fmt(c['micro_f1'])} cost=${r['cost_usd']:.4f} "
+        kind = "est. cost" if r.get("cost_estimated") else "cost"
+        print(f"{r['name']}: micro-F1={fmt(c['micro_f1'])} {kind}=${r['cost_usd']:.4f} "
               f"requests={r['requests']}")
     print(f"wrote {args.output} and {Path(args.output).with_suffix('.md')}")
     return 0
@@ -164,6 +195,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    load_env(HERE.parents[2] / ".env")  # repo root
+    load_env(HERE / ".env")
     factory, transport = make_judge_factory(args.fake)
     if factory is None:
         print(NO_KEY, file=sys.stderr)
@@ -174,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {e}", file=sys.stderr)
         code = 1
     if transport is not None:
-        print(f"cache: {transport.hits} hits, {transport.misses} misses ({CACHE_DIR})")
+        print(f"cache: {transport.hits} hits, {transport.misses} misses ({getattr(transport, 'cache_dir', CACHE_DIR)})")
     return code
 
 
