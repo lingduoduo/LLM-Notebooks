@@ -3,12 +3,91 @@ from __future__ import annotations
 import json
 import math
 import os
+import urllib.error
+import urllib.request
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
 ROOT_ID = "__root__"
 ROOT_DESCRIPTION = "All keywords"
 MAX_DESCRIBED = 60
+DEFAULT_LLM_MODEL = "gpt-4.1-mini"
+DEFAULT_EMBED_MODEL = "intfloat/e5-base-v2"
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+USER_AGENT = "jev-decisionrag-prototype/0.1"
+DESCRIBE_PROMPT = (
+    "Write one sentence (at most 30 words) describing what the items in this "
+    "group are about. Name the main kinds of subjects it covers, including the "
+    "less typical ones, so a reader can tell whether a given item belongs to "
+    "this group.")
+
+
+class DescriberUnavailable(RuntimeError):
+    """The describer's credentials are rejected; no further calls are made."""
+
+
+class E5Embedder:
+    def __init__(self, model: str = DEFAULT_EMBED_MODEL):
+        self.model = model
+        self._st = None
+
+    def __call__(self, texts: list[str]) -> list[list[float]]:
+        if self._st is None:
+            from sentence_transformers import SentenceTransformer
+            self._st = SentenceTransformer(self.model)
+        vecs = self._st.encode(["passage: " + t for t in texts],
+                               normalize_embeddings=True)
+        return [[float(x) for x in v] for v in vecs]
+
+
+def sklearn_kmeans(vectors, k: int, seed: int) -> list[int]:
+    from sklearn.cluster import KMeans
+    labels = KMeans(n_clusters=k, random_state=seed, n_init=10).fit_predict(vectors)
+    return [int(x) for x in labels]
+
+
+class OpenAIDescriber:
+    def __init__(self, api_key: str, model: str = DEFAULT_LLM_MODEL,
+                 timeout: float = 60):
+        self.model = model
+        self.timeout = timeout
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.disabled = False
+        self._headers = {"Authorization": f"Bearer {api_key}",
+                         "Content-Type": "application/json",
+                         "User-Agent": USER_AGENT}
+
+    def __repr__(self) -> str:  # never expose the key
+        return f"OpenAIDescriber(model={self.model!r})"
+
+    def __call__(self, keywords: list[str]) -> str:
+        if self.disabled:
+            raise DescriberUnavailable("OpenAI credentials were rejected")
+        body = {"model": self.model, "temperature": 0,
+                "messages": [{"role": "system", "content": DESCRIBE_PROMPT},
+                             {"role": "user", "content": ", ".join(keywords)}]}
+        req = urllib.request.Request(
+            OPENAI_URL, data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            method="POST", headers=self._headers)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                self.disabled = True
+                raise DescriberUnavailable(f"OpenAI returned HTTP {e.code}") from e
+            raise RuntimeError(f"OpenAI HTTP {e.code}") from e
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"OpenAI request failed: {type(e).__name__}") from e
+        try:
+            text = payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            raise RuntimeError("unexpected OpenAI response shape") from e
+        usage = payload.get("usage") or {}
+        self.prompt_tokens += usage.get("prompt_tokens", 0)
+        self.completion_tokens += usage.get("completion_tokens", 0)
+        return (text or "").strip()
 
 
 def load_keyword_rows(rows: Iterable[dict]) -> list[dict]:
@@ -58,6 +137,8 @@ def build_keyword_tree(rows: list[dict], embed: Callable, kmeans: Callable,
         kws = [keywords[i] for i in ordered][:MAX_DESCRIBED]
         try:
             desc, source = describe(kws), "llm"
+            if not isinstance(desc, str) or not desc.strip():
+                raise ValueError("empty description")
         except Exception:
             desc, source = fallback_description(kws), "fallback"
             counts["fallback_descriptions"] += 1
@@ -87,9 +168,14 @@ def build_keyword_tree(rows: list[dict], embed: Callable, kmeans: Callable,
 def write_tree(tree: dict, path: Path) -> None:
     path = Path(path)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(tree, ensure_ascii=False, indent=2),
-                   encoding="utf-8")
-    os.replace(tmp, path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        tmp.write_text(json.dumps(tree, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def read_tree(path: Path) -> dict:
