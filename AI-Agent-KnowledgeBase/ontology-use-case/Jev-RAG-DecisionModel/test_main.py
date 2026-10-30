@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -10,6 +11,7 @@ from unittest import mock
 import jev
 import main as cli
 from judge import FakeJudge
+from test_tree_builder import _Resp, http_error, ok_payload
 
 
 class FailingJudge(FakeJudge):
@@ -184,9 +186,6 @@ class FakeTransportOK:
         return {"answers": answers, "usage": {"cost": 0.0001}}
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class KeywordTreeCliTests(unittest.TestCase):
     def build_fake(self, d, name="kt.json"):
@@ -288,3 +287,143 @@ class KeywordTreeCliTests(unittest.TestCase):
         args = cli.build_parser().parse_args(["tag", "x"])
         self.assertEqual(args.tree, "taxonomy")
 
+    def test_tag_keywords_flat_uses_default_per_request(self):
+        seen = []
+
+        def factory(**kw):
+            seen.append(kw)
+            return FakeJudge()
+
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path), \
+                    mock.patch.object(cli, "make_judge_factory", return_value=(factory, None)):
+                code, _, err = run(["tag", "x", "--tree", "keywords", "--mode", "flat"])
+        self.assertEqual(code, 0, err)
+        self.assertEqual(seen, [{}])
+
+    def test_tag_keywords_prints_keyword_text_not_leaf_id(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            leaf_ids = {"kw000", "kw001"}
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path):
+                code, out, err = run(["tag", "nude topless", "--tree", "keywords",
+                                      "--mode", "flat", "--fake"])
+        self.assertEqual(code, 0, err)
+        rows = [l for l in out.splitlines() if "[" in l and "source" not in l]
+        self.assertTrue(rows)
+        for line in rows:
+            self.assertNotRegex(line, r"^kw\d{3}\b")
+        self.assertTrue(any(l.startswith("nude [full_nudity]") for l in rows), out)
+
+    def test_eval_keyword_error_keeps_first_keyword_run(self):
+        built = []
+
+        def factory(**kw):
+            built.append(kw)
+            return FakeJudge() if len(built) <= 5 else FailingJudge()
+
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            report = Path(d) / "r.json"
+            with mock.patch.object(cli, "KEYWORD_TREE_PATH", path), \
+                    mock.patch.object(cli, "make_judge_factory", return_value=(factory, None)):
+                code, _, err = run(["eval", "--mode", "all", "--output", str(report)])
+            self.assertEqual(code, 1)
+            self.assertIn("wrote partial report (5 runs)", err)
+            names = [r["name"] for r in json.loads(report.read_text())]
+        self.assertEqual(names[-1], "decisionrag-keyword-tree-navigate")
+        self.assertNotIn("decisionrag-keyword-flat", names)
+
+    def test_build_tree_prints_level1_sizes(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = self.build_fake(d)
+            data = json.loads(path.read_text(encoding="utf-8"))
+        sizes = [len(_leaves(c)) for c in data["tree"]["children"]]
+        self.assertIn("level-1 sizes: " + ", ".join(map(str, sizes)), out)
+        self.assertEqual(sum(sizes), data["meta"]["counts"]["keywords"])
+
+    def test_build_tree_fake_meta_provenance(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, _ = self.build_fake(d)
+            meta = json.loads(path.read_text(encoding="utf-8"))["meta"]
+        self.assertEqual(meta["describer_status"], "fake")
+        self.assertEqual(meta["kmeans_backend"], "fake")
+        self.assertEqual(meta["llm_model"], "none")
+
+    def test_build_tree_parses_csv_without_splitlines(self):
+        raw = "keyword,concept_id,review_status\na\u2028b,c1,\n\"x\r\ny\",c2,\nz,c3,excluded\n".encode()
+        with tempfile.TemporaryDirectory() as d:
+            csv_path = Path(d) / "k.csv"
+            csv_path.write_bytes(b"\xef\xbb\xbf" + raw)
+            with mock.patch.object(cli, "KEYWORDS_CSV", csv_path):
+                path, _ = self.build_fake(d)
+            data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(l["keyword"] for l in _leaves(data["tree"])),
+                         ["a\u2028b", "x\r\ny"])
+        self.assertEqual(data["meta"]["keywords_sha256"],
+                         hashlib.sha256(b"\xef\xbb\xbf" + raw).hexdigest())
+
+    def real_build(self, d, env, urlopen=None):
+        path = Path(d) / "real.json"
+        patches = [mock.patch.dict(os.environ, env, clear=True),
+                   mock.patch("tree_builder.E5Embedder", FakeE5),
+                   mock.patch("tree_builder.sklearn_kmeans", cli._fake_kmeans),
+                   mock.patch("time.sleep")]
+        if urlopen is not None:
+            patches.append(mock.patch("urllib.request.urlopen", **urlopen))
+        with contextlib.ExitStack() as stack:
+            mocks = [stack.enter_context(p) for p in patches]
+            code, out, err = run(["build-tree", "--out", str(path)])
+        self.assertEqual(code, 0, err)
+        meta = json.loads(path.read_text(encoding="utf-8"))["meta"]
+        return meta, out, (mocks[-1] if urlopen is not None else None)
+
+    def test_build_tree_rejected_key_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            meta, out, u = self.real_build(d, clean_env(OPENAI_API_KEY="k"),
+                                           {"side_effect": http_error(401)})
+        self.assertEqual(u.call_count, 1)
+        self.assertEqual(meta["llm_model"], "none")
+        self.assertEqual(meta["describer_status"], "rejected")
+        self.assertEqual(meta["kmeans_backend"], "sklearn.KMeans")
+        self.assertEqual(meta["kmeans_n_init"], 10)
+        self.assertIn("OpenAI key rejected (401/403): all descriptions are keyword-list "
+                      "fallbacks", out)
+        self.assertNotIn("OpenAI tokens", out)
+
+    def test_build_tree_no_key_meta(self):
+        env = {k: v for k, v in clean_env().items() if k != "OPENAI_API_KEY"}
+        with tempfile.TemporaryDirectory() as d:
+            meta, out, _ = self.real_build(
+                d, env, {"side_effect": AssertionError("no network")})
+        self.assertEqual(meta["llm_model"], "none")
+        self.assertEqual(meta["describer_status"], "no_key")
+        self.assertIn("OPENAI_API_KEY not set", out)
+
+    def test_build_tree_ok_key_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            meta, out, _ = self.real_build(
+                d, clean_env(OPENAI_API_KEY="k"),
+                {"side_effect": lambda *a, **k: _Resp(ok_payload("A group."))})
+        self.assertEqual(meta["llm_model"], "gpt-4.1-mini")
+        self.assertEqual(meta["describer_status"], "ok")
+        self.assertEqual(meta["counts"]["fallback_descriptions"], 0)
+        self.assertNotIn("rejected", out)
+
+
+class FakeE5:
+    model = "intfloat/e5-base-v2"
+
+    def __call__(self, texts):
+        return cli._fake_embed(texts)
+
+
+def _leaves(node):
+    if "keyword" in node:
+        return [node]
+    return [x for c in node["children"] for x in _leaves(c)]
+
+
+if __name__ == "__main__":
+    unittest.main()

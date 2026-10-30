@@ -84,14 +84,17 @@ def run_keyword_tree(judge, config, mode: str = "navigate", name: str | None = N
                      tree_path=KEYWORD_TREE_PATH) -> dict:
     taxonomy, _ = load_tree()
     _, kroot = load_keyword_tree(tree_path)
-    concept_of = {n.id: n.payload.get("concept_id", "") for n in walk(kroot) if n.is_leaf}
+    leaves = [n for n in walk(kroot) if n.is_leaf]
+    concept_of = {n.id: n.payload.get("concept_id", "") for n in leaves}
+    keyword_of = {n.id: n.payload.get("keyword", n.id) for n in leaves}  # ids are opaque kwNNN
 
     def row_for(case, cost):
         res = tag_room(kroot, judge, config, case["subject"], case["tags"],
                        self_declared=case.get("self_declared_concepts", ()), mode=mode)
         concepts, unscorable = to_concepts(res, kroot)
         row = prediction_row(case, res, taxonomy["version"], cost())
-        row["keywords"] = [r.id for r in res.ranked if r.source != "self_declared"]
+        row["keywords"] = [keyword_of.get(r.id, r.id) for r in res.ranked
+                           if r.source != "self_declared"]
         row["concept_ids"] = concepts
         scores: dict[str, float] = {}
         for r in res.ranked:  # best leaf score per concept

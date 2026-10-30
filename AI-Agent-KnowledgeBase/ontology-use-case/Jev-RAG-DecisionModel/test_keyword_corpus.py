@@ -14,8 +14,8 @@ from tree_builder import build_keyword_tree
 CSV_BYTES = b"keyword,concept_id\na,c1\n"
 
 
-def leaf(kw, cid):
-    return {"id": f"kw:{kw}", "keyword": kw, "concept_id": cid}
+def leaf(i, kw, cid):
+    return {"id": f"kw{i:03d}", "keyword": kw, "concept_id": cid}
 
 
 TREE = {
@@ -23,9 +23,9 @@ TREE = {
     "tree": {"id": "__root__", "description": "All keywords", "description_source": "fallback",
              "children": [
                  {"id": "c0", "description": "Alpha things", "description_source": "llm",
-                  "children": [leaf("a", "c1"), leaf("b", "c1"), leaf("x", "")]},
+                  "children": [leaf(0, "a", "c1"), leaf(1, "b", "c1"), leaf(2, "x", "")]},
                  {"id": "c1", "description": "Gamma things", "description_source": "llm",
-                  "children": [leaf("c", "c2")]},
+                  "children": [leaf(3, "c", "c2")]},
              ]},
 }
 
@@ -46,8 +46,8 @@ class KeywordCorpusTest(unittest.TestCase):
         nodes = {n.id: n for n in walk(self.root)}
         self.assertEqual(self.root.id, "__root__")
         self.assertEqual(nodes["c0"].description, "Alpha things")
-        self.assertEqual(nodes["kw:a"].description, "a")
-        self.assertEqual(dict(nodes["kw:a"].payload), {"keyword": "a", "concept_id": "c1"})
+        self.assertEqual(nodes["kw000"].description, "a")
+        self.assertEqual(dict(nodes["kw000"].payload), {"keyword": "a", "concept_id": "c1"})
         self.assertIn("keywords_sha256", self.meta)
 
     def test_missing_file_raises(self):
@@ -62,22 +62,22 @@ class KeywordCorpusTest(unittest.TestCase):
         self.assertTrue(is_stale(self.meta, csv))
 
     def test_to_concepts_maps_dedups_and_counts_unscorable(self):
-        out = to_concepts(res("kw:a", "kw:b", "kw:x", "kw:c"), self.root)
+        out = to_concepts(res("kw000", "kw001", "kw002", "kw003"), self.root)
         self.assertEqual(out, (["c1", "c2"], 1))
 
     def test_to_concepts_self_declared_first(self):
-        r = res("kw:c")
+        r = res("kw003")
         r.ranked.insert(0, Ranked("c1", None, source="self_declared"))
         self.assertEqual(to_concepts(r, self.root), (["c1", "c2"], 0))
 
     def test_all_unscorable_gives_empty_list(self):
-        self.assertEqual(to_concepts(res("kw:x"), self.root), ([], 1))
+        self.assertEqual(to_concepts(res("kw002"), self.root), ([], 1))
 
     def test_tag_room_flat_uses_config_returnable(self):
-        r = tag_room(self.root, FakeJudge({"kw:a": 0.9, "c0": 0.9}), keyword_config(),
+        r = tag_room(self.root, FakeJudge({"kw000": 0.9, "c0": 0.9}), keyword_config(),
                      "alpha", [], mode="flat")
         self.assertTrue(r.ranked)
-        self.assertTrue(all(x.id.startswith("kw:") for x in r.ranked))
+        self.assertTrue(all(x.id.startswith("kw") for x in r.ranked))
 
     def test_taxonomy_flat_unchanged(self):
         _, troot = load_tree()

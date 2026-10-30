@@ -8,8 +8,8 @@ import urllib.error
 from pathlib import Path
 from unittest import mock
 
-from tree_builder import (DESCRIBE_PROMPT, DescriberUnavailable, OpenAIDescriber,
-                          build_keyword_tree, fallback_description,
+from tree_builder import (DESCRIBE_PROMPT, DescriberUnavailable, E5Embedder,
+                          OpenAIDescriber, build_keyword_tree, fallback_description,
                           load_keyword_rows, read_tree, write_tree)
 
 
@@ -68,7 +68,15 @@ class TreeBuilderTest(unittest.TestCase):
     def test_every_keyword_appears_once(self):
         tree = build(rows(40), clusters=4)["tree"]
         ids = sorted(x["id"] for x in leaves(tree))
-        self.assertEqual(ids, sorted(f"kw:kw{i:03d}" for i in range(40)))
+        self.assertEqual(ids, sorted(f"kw{i:03d}" for i in range(40)))
+
+    def test_leaf_ids_are_file_order_indexes(self):
+        r = [{"keyword": k, "concept_id": c}
+             for k, c in [("s&m", "bdsm"), ("\U0001f525 hot", ""), ("a b", "x")]]
+        tree = build(r, clusters=1)["tree"]
+        got = {x["id"]: (x["keyword"], x["concept_id"]) for x in leaves(tree)}
+        self.assertEqual(got, {"kw000": ("s&m", "bdsm"), "kw001": ("\U0001f525 hot", ""),
+                               "kw002": ("a b", "x")})
 
     def test_k_capped_at_points(self):
         tree = build(rows(2), clusters=20)["tree"]
@@ -154,8 +162,11 @@ def ok_payload(text="A group."):
             "usage": {"prompt_tokens": 10, "completion_tokens": 5}}
 
 
-def http_error(code):
-    return urllib.error.HTTPError("u", code, "x", {}, io.BytesIO(b'{"error":{"message":"bad"}}'))
+def http_error(code, body=b'{"error":{"message":"bad"}}'):
+    return urllib.error.HTTPError("u", code, "x", {}, io.BytesIO(body))
+
+
+QUOTA_BODY = b'{"error":{"message":"You exceeded your current quota","type":"insufficient_quota","code":"insufficient_quota"}}'
 
 
 class BackendsTest(unittest.TestCase):
@@ -216,6 +227,35 @@ class BackendsTest(unittest.TestCase):
                 d(["a"])
         self.assertEqual(u.call_count, 1)
         sl.assert_not_called()
+
+    def test_openai_404_and_quota_429_disable_without_retry(self):
+        for err in (http_error(404), http_error(429, QUOTA_BODY)):
+            d = OpenAIDescriber("k")
+            with mock.patch("urllib.request.urlopen", side_effect=err) as u, \
+                    mock.patch("time.sleep") as sl:
+                for _ in range(2):
+                    with self.assertRaises(DescriberUnavailable):
+                        d(["a"])
+            self.assertEqual(u.call_count, 1)
+            sl.assert_not_called()
+            self.assertTrue(d.disabled)
+            self.assertEqual(d.disabled_code, err.code)
+
+    def test_openai_401_records_disabled_code(self):
+        d = OpenAIDescriber("k")
+        with mock.patch("urllib.request.urlopen", side_effect=http_error(403)):
+            with self.assertRaises(DescriberUnavailable):
+                d(["a"])
+        self.assertEqual(d.disabled_code, 403)
+
+    def test_e5_loads_local_files_only(self):
+        st = mock.MagicMock()
+        st.return_value.encode.return_value = [[1.0, 0.0]]
+        fake_mod = mock.MagicMock(SentenceTransformer=st)
+        with mock.patch.dict(sys.modules, {"sentence_transformers": fake_mod}):
+            self.assertEqual(E5Embedder()(["a"]), [[1.0, 0.0]])
+        st.assert_called_once_with("intfloat/e5-base-v2", local_files_only=True)
+        st.return_value.encode.assert_called_once_with(["passage: a"], normalize_embeddings=True)
 
     def test_build_with_unavailable_describer_completes(self):
         d = OpenAIDescriber("k")

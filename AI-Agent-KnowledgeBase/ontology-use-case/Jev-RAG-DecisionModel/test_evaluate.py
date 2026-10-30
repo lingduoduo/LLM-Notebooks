@@ -107,6 +107,13 @@ class EvaluateTest(unittest.TestCase):
             self.assertIn("keywords", row)
             self.assertIn("unscorable", row)
 
+    def test_run_keyword_tree_rows_list_keyword_text(self):
+        judge = FakeJudge({"c1": 0.9, "k1": 0.9, "k2": 0.1})
+        with tempfile.TemporaryDirectory() as d:
+            run = run_keyword_tree(judge, keyword_config(), tree_path=self._tree_file(d))
+        for row in run["rows"]:
+            self.assertEqual(row["keywords"], ["lingerie"])
+
     def test_report_has_hierarchical_column_and_unscorable_note(self):
         report = run_baselines()[0]["report"]
         runs = [{"name": "kw", "report": report, "rank": None, "cost_usd": 0.0, "requests": 0,

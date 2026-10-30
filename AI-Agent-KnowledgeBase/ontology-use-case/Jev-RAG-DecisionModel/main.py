@@ -119,7 +119,7 @@ def cmd_tag_keywords(args, factory) -> int:
     _, root = loaded
     from tree import walk
     leaves = {n.id: n for n in walk(root) if n.is_leaf}
-    judge = factory(**judge_kwargs(args.mode))
+    judge = factory()  # default 50 per request: 415 keywords in one request is too big
     res = tag_room(root, judge, keyword_config(use_choice=not args.no_choice), args.subject,
                    args.tags, self_declared=args.declared, mode=args.mode)
     print("keyword [concept]  p_bin  p_mul  source")
@@ -175,20 +175,19 @@ def cmd_demo(args, factory) -> int:
     return 0
 
 
-def keyword_tree_runs(factory) -> list[dict]:
+def keyword_tree_runs(factory):
+    """Yield the keyword-tree runs one at a time, so callers keep finished ones on error."""
     from evaluate import run_keyword_tree
     from keyword_corpus import keyword_config
     if check_keyword_tree(KEYWORD_TREE_PATH) is None:
         print(f"skipping keyword-tree runs: {KEYWORD_TREE_PATH} not found")
-        return []
+        return
     config = keyword_config()
-    return [
-        run_keyword_tree(factory(), config, mode="navigate",
-                         name="decisionrag-keyword-tree-navigate", tree_path=KEYWORD_TREE_PATH),
-        # flat keeps the default 50 units per request (no FLAT_MAX_PER_REQUEST override)
-        run_keyword_tree(factory(), config, mode="flat",
-                         name="decisionrag-keyword-flat", tree_path=KEYWORD_TREE_PATH),
-    ]
+    yield run_keyword_tree(factory(), config, mode="navigate",
+                           name="decisionrag-keyword-tree-navigate", tree_path=KEYWORD_TREE_PATH)
+    # flat keeps the default 50 units per request (no FLAT_MAX_PER_REQUEST override)
+    yield run_keyword_tree(factory(), config, mode="flat",
+                           name="decisionrag-keyword-flat", tree_path=KEYWORD_TREE_PATH)
 
 
 def cmd_eval(args, factory) -> int:
@@ -205,7 +204,8 @@ def cmd_eval(args, factory) -> int:
             runs.append(run_decisionrag(factory(**judge_kwargs(mode)),
                                         taxonomy_config(use_choice=choice), mode=mode, name=name))
         if args.mode == "all":
-            runs += keyword_tree_runs(factory)
+            for run in keyword_tree_runs(factory):
+                runs.append(run)
     except JevError:
         write_report(runs, args.output)  # keep the runs that finished
         print(f"wrote partial report ({len(runs)} runs) to {args.output}", file=sys.stderr)
@@ -239,39 +239,64 @@ def _no_describer(keywords):
     raise DescriberUnavailable("no OPENAI_API_KEY")
 
 
+def _leaf_count(node: dict) -> int:
+    return 1 if "keyword" in node else sum(_leaf_count(c) for c in node["children"])
+
+
 def cmd_build_tree(args, factory=None) -> int:
     import csv
     import datetime
     import hashlib
+    import io
     import tree_builder as tb
     describer = None
     if args.fake:
         embed, kmeans, describe = _fake_embed, _fake_kmeans, _fake_describe
-        embed_model, llm_model = "fake", "none"
+        embed_model, llm_model, status = "fake", "none", "fake"
+        kmeans_backend, n_init = "fake", None
     else:
         embed, kmeans = tb.E5Embedder(), tb.sklearn_kmeans
         embed_model = embed.model
+        kmeans_backend, n_init = "sklearn.KMeans", tb.KMEANS_N_INIT
         key = os.environ.get("OPENAI_API_KEY")
         if key:
             describer = describe = tb.OpenAIDescriber(key, args.llm_model)
-            llm_model = args.llm_model
+            llm_model, status = args.llm_model, "ok"
         else:
             print("OPENAI_API_KEY not set: using keyword-list descriptions for every node")
-            describe, llm_model = _no_describer, "none"
+            describe, llm_model, status = _no_describer, "none", "no_key"
     out = Path(args.out) if args.out else (FAKE_TREE_PATH if args.fake else KEYWORD_TREE_PATH)
-    raw = Path(KEYWORDS_CSV).read_bytes()
-    rows = tb.load_keyword_rows(csv.DictReader(raw.decode("utf-8-sig").splitlines()))
+    raw = Path(KEYWORDS_CSV).read_bytes()  # hash the raw bytes; parse with csv's own newlines
+    rows = tb.load_keyword_rows(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"), newline="")))
     tree = tb.build_keyword_tree(rows, embed, kmeans, describe, clusters=args.clusters,
                                  leaf_size=args.leaf_size,
                                  csv_sha256=hashlib.sha256(raw).hexdigest())
     meta = tree["meta"]
-    meta.update(embed_model=embed_model, llm_model=llm_model, describe_prompt=tb.DESCRIBE_PROMPT,
+    c = meta["counts"]
+    llm_described = c["clusters"] + c["subclusters"] - c["fallback_descriptions"]
+    if describer is not None:
+        if describer.disabled:
+            status = "rejected" if describer.disabled_code in (401, 403) else "unavailable"
+        if llm_described == 0:
+            llm_model = "none"  # no description came from the LLM
+    meta.update(embed_model=embed_model, llm_model=llm_model, describer_status=status,
+                kmeans_backend=kmeans_backend, kmeans_n_init=n_init,
+                describe_prompt=tb.DESCRIBE_PROMPT,
                 built_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"))
     tb.write_tree(tree, out)
-    c = meta["counts"]
     print(f"{c['keywords']} keywords -> {c['clusters']} clusters, {c['subclusters']} sub-clusters")
+    print("level-1 sizes: " + ", ".join(str(_leaf_count(n)) for n in tree["tree"]["children"]))
     print(f"fallback descriptions: {c['fallback_descriptions']}")
-    if describer is not None:
+    if describer is not None and llm_described == 0:
+        if status == "rejected":
+            print("OpenAI key rejected (401/403): all descriptions are keyword-list fallbacks")
+        elif status == "unavailable":
+            print(f"OpenAI describer unavailable (HTTP {describer.disabled_code}): "
+                  "all descriptions are keyword-list fallbacks")
+        else:
+            print("OpenAI describer failed for every node: all descriptions are keyword-list "
+                  "fallbacks")
+    elif describer is not None:
         print(f"OpenAI tokens: {describer.prompt_tokens} prompt, "
               f"{describer.completion_tokens} completion")
     print(f"wrote {out}")

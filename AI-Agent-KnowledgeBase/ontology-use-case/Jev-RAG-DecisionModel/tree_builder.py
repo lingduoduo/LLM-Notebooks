@@ -16,6 +16,7 @@ ROOT_DESCRIPTION = "All keywords"
 MAX_DESCRIBED = 60
 DEFAULT_LLM_MODEL = "gpt-4.1-mini"
 DEFAULT_EMBED_MODEL = "intfloat/e5-base-v2"
+KMEANS_N_INIT = 10
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 USER_AGENT = "jev-decisionrag-prototype/0.1"
 DESCRIBE_PROMPT = (
@@ -26,7 +27,7 @@ DESCRIBE_PROMPT = (
 
 
 class DescriberUnavailable(RuntimeError):
-    """The describer's credentials are rejected; no further calls are made."""
+    """The describer is unusable (key rejected, unknown model, no quota); no further calls."""
 
 
 class E5Embedder:
@@ -37,7 +38,7 @@ class E5Embedder:
     def __call__(self, texts: list[str]) -> list[list[float]]:
         if self._st is None:
             from sentence_transformers import SentenceTransformer
-            self._st = SentenceTransformer(self.model)
+            self._st = SentenceTransformer(self.model, local_files_only=True)  # cached; no network
         vecs = self._st.encode(["passage: " + t for t in texts],
                                normalize_embeddings=True)
         return [[float(x) for x in v] for v in vecs]
@@ -45,7 +46,7 @@ class E5Embedder:
 
 def sklearn_kmeans(vectors, k: int, seed: int) -> list[int]:
     from sklearn.cluster import KMeans
-    labels = KMeans(n_clusters=k, random_state=seed, n_init=10).fit_predict(vectors)
+    labels = KMeans(n_clusters=k, random_state=seed, n_init=KMEANS_N_INIT).fit_predict(vectors)
     return [int(x) for x in labels]
 
 
@@ -57,6 +58,7 @@ class OpenAIDescriber:
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.disabled = False
+        self.disabled_code: int | None = None  # HTTP status that disabled the describer
         self._headers = {"Authorization": f"Bearer {api_key}",
                          "Content-Type": "application/json",
                          "User-Agent": USER_AGENT}
@@ -66,7 +68,7 @@ class OpenAIDescriber:
 
     def __call__(self, keywords: list[str]) -> str:
         if self.disabled:
-            raise DescriberUnavailable("OpenAI credentials were rejected")
+            raise DescriberUnavailable(f"OpenAI describer disabled (HTTP {self.disabled_code})")
         body = {"model": self.model, "temperature": 0,
                 "messages": [{"role": "system", "content": DESCRIBE_PROMPT},
                              {"role": "user", "content": ", ".join(keywords)}]}
@@ -80,8 +82,8 @@ class OpenAIDescriber:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                     raw = resp.read()
             except urllib.error.HTTPError as e:
-                if e.code in (401, 403):
-                    self.disabled = True
+                if _unavailable(e):
+                    self.disabled, self.disabled_code = True, e.code
                     raise DescriberUnavailable(f"OpenAI returned HTTP {e.code}") from e
                 if last or not (e.code == 429 or e.code >= 500):
                     raise RuntimeError(f"OpenAI HTTP {e.code}") from e
@@ -103,6 +105,18 @@ class OpenAIDescriber:
         self.prompt_tokens += (usage.get("prompt_tokens") or 0)
         self.completion_tokens += (usage.get("completion_tokens") or 0)
         return (text or "").strip()
+
+
+def _unavailable(e: urllib.error.HTTPError) -> bool:
+    """Errors no retry can fix: bad key, unknown model, or no quota left."""
+    if e.code in (401, 403, 404):
+        return True
+    if e.code == 429:
+        try:
+            return b"insufficient_quota" in (e.read() or b"")
+        except Exception:
+            return False
+    return False
 
 
 def load_keyword_rows(rows: Iterable[dict]) -> list[dict]:
@@ -145,7 +159,7 @@ def build_keyword_tree(rows: list[dict], embed: Callable, kmeans: Callable,
               "fallback_descriptions": 0}
 
     def leaf(i: int) -> dict:
-        return {"id": f"kw:{keywords[i]}", "keyword": keywords[i],
+        return {"id": f"kw{i:03d}", "keyword": keywords[i],
                 "concept_id": rows[i]["concept_id"]}
 
     def cluster_node(node_id: str, idx: list[int], split: bool) -> dict:
