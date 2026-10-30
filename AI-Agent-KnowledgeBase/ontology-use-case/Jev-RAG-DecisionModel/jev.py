@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 from tree import Node
@@ -17,6 +18,7 @@ ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 MODEL = "typesafe/jev-1.13"
 TYPESAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 TYPESAFE_MODEL = "jev-latest"  # unpinned alias; the resolved version is in each response
+RETRY_DELAYS = (1, 2, 4)  # seconds between attempts for 429/5xx/network errors
 USER_AGENT = "jev-decisionrag-prototype/0.1"
 USD_PER_INPUT_TOKEN = 0.042e-6  # estimate used when a response reports no usage.cost
 CHOICE_KEY = "most_relevant"
@@ -28,6 +30,25 @@ Transport = Callable[[dict], dict]
 
 class JevError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class Provider:
+    name: str
+    env_key: str
+    endpoint: str
+    model: str
+
+
+# In order of preference: the first provider whose key is set is used.
+PROVIDERS = (
+    Provider("typesafe", "TYPESAFE_API_KEY", TYPESAFE_ENDPOINT, TYPESAFE_MODEL),
+    Provider("openrouter", "OPENROUTER_API_KEY", ENDPOINT, MODEL),
+)
+
+
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _state(query: str, candidates: Sequence[Node]) -> dict:
@@ -78,7 +99,7 @@ def _answer(response: dict, key: str, qtype: str) -> dict:
 
 
 def _prob(value, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
+    if not _is_number(value) or not 0.0 <= value <= 1.0:
         raise JevError(f"{what} is not a probability: {value!r}")
     return float(value)
 
@@ -117,41 +138,42 @@ def validate_response(body: dict, response: dict) -> None:
 class HttpTransport:
     def __init__(self, api_key: str, timeout: float = 60,
                  endpoint: str = ENDPOINT):
-        self.api_key = api_key
         self.endpoint = endpoint
         self.timeout = timeout
+        self._headers = {"Authorization": f"Bearer {api_key}",
+                         "Content-Type": "application/json",
+                         "User-Agent": USER_AGENT}
+
+    def __repr__(self) -> str:  # never expose the key
+        return f"HttpTransport(endpoint={self.endpoint!r})"
+
+    def _send_once(self, data: bytes) -> tuple[int, bytes]:
+        req = urllib.request.Request(self.endpoint, data=data, method="POST",
+                                     headers=self._headers)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read()
 
     def __call__(self, body: dict) -> dict:
         data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-        delays = [1, 2, 4]
-        attempt = 0
-        while True:
-            req = urllib.request.Request(
-                self.endpoint, data=data, method="POST",
-                headers={"Authorization": f"Bearer {self.api_key}",
-                         "Content-Type": "application/json",
-                         "User-Agent": USER_AGENT})
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            last = attempt == len(RETRY_DELAYS)
             try:
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                    status, raw = resp.status, resp.read()
-            except urllib.error.HTTPError as e:
-                status, raw = e.code, e.read()
+                status, raw = self._send_once(data)
             except (OSError, http.client.HTTPException) as e:  # URLError, timeouts, resets
-                if attempt >= len(delays):
+                if last:
                     raise JevError(f"network error: {getattr(e, 'reason', None) or e!r}") from e
-                time.sleep(delays[attempt])
-                attempt += 1
-                continue
-            if status == 200:
-                try:
-                    return json.loads(raw.decode("utf-8"))
-                except ValueError as e:
-                    raise JevError(f"invalid JSON in 200 response: {raw[:200]!r}") from e
-            if (status == 429 or status >= 500) and attempt < len(delays):
-                time.sleep(delays[attempt])
-                attempt += 1
-                continue
-            raise JevError(f"{status}: {_message(raw)}")
+            else:
+                if status == 200:
+                    try:
+                        return json.loads(raw.decode("utf-8"))
+                    except ValueError as e:
+                        raise JevError(f"invalid JSON in 200 response: {raw[:200]!r}") from e
+                if last or not (status == 429 or status >= 500):
+                    raise JevError(f"{status}: {_message(raw)}")
+            time.sleep(RETRY_DELAYS[attempt])
 
 
 def _message(raw: bytes) -> str:
@@ -180,10 +202,14 @@ class CachedTransport:
         key = hashlib.sha256(
             json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
         path = self.cache_dir / f"{key}.json"
-        if path.exists():
+        try:
+            cached = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            pass
+        else:
             with self._lock:
                 self.hits += 1
-            return json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(cached)
         with self._lock:
             self.misses += 1
         response = self.inner(body)
@@ -196,6 +222,15 @@ class CachedTransport:
         tmp.write_text(json.dumps(response, ensure_ascii=False), encoding="utf-8")
         tmp.replace(path)
         return response
+
+
+def _cost_of(response: dict) -> tuple[float, bool]:
+    """(USD, estimated?): the reported usage.cost, else an estimate from input tokens."""
+    usage = response.get("usage") or {}
+    if _is_number(usage.get("cost")):
+        return float(usage["cost"]), False
+    tokens = usage.get("input_tokens")
+    return (tokens * USD_PER_INPUT_TOKEN if _is_number(tokens) else 0.0), True
 
 
 class JevJudge:
@@ -233,26 +268,22 @@ class JevJudge:
         chunks = [candidates[i:i + size] for i in range(0, len(candidates), size)]
 
         def one(chunk):
-            body = {"model": self.model, **build(chunk)}
-            response = self.transport(body)
+            response = self.transport({"model": self.model, **build(chunk)})
+            resp = response if isinstance(response, dict) else {}
+            cost, estimated = _cost_of(resp)
             with self._lock:
                 self.requests += 1
-                resp = response if isinstance(response, dict) else {}
-                usage = resp.get("usage") or {}
-                cost = usage.get("cost")
-                if isinstance(cost, (int, float)) and not isinstance(cost, bool):
-                    self.cost_usd += float(cost)
-                else:
-                    tokens = usage.get("input_tokens")
-                    if isinstance(tokens, (int, float)) and not isinstance(tokens, bool):
-                        self.cost_usd += tokens * USD_PER_INPUT_TOKEN
-                    self.cost_estimated = True
+                self.cost_usd += cost
+                self.cost_estimated |= estimated
                 if isinstance(resp.get("model"), str):
                     self.models_seen.add(resp["model"])
             return parse(response, chunk)
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            parts = list(pool.map(one, chunks))
+        if len(chunks) == 1:
+            parts = [one(chunks[0])]
+        else:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                parts = list(pool.map(one, chunks))
         merged: dict[str, float] = {}
         for p in parts:
             merged.update(p)

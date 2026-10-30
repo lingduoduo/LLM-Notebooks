@@ -5,6 +5,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from keyword_corpus import KEYWORD_TREE_PATH, load_keyword_tree, to_concepts
+from tree import walk
 from taxonomy_corpus import ONTOLOGY_DIR, load_tree, tag_room
 
 import utils  # noqa: E402  (ontology dir is on sys.path via taxonomy_corpus)
@@ -45,19 +47,17 @@ def _test_cases(benchmark: dict) -> list[dict]:
     return [c for c in benchmark["cases"] if c["split"] == "test"]
 
 
-def run_decisionrag(judge, config, mode: str = "navigate") -> dict:
-    taxonomy, root = load_tree()
+def _run_rooms(judge, name: str, row_for) -> dict:
+    """Shared per-room loop: row_for(case, cost) -> prediction row; returns the run dict."""
+    taxonomy, _ = load_tree()
     benchmark = load_benchmark()
     cases = _test_cases(benchmark)
     rows = []
     for case in cases:
-        before = getattr(judge, "cost_usd", 0.0)
-        res = tag_room(root, judge, config, case["subject"], case["tags"],
-                       self_declared=case.get("self_declared_concepts", ()), mode=mode)
-        cost = getattr(judge, "cost_usd", 0.0) - before if hasattr(judge, "cost_usd") else 0.0
-        rows.append(prediction_row(case, res, taxonomy["version"], cost))
+        before = getattr(judge, "cost_usd", 0.0)  # FakeJudge has no usage counters
+        rows.append(row_for(case, lambda b=before: getattr(judge, "cost_usd", 0.0) - b))
     return {
-        "name": f"decisionrag-{mode}",
+        "name": name,
         "report": evaluate(benchmark, taxonomy, predictions=rows),
         "rank": rank_metrics(cases, rows),
         "rows": rows,
@@ -67,6 +67,49 @@ def run_decisionrag(judge, config, mode: str = "navigate") -> dict:
         "models_seen": sorted(getattr(judge, "models_seen", ())),
         "cost_estimated": getattr(judge, "cost_estimated", False),
     }
+
+
+def run_decisionrag(judge, config, mode: str = "navigate", name: str | None = None) -> dict:
+    taxonomy, root = load_tree()
+
+    def row_for(case, cost):
+        res = tag_room(root, judge, config, case["subject"], case["tags"],
+                       self_declared=case.get("self_declared_concepts", ()), mode=mode)
+        return prediction_row(case, res, taxonomy["version"], cost())
+
+    return _run_rooms(judge, name or f"decisionrag-{mode}", row_for)
+
+
+def run_keyword_tree(judge, config, mode: str = "navigate", name: str | None = None,
+                     tree_path=KEYWORD_TREE_PATH) -> dict:
+    taxonomy, _ = load_tree()
+    _, kroot = load_keyword_tree(tree_path)
+    leaves = [n for n in walk(kroot) if n.is_leaf]
+    concept_of = {n.id: n.payload.get("concept_id", "") for n in leaves}
+    keyword_of = {n.id: n.payload.get("keyword", n.id) for n in leaves}  # ids are opaque kwNNN
+
+    def row_for(case, cost):
+        res = tag_room(kroot, judge, config, case["subject"], case["tags"],
+                       self_declared=case.get("self_declared_concepts", ()), mode=mode)
+        concepts, unscorable = to_concepts(res, kroot)
+        row = prediction_row(case, res, taxonomy["version"], cost())
+        row["keywords"] = [keyword_of.get(r.id, r.id) for r in res.ranked
+                           if r.source != "self_declared"]
+        row["concept_ids"] = concepts
+        scores: dict[str, float] = {}
+        for r in res.ranked:  # best leaf score per concept
+            cid = concept_of.get(r.id)
+            if cid and r.source == "inferred":
+                scores[cid] = max(scores.get(cid, 0.0), r.p_bin)
+        row["scores"] = scores
+        row["unscorable"] = unscorable
+        return row
+
+    run = _run_rooms(judge, name or f"decisionrag-keyword-tree-{mode}", row_for)
+    run["unscorable_hits"] = sum(r["unscorable"] for r in run["rows"])
+    run["rooms_with_unscorable"] = sum(1 for r in run["rows"] if r["unscorable"])
+    run["tree"] = "keywords"
+    return run
 
 
 def run_baselines() -> list[dict]:
@@ -110,13 +153,13 @@ def write_report(runs: list[dict], out_path: Path) -> None:
 
     estimated = any(r.get("cost_estimated") for r in runs)
     cost_label = "estimated cost (¢)" if estimated else "nominal cost (¢)"
-    lines = ["| name | micro-F1 | macro-F1 | exact match | negative FP rate | Hit@1 | MRR "
+    lines = ["| name | micro-F1 | hier. micro-F1 | macro-F1 | exact match | negative FP rate | Hit@1 | MRR "
              "| latency (s/room) | " + cost_label + " | requests |",
-             "|---|---|---|---|---|---|---|---|---|---|"]
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in runs:
         c, rk = r["report"]["concepts"], r["rank"]
         lines.append("| " + " | ".join([
-            r["name"], f(c["micro_f1"]), f(c["macro_f1"]), f(c["exact_match"]),
+            r["name"], f(c["micro_f1"]), f(r["report"]["hierarchical"]["micro_f1"]), f(c["macro_f1"]), f(c["exact_match"]),
             f(r["report"]["taxonomy_negative_false_positive_rate"]),
             f(rk and rk["hit_at_1"]), f(rk and rk["mrr"]), f(mean_latency(r.get("rows") or [])),
             f"{r['cost_usd'] * 100:.2f}", str(r["requests"])]) + " |")
@@ -131,6 +174,11 @@ def write_report(runs: list[dict], out_path: Path) -> None:
     providers = sorted({r["provider"] for r in runs if r.get("provider")})
     if models:
         lines += ["", f"Provider: {', '.join(providers)}; resolved model version(s): {', '.join(models)}"]
+    unscorable = [r for r in runs if r.get("unscorable_hits")]
+    if unscorable:
+        lines += ["", "Unscorable keyword hits (no concept): " + "; ".join(
+            f"{r['name']}={r['unscorable_hits']} in {r['rooms_with_unscorable']} rooms"
+            for r in unscorable)]
     note = "Nominal cost includes cached responses; real spend is the cache misses."
     if estimated:
         note = ("Estimated cost = input tokens x $0.042 per 1M (the API reported no cost); it "

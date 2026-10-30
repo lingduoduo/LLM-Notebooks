@@ -3,10 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import taxonomy_corpus  # noqa: F401  (puts ontology dir on sys.path)
-from evaluate import prediction_row, rank_metrics, run_baselines, run_decisionrag, write_report
+from evaluate import (prediction_row, rank_metrics, run_baselines, run_decisionrag,
+                      run_keyword_tree, write_report)
 from judge import FakeJudge
 from navigate import Ranked, Result
+from keyword_corpus import keyword_config
 from taxonomy_corpus import taxonomy_config
 
 
@@ -81,6 +82,52 @@ class EvaluateTest(unittest.TestCase):
             md = out.with_suffix(".md").read_text()
         self.assertIn("estimated cost (¢)", md.splitlines()[0])
         self.assertIn("jev-1.13.0", md)
+
+    def _tree_file(self, d):
+        leaf = lambda i, k, c: {"id": i, "keyword": k, "concept_id": c}
+        tree = {"id": "root", "description": "root", "children": [
+            {"id": "c1", "description": "worn items", "children": [
+                leaf("k1", "lingerie", "lingerie"), leaf("k2", "latex", "latex")]},
+            {"id": "c2", "description": "shows", "children": [
+                leaf("k3", "private show", "private_show"), leaf("k4", "misc", "")]}]}
+        p = Path(d) / "tree.json"
+        p.write_text(json.dumps({"meta": {"keywords_sha256": "x"}, "tree": tree}))
+        return p
+
+    def test_run_keyword_tree_fake(self):
+        with tempfile.TemporaryDirectory() as d:
+            run = run_keyword_tree(FakeJudge(), keyword_config(), tree_path=self._tree_file(d))
+        self.assertEqual(run["report"]["count"], 28)
+        self.assertEqual(run["name"], "decisionrag-keyword-tree-navigate")
+        self.assertEqual(run["tree"], "keywords")
+        self.assertIsInstance(run["unscorable_hits"], int)
+        self.assertIsInstance(run["rooms_with_unscorable"], int)
+        self.assertEqual(len(run["rows"]), 28)
+        for row in run["rows"]:
+            self.assertIn("keywords", row)
+            self.assertIn("unscorable", row)
+
+    def test_run_keyword_tree_rows_list_keyword_text(self):
+        judge = FakeJudge({"c1": 0.9, "k1": 0.9, "k2": 0.1})
+        with tempfile.TemporaryDirectory() as d:
+            run = run_keyword_tree(judge, keyword_config(), tree_path=self._tree_file(d))
+        for row in run["rows"]:
+            self.assertEqual(row["keywords"], ["lingerie"])
+
+    def test_report_has_hierarchical_column_and_unscorable_note(self):
+        report = run_baselines()[0]["report"]
+        runs = [{"name": "kw", "report": report, "rank": None, "cost_usd": 0.0, "requests": 0,
+                 "rows": [], "unscorable_hits": 5, "rooms_with_unscorable": 2}]
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "r.json"
+            write_report(runs, out)
+            md = out.with_suffix(".md").read_text()
+        header = [c.strip() for c in md.splitlines()[0].strip("|").split("|")]
+        self.assertEqual(header[header.index("micro-F1") + 1], "hier. micro-F1")
+        row = [c.strip() for c in md.splitlines()[2].strip("|").split("|")]
+        self.assertEqual(row[header.index("hier. micro-F1")],
+                         f"{report['hierarchical']['micro_f1']:.3f}")
+        self.assertIn("Unscorable keyword hits (no concept): kw=5 in 2 rooms", md)
 
 
 if __name__ == "__main__":
