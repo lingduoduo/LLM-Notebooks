@@ -19,6 +19,7 @@ class FailingJudge(FakeJudge):
 
 class StatsTransport:
     hits, misses = 3, 4
+    cache_dir = Path("stats-cache")
 
 
 def clean_env(**extra):
@@ -55,6 +56,7 @@ class CliTests(unittest.TestCase):
             with mock.patch.dict(os.environ, clean_env(), clear=True):
                 run(["tag", "x", "--fake"], env_paths=[p])
                 self.assertEqual(os.environ["TYPESAFE_API_KEY"], "fromfile")
+
     def test_missing_key_exits_2(self):
         with mock.patch.dict(os.environ, clean_env(), clear=True):
             code, _, err = run(["tag", "x"])
@@ -112,8 +114,9 @@ class CliTests(unittest.TestCase):
             self.assertTrue(path.with_suffix(".md").exists())
 
     def test_demo_fake_runs(self):
-        self.assertEqual(cli.main(["demo", "--fake"], env_paths=[]), 0)
-
+        code, out, _ = run(["demo", "--fake"])
+        self.assertEqual(code, 0)
+        self.assertIn("final passage ranking", out)
 
     def test_eval_jev_error_mid_run_writes_partial_report(self):
         built = []

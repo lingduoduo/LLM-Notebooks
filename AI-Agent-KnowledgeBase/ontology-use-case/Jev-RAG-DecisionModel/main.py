@@ -48,18 +48,17 @@ def make_judge_factory(fake: bool):
     None if key missing."""
     if fake:
         return (lambda **kw: FakeJudge()), None
-    import jev
-    from jev import CachedTransport, HttpTransport, JevJudge
-    if os.environ.get("TYPESAFE_API_KEY"):
-        provider, key = "typesafe", os.environ["TYPESAFE_API_KEY"]
-        endpoint, model = jev.TYPESAFE_ENDPOINT, jev.TYPESAFE_MODEL
-    elif os.environ.get("OPENROUTER_API_KEY"):
-        provider, key = "openrouter", os.environ["OPENROUTER_API_KEY"]
-        endpoint, model = jev.ENDPOINT, jev.MODEL
-    else:
+    from jev import PROVIDERS, CachedTransport, HttpTransport, JevJudge
+    provider = next((p for p in PROVIDERS if os.environ.get(p.env_key)), None)
+    if provider is None:
         return None, None
-    transport = CachedTransport(HttpTransport(key, endpoint=endpoint), CACHE_DIR / provider)
-    return (lambda **kw: JevJudge(transport, model=model, provider=provider, **kw)), transport
+    http = HttpTransport(os.environ[provider.env_key], endpoint=provider.endpoint)
+    transport = CachedTransport(http, CACHE_DIR / provider.name)
+
+    def factory(**kw):
+        return JevJudge(transport, model=provider.model, provider=provider.name, **kw)
+
+    return factory, transport
 
 
 def judge_kwargs(mode: str) -> dict:
@@ -137,17 +136,15 @@ def cmd_eval(args, factory) -> int:
     from evaluate import run_baselines, run_decisionrag, write_report
     from taxonomy_corpus import taxonomy_config
     if args.mode == "all":
-        plan = [("navigate", True), ("navigate", False), ("flat", True), ("separate", True)]
+        plan = [("navigate", True, None), ("navigate", False, "decisionrag-navigate-no-choice"),
+                ("flat", True, None), ("separate", True, None)]
     else:
-        plan = [(args.mode, not args.no_choice)]
+        plan = [(args.mode, not args.no_choice, None)]
     runs = []
     try:
-        for mode, choice in plan:
-            run = run_decisionrag(factory(**judge_kwargs(mode)),
-                                  taxonomy_config(use_choice=choice), mode=mode)
-            if mode == "navigate" and not choice:
-                run["name"] = "decisionrag-navigate-no-choice"
-            runs.append(run)
+        for mode, choice, name in plan:
+            runs.append(run_decisionrag(factory(**judge_kwargs(mode)),
+                                        taxonomy_config(use_choice=choice), mode=mode, name=name))
     except JevError:
         write_report(runs, args.output)  # keep the runs that finished
         print(f"wrote partial report ({len(runs)} runs) to {args.output}", file=sys.stderr)
@@ -209,7 +206,7 @@ def main(argv: list[str] | None = None, env_paths: list[Path] | None = None) -> 
         print(f"error: {e}", file=sys.stderr)
         code = 1
     if transport is not None:
-        print(f"cache: {transport.hits} hits, {transport.misses} misses ({getattr(transport, 'cache_dir', CACHE_DIR)})")
+        print(f"cache: {transport.hits} hits, {transport.misses} misses ({transport.cache_dir})")
     return code
 
 

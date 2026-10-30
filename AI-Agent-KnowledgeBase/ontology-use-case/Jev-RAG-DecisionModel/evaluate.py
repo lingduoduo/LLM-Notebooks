@@ -45,19 +45,19 @@ def _test_cases(benchmark: dict) -> list[dict]:
     return [c for c in benchmark["cases"] if c["split"] == "test"]
 
 
-def run_decisionrag(judge, config, mode: str = "navigate") -> dict:
+def run_decisionrag(judge, config, mode: str = "navigate", name: str | None = None) -> dict:
     taxonomy, root = load_tree()
     benchmark = load_benchmark()
     cases = _test_cases(benchmark)
     rows = []
     for case in cases:
-        before = getattr(judge, "cost_usd", 0.0)
+        before = getattr(judge, "cost_usd", 0.0)  # FakeJudge has no usage counters
         res = tag_room(root, judge, config, case["subject"], case["tags"],
                        self_declared=case.get("self_declared_concepts", ()), mode=mode)
-        cost = getattr(judge, "cost_usd", 0.0) - before if hasattr(judge, "cost_usd") else 0.0
+        cost = getattr(judge, "cost_usd", 0.0) - before
         rows.append(prediction_row(case, res, taxonomy["version"], cost))
     return {
-        "name": f"decisionrag-{mode}",
+        "name": name or f"decisionrag-{mode}",
         "report": evaluate(benchmark, taxonomy, predictions=rows),
         "rank": rank_metrics(cases, rows),
         "rows": rows,
