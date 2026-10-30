@@ -25,6 +25,8 @@ class FakeJudge:
 
     def choice(self, query: str, candidates: Sequence[Node], question: str) -> dict[str, float]:
         self.calls.append(("choice", tuple(n.id for n in candidates)))
+        if not candidates:
+            return {}
         scores = {n.id: self._score(query, n) for n in candidates}
         total = sum(scores.values())
         if total == 0:

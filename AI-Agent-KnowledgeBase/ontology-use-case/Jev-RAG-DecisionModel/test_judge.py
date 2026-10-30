@@ -35,6 +35,10 @@ class FakeJudgeTest(unittest.TestCase):
         out = FakeJudge({}).choice("q", [self.a, self.b], "?")
         self.assertEqual(out, {"a": 0.5, "b": 0.5})
 
+    def test_fake_choice_empty(self):
+        self.assertEqual(FakeJudge({}).choice("q", [], "?"), {})
+        self.assertEqual(FakeJudge().choice("q", [], "?"), {})
+
     def test_fake_records_calls(self):
         j = FakeJudge()
         j.binary("q", [self.a, self.b], "?")

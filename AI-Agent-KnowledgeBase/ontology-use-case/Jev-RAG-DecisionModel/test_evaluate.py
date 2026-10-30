@@ -50,5 +50,26 @@ class EvaluateTest(unittest.TestCase):
             self.assertIn("Hit@1", out.with_suffix(".md").read_text())
 
 
+    def test_write_report_latency_and_cost_columns(self):
+        report = run_baselines()[0]["report"]
+        runs = [{"name": "dr", "report": report, "rank": None, "cost_usd": 0.0123, "requests": 3,
+                 "rows": [{"latency_s": 1.0}, {"latency_s": 2.0}]},
+                {"name": "kw", "report": report, "rank": None, "cost_usd": 0.0, "requests": 0,
+                 "rows": []}]
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "r.json"
+            write_report(runs, out)
+            lines = out.with_suffix(".md").read_text().splitlines()
+        header = [c.strip() for c in lines[0].strip("|").split("|")]
+        self.assertIn("latency (s/room)", header)
+        self.assertIn("nominal cost (¢)", header)
+        col = header.index("latency (s/room)")
+        dr = [c.strip() for c in lines[2].strip("|").split("|")]
+        kw = [c.strip() for c in lines[3].strip("|").split("|")]
+        self.assertEqual(dr[col], "1.500")
+        self.assertEqual(kw[col], "-")
+        self.assertEqual(dr[header.index("nominal cost (¢)")], "1.23")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -101,14 +101,19 @@ def write_report(runs: list[dict], out_path: Path) -> None:
     def f(x):
         return "-" if x is None else f"{x:.3f}"
 
-    lines = ["| name | micro-F1 | macro-F1 | exact match | negative FP rate | Hit@1 | MRR | cost (¢) | requests |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    def mean_latency(rows):
+        lat = [row["latency_s"] for row in rows if "latency_s" in row]
+        return sum(lat) / len(lat) if lat else None
+
+    lines = ["| name | micro-F1 | macro-F1 | exact match | negative FP rate | Hit@1 | MRR "
+             "| latency (s/room) | nominal cost (¢) | requests |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for r in runs:
         c, rk = r["report"]["concepts"], r["rank"]
         lines.append("| " + " | ".join([
             r["name"], f(c["micro_f1"]), f(c["macro_f1"]), f(c["exact_match"]),
             f(r["report"]["taxonomy_negative_false_positive_rate"]),
-            f(rk and rk["hit_at_1"]), f(rk and rk["mrr"]),
+            f(rk and rk["hit_at_1"]), f(rk and rk["mrr"]), f(mean_latency(r.get("rows") or [])),
             f"{r['cost_usd'] * 100:.2f}", str(r["requests"])]) + " |")
     slices = sorted({s for r in runs for s in r["report"]["slices"]})
     lines += ["", "Per-slice concept micro-F1", "",
@@ -117,4 +122,5 @@ def write_report(runs: list[dict], out_path: Path) -> None:
     for s in slices:
         cells = [f(r["report"]["slices"].get(s, {}).get("concepts", {}).get("micro_f1")) for r in runs]
         lines.append(f"| {s} | " + " | ".join(cells) + " |")
+    lines += ["", "Nominal cost includes cached responses; real spend is the cache misses."]
     out_path.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")

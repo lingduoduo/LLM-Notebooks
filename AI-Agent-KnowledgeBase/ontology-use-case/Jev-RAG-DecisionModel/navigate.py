@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from judge import Judge
 from tree import Node
+
+SEPARATE_WORKERS = 8  # per-unit calls in flight in separate mode
 
 
 @dataclass(frozen=True)
@@ -100,8 +103,12 @@ def score_units(units: Sequence[Node], query: str, judge: Judge, config: Navigat
     scores: dict[str, float] = {}
     with _Stage(judge) as st:
         if separate:
-            for u in units:
-                scores.update(st.call("binary", query, [u], config.binary_question))
+            with ThreadPoolExecutor(max_workers=SEPARATE_WORKERS) as pool:
+                parts = list(pool.map(
+                    lambda u: judge.binary(query, [u], config.binary_question), units))
+            st.calls += len(parts)
+            for part in parts:  # map keeps unit order, so scores match the sequential run
+                scores.update(part)
         else:
             scores.update(st.call("binary", query, list(units), config.binary_question))
     trace.append(st.record({"judged": [u.id for u in units], "p": dict(scores),

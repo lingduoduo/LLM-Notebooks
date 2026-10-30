@@ -14,22 +14,35 @@ DEMO_CORPUS = HERE / "examples" / "nolan_corpus.json"
 DEMO_QUERY = "Who is the main character in Christopher Nolan's film from the year 2000?"
 DEMO_QUESTION = "Is the information needed to answer the user's question in Candidate {n}?"
 NO_KEY = "OPENROUTER_API_KEY is not set; export it or pass --fake"
+FLAT_MAX_PER_REQUEST = 10_000  # flat mode judges every unit in one shared context
 
+from jev import JevError  # noqa: E402
 from judge import FakeJudge  # noqa: E402
 from navigate import NavigationConfig, navigate  # noqa: E402
 from tree import Node  # noqa: E402
 
 
 def make_judge_factory(fake: bool):
-    """Return (factory, transport_or_None); factory() builds a fresh judge. None if key missing."""
+    """Return (factory, transport_or_None); factory(**judge_kwargs) builds a fresh judge.
+    None if key missing."""
     if fake:
-        return (lambda: FakeJudge()), None
+        return (lambda **kw: FakeJudge()), None
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         return None, None
     from jev import CachedTransport, HttpTransport, JevJudge
     transport = CachedTransport(HttpTransport(key), CACHE_DIR)
-    return (lambda: JevJudge(transport)), transport
+    return (lambda **kw: JevJudge(transport, **kw)), transport
+
+
+def judge_kwargs(mode: str) -> dict:
+    return {"max_per_request": FLAT_MAX_PER_REQUEST} if mode == "flat" else {}
+
+
+def print_usage(judge) -> None:
+    if hasattr(judge, "cost_usd"):
+        print(f"nominal cost: ${judge.cost_usd:.4f} (cached responses included; real spend = "
+              f"cache misses)  requests: {judge.requests}")
 
 
 def print_trace(trace: list[dict]) -> None:
@@ -53,12 +66,14 @@ def cmd_tag(args, factory) -> int:
     from taxonomy_corpus import load_tree, tag_room, taxonomy_config
     _, root = load_tree()
     config = taxonomy_config(use_choice=not args.no_choice)
-    res = tag_room(root, factory(), config, args.subject, args.tags,
+    judge = factory(**judge_kwargs(args.mode))
+    res = tag_room(root, judge, config, args.subject, args.tags,
                    self_declared=args.declared, mode=args.mode)
     print("id  p_bin  p_mul  source")
     for r in res.ranked:
         print(f"{r.id}  {fmt(r.p_bin)}  {fmt(r.p_mul)}  {r.source}")
     print_trace(res.trace)
+    print_usage(judge)
     return 0
 
 
@@ -77,12 +92,14 @@ def cmd_demo(args, factory) -> int:
                               choice_question="Which candidate contains the information needed "
                                               "to answer the user's question?")
     print(f"Query: {DEMO_QUERY}\n")
-    res = navigate(root, DEMO_QUERY, factory(), config)
+    judge = factory()
+    res = navigate(root, DEMO_QUERY, judge, config)
     print_trace(res.trace)
     print("\nfinal passage ranking:")
     texts = {n.id: n.description for d in root.children for n in d.children}
     for i, r in enumerate(res.ranked, 1):
         print(f"{i}. {r.id}  p_bin={fmt(r.p_bin)}  p_mul={fmt(r.p_mul)}  {texts[r.id]}")
+    print_usage(judge)
     return 0
 
 
@@ -94,11 +111,17 @@ def cmd_eval(args, factory) -> int:
     else:
         plan = [(args.mode, not args.no_choice)]
     runs = []
-    for mode, choice in plan:
-        run = run_decisionrag(factory(), taxonomy_config(use_choice=choice), mode=mode)
-        if mode == "navigate" and not choice:
-            run["name"] = "decisionrag-navigate-no-choice"
-        runs.append(run)
+    try:
+        for mode, choice in plan:
+            run = run_decisionrag(factory(**judge_kwargs(mode)),
+                                  taxonomy_config(use_choice=choice), mode=mode)
+            if mode == "navigate" and not choice:
+                run["name"] = "decisionrag-navigate-no-choice"
+            runs.append(run)
+    except JevError:
+        write_report(runs, args.output)  # keep the runs that finished
+        print(f"wrote partial report ({len(runs)} runs) to {args.output}", file=sys.stderr)
+        raise
     if args.mode == "all":
         runs += run_baselines()
     write_report(runs, args.output)
@@ -145,8 +168,12 @@ def main(argv: list[str] | None = None) -> int:
     if factory is None:
         print(NO_KEY, file=sys.stderr)
         return 2
-    code = args.func(args, factory)
-    if transport is not None and args.command == "eval":
+    try:
+        code = args.func(args, factory)
+    except JevError as e:
+        print(f"error: {e}", file=sys.stderr)
+        code = 1
+    if transport is not None:
         print(f"cache: {transport.hits} hits, {transport.misses} misses ({CACHE_DIR})")
     return code
 

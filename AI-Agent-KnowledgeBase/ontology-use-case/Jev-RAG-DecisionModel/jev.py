@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import threading
 import time
@@ -15,6 +16,8 @@ from tree import Node
 ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 MODEL = "typesafe/jev-1.13"
 CHOICE_KEY = "most_relevant"
+BINARY_RULE = ("Present: the candidate is actually present in or relevant to the query. "
+               "Absent/negated: it is absent, only mentioned negated, or unrelated.")
 
 Transport = Callable[[dict], dict]
 
@@ -29,17 +32,15 @@ def _state(query: str, candidates: Sequence[Node]) -> dict:
 
 
 def build_binary_request(query: str, candidates: Sequence[Node], question: str) -> dict:
-    criteria = {
-        "true": "The candidate is relevant to the query. A candidate that is only mentioned in "
-                "a negated way, or is unrelated to the query, does not count as relevant.",
-        "false": "The candidate is not relevant to the query, is only mentioned negated, "
-                 "or is unrelated.",
-    }
+    # Criteria are repeated per question, so keep them terse (a flat request has one question
+    # per unit); the full rule is stated once in the shared state.
+    criteria = {"true": "Present", "false": "Absent/negated"}
     questions = {
         f"c{i}": {"type": "noul", "instructions": question.format(n=i), "criteria": dict(criteria)}
         for i in range(1, len(candidates) + 1)
     }
-    return {"state": _state(query, candidates), "questions": questions}
+    state = {**_state(query, candidates), "rule": BINARY_RULE}
+    return {"state": state, "questions": questions}
 
 
 def build_choice_request(query: str, candidates: Sequence[Node], question: str) -> dict:
@@ -59,22 +60,53 @@ def _check(response: dict) -> dict:
     return response
 
 
-def _answer(response: dict, key: str) -> dict:
+def _answer(response: dict, key: str, qtype: str) -> dict:
     _check(response)
-    answers = response.get("answers") or {}
-    if key not in answers:
+    answers = (response.get("answers") if isinstance(response, dict) else None) or {}
+    if not isinstance(answers, dict) or key not in answers:
         raise JevError(f"response is missing answer {key!r}")
-    return answers[key]
+    ans = answers[key]
+    if not isinstance(ans, dict):
+        raise JevError(f"answer {key!r} is not an object: {ans!r}")
+    if ans.get("type") != qtype:
+        raise JevError(f"answer {key!r} has type {ans.get('type')!r}, expected {qtype!r}")
+    return ans
+
+
+def _prob(value, what: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
+        raise JevError(f"{what} is not a probability: {value!r}")
+    return float(value)
+
+
+def _noul(response: dict, key: str) -> float:
+    return _prob(_answer(response, key, "noul").get("noul"), f"answer {key!r} noul")
+
+
+def _probabilities(response: dict, key: str) -> dict:
+    probs = _answer(response, key, "choice").get("probabilities")
+    if not isinstance(probs, dict):
+        raise JevError(f"answer {key!r} has no probabilities map: {probs!r}")
+    return probs
 
 
 def parse_binary(response: dict, candidates: Sequence[Node]) -> dict[str, float]:
-    return {n.id: float(_answer(response, f"c{i}").get("noul", 0.0))
-            for i, n in enumerate(candidates, 1)}
+    return {n.id: _noul(response, f"c{i}") for i, n in enumerate(candidates, 1)}
 
 
 def parse_choice(response: dict, candidates: Sequence[Node]) -> dict[str, float]:
-    probs = _answer(response, CHOICE_KEY).get("probabilities") or {}
-    return {n.id: float(probs.get(n.id, 0.0)) for n in candidates}
+    probs = _probabilities(response, CHOICE_KEY)
+    return {n.id: _prob(probs.get(n.id, 0.0), f"probability of {n.id!r}") for n in candidates}
+
+
+def validate_response(body: dict, response: dict) -> None:
+    """Raise JevError unless `response` answers every question in `body` well-formed."""
+    _check(response)
+    for key, q in (body.get("questions") or {}).items():
+        if q.get("type") == "noul":
+            _noul(response, key)
+        elif q.get("type") == "choice":
+            _probabilities(response, key)
 
 
 class HttpTransport:
@@ -96,14 +128,17 @@ class HttpTransport:
                     status, raw = resp.status, resp.read()
             except urllib.error.HTTPError as e:
                 status, raw = e.code, e.read()
-            except urllib.error.URLError as e:
+            except (OSError, http.client.HTTPException) as e:  # URLError, timeouts, resets
                 if attempt >= len(delays):
-                    raise JevError(f"network error: {e.reason}") from e
+                    raise JevError(f"network error: {getattr(e, 'reason', None) or e!r}") from e
                 time.sleep(delays[attempt])
                 attempt += 1
                 continue
             if status == 200:
-                return json.loads(raw.decode("utf-8"))
+                try:
+                    return json.loads(raw.decode("utf-8"))
+                except ValueError as e:
+                    raise JevError(f"invalid JSON in 200 response: {raw[:200]!r}") from e
             if (status == 429 or status >= 500) and attempt < len(delays):
                 time.sleep(delays[attempt])
                 attempt += 1
@@ -122,9 +157,13 @@ def _message(raw: bytes) -> str:
 
 
 class CachedTransport:
-    def __init__(self, inner: Transport, cache_dir: Path):
+    """Caches responses on disk; only responses that pass `validate` are stored."""
+
+    def __init__(self, inner: Transport, cache_dir: Path,
+                 validate: Callable[[dict, dict], None] = validate_response):
         self.inner = inner
         self.cache_dir = Path(cache_dir)
+        self.validate = validate
         self.hits = 0
         self.misses = 0
         self._lock = threading.Lock()
@@ -140,11 +179,14 @@ class CachedTransport:
         with self._lock:
             self.misses += 1
         response = self.inner(body)
-        if not (isinstance(response, dict) and response.get("error")):
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
-            tmp.write_text(json.dumps(response, ensure_ascii=False), encoding="utf-8")
-            tmp.replace(path)
+        try:
+            self.validate(body, response)
+        except JevError:
+            return response  # not cached; the caller's parse raises
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+        tmp.write_text(json.dumps(response, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
         return response
 
 
@@ -166,14 +208,16 @@ class JevJudge:
                          parse_binary)
 
     def choice(self, query: str, candidates: Sequence[Node], question: str) -> dict[str, float]:
+        # One request, never split: probabilities are only comparable within one choice.
+        candidates = list(candidates)
         return self._run(candidates, lambda chunk: build_choice_request(query, chunk, question),
-                         parse_choice)
+                         parse_choice, size=max(len(candidates), 1))
 
-    def _run(self, candidates, build, parse) -> dict[str, float]:
+    def _run(self, candidates, build, parse, size: int | None = None) -> dict[str, float]:
         candidates = list(candidates)
         if not candidates:
             return {}
-        size = self.max_per_request
+        size = size or self.max_per_request
         chunks = [candidates[i:i + size] for i in range(0, len(candidates), size)]
 
         def one(chunk):

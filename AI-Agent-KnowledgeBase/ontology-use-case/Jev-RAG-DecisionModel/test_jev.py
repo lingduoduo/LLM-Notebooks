@@ -1,3 +1,4 @@
+import http.client
 import io
 import json
 import tempfile
@@ -79,12 +80,26 @@ class RequestTests(unittest.TestCase):
         for b in t.bodies:
             self.assertIn("c1", b["questions"])
 
-    def test_choice_splits_and_merges(self):
+    def test_choice_never_splits(self):
         t = FakeTransport()
         j = jev.JevJudge(t, max_per_request=5)
         out = j.choice("q", nodes(7), "Which?")
         self.assertEqual(len(out), 7)
-        self.assertEqual(len(t.bodies), 2)
+        self.assertEqual(len(t.bodies), 1)
+        self.assertEqual(len(t.bodies[0]["questions"]["most_relevant"]["criteria"]), 7)
+        self.assertAlmostEqual(sum(out.values()), 1.0)
+
+    def test_flat_request_fits_one_context(self):
+        cands = [Node(f"id{i}", ("Candidate concept — Category > Sub-category (e.g. " + "x" * 120)[:120])
+                 for i in range(73)]
+        body = {"model": jev.MODEL,
+                **jev.build_binary_request("Subject: a room\nTags: t", cands,
+                                           "Does this room involve Candidate {n}?")}
+        size = len(json.dumps(body, ensure_ascii=False).encode("utf-8"))
+        self.assertLess(size, 20_000)
+        crit = body["questions"]["c1"]["criteria"]
+        self.assertIn("negated", crit["false"])
+        self.assertIn("unrelated", body["state"]["rule"])
 
 
 class ParseTests(unittest.TestCase):
@@ -104,6 +119,22 @@ class ParseTests(unittest.TestCase):
         self.assertIn("c1", str(cm.exception))
         with self.assertRaises(jev.JevError):
             jev.parse_choice({"answers": {}}, [Node("a", "x")])
+
+    def test_null_missing_or_out_of_range_noul_raises(self):
+        for ans in ({"type": "noul", "noul": None}, {"type": "noul"},
+                    {"type": "noul", "noul": 1.5}, {"type": "noul", "noul": -0.1},
+                    {"type": "noul", "noul": "0.5"}, {"type": "choice", "noul": 0.5}, 0.5):
+            with self.subTest(ans=ans), self.assertRaises(jev.JevError) as cm:
+                jev.parse_binary({"answers": {"c1": ans}}, [Node("a", "x")])
+            self.assertIn("c1", str(cm.exception))
+
+    def test_missing_or_bad_probabilities_raises(self):
+        for ans in ({"type": "choice", "choice": "a"},
+                    {"type": "choice", "probabilities": None},
+                    {"type": "choice", "probabilities": [1.0]},
+                    {"type": "noul", "probabilities": {"a": 1.0}}):
+            with self.subTest(ans=ans), self.assertRaises(jev.JevError):
+                jev.parse_choice({"answers": {"most_relevant": ans}}, [Node("a", "x")])
 
     def test_error_body_raises_jev_error(self):
         resp = {"error": {"code": 400, "message": "bad"}}
@@ -134,6 +165,39 @@ class HttpTests(unittest.TestCase):
         req = uo.call_args.args[0]
         self.assertEqual(req.get_header("Authorization"), "Bearer k")
         self.assertIn("Café".encode(), req.data)
+
+    def test_http_retries_5xx_then_succeeds(self):
+        err = urllib.error.HTTPError("u", 503, "busy", {}, io.BytesIO(b"oops"))
+        ok = FakeResp({"answers": {}})
+        with mock.patch("urllib.request.urlopen", side_effect=[err, ok]), \
+             mock.patch("time.sleep") as sl:
+            out = jev.HttpTransport("k")({})
+        self.assertEqual(out, {"answers": {}})
+        self.assertEqual([c.args[0] for c in sl.call_args_list], [1])
+
+    def test_http_retries_timeout_and_connection_errors(self):
+        class TimeoutResp(FakeResp):
+            def read(self):
+                raise TimeoutError("read timed out")
+        ok = FakeResp({"answers": {}})
+        side = [TimeoutResp({}), ConnectionResetError("reset"),
+                http.client.IncompleteRead(b""), ok]
+        with mock.patch("urllib.request.urlopen", side_effect=side) as uo, \
+             mock.patch("time.sleep") as sl:
+            out = jev.HttpTransport("k")({})
+        self.assertEqual(out, {"answers": {}})
+        self.assertEqual(uo.call_count, 4)
+        self.assertEqual([c.args[0] for c in sl.call_args_list], [1, 2, 4])
+
+    def test_http_invalid_json_raises_jev_error(self):
+        class BadResp(FakeResp):
+            def read(self):
+                return b"<html>not json</html>"
+        with mock.patch("urllib.request.urlopen", return_value=BadResp({})), \
+             mock.patch("time.sleep"):
+            with self.assertRaises(jev.JevError) as cm:
+                jev.HttpTransport("k")({})
+        self.assertIn("invalid JSON", str(cm.exception))
 
     def test_http_gives_up_after_three_retries(self):
         err = urllib.error.URLError("down")
@@ -177,6 +241,27 @@ class CacheTests(unittest.TestCase):
             c = jev.CachedTransport(inner, Path(d))
             c({"a": 1}); c({"a": 1})
             self.assertEqual(len(calls), 2)
+
+    def test_unparseable_200_not_cached(self):
+        with tempfile.TemporaryDirectory() as d:
+            calls = []
+            def inner(b):
+                calls.append(1)
+                return {"answers": {"c1": {"type": "noul", "noul": None}}}
+            c = jev.CachedTransport(inner, Path(d))
+            j = jev.JevJudge(c)
+            for _ in range(2):
+                with self.assertRaises(jev.JevError):
+                    j.binary("q", [Node("a", "x")], "{n}")
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(list(Path(d).glob("*")), [])
+            self.assertEqual((c.hits, c.misses), (0, 2))
+
+    def test_valid_response_is_cached(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = jev.CachedTransport(FakeTransport(), Path(d))
+            jev.JevJudge(c).binary("q", [Node("a", "x")], "{n}")
+            self.assertEqual(len(list(Path(d).glob("*.json"))), 1)
 
 
 class CostTests(unittest.TestCase):

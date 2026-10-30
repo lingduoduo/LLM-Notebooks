@@ -1,4 +1,7 @@
 import unittest
+from unittest import mock
+
+import navigate as navigate_mod
 
 from judge import FakeJudge
 from navigate import NavigationConfig, navigate, score_units
@@ -105,6 +108,21 @@ class NavigateTest(unittest.TestCase):
         j = FakeJudge({"x": .9, "y": .8, "z": .7})
         score_units(units, "q", j, NavigationConfig())
         self.assertEqual([c for m, c in j.calls if m == "binary"], [("x", "y", "z")])
+
+    def test_score_units_separate_parallel_matches_sequential(self):
+        units = [leaf(f"u{i}") for i in range(20)]
+        scores = {u.id: (i * 37 % 20) / 20 for i, u in enumerate(units)}
+        cfg = NavigationConfig(use_choice=False)
+        j = FakeJudge(scores)
+        with mock.patch("navigate.ThreadPoolExecutor", wraps=navigate_mod.ThreadPoolExecutor) as tp:
+            sep = score_units(units, "q", j, cfg, separate=True)
+        tp.assert_called_once_with(max_workers=8)
+        binaries = sorted(c for m, c in j.calls if m == "binary")
+        self.assertEqual(binaries, sorted((u.id,) for u in units))
+        seq = score_units(units, "q", FakeJudge(scores), cfg)
+        self.assertEqual(list(sep.trace[0]["p"].items()), list(seq.trace[0]["p"].items()))
+        self.assertEqual(sep.ranked, seq.ranked)
+        self.assertEqual(sep.trace[0]["requests"], 20)
 
     def test_top_r_caps_units(self):
         units = [leaf(i) for i in "wxyz"]
