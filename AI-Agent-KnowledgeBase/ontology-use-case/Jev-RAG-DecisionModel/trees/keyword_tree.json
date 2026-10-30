@@ -1,0 +1,2867 @@
+{
+  "meta": {
+    "counts": {
+      "keywords": 415,
+      "clusters": 20,
+      "subclusters": 89,
+      "fallback_descriptions": 109
+    },
+    "clusters": 20,
+    "leaf_size": 5,
+    "split_over": 8,
+    "seed": 0,
+    "keywords_sha256": "9ad7693bc42f909af2be543b1604d22ea44a6d7da30c008563c3ce34392e059d",
+    "embed_model": "intfloat/e5-base-v2",
+    "llm_model": "none",
+    "describer_status": "rejected",
+    "kmeans_backend": "sklearn.KMeans",
+    "kmeans_n_init": 10,
+    "describe_prompt": "Write one sentence (at most 30 words) describing what the items in this group are about. Name the main kinds of subjects it covers, including the less typical ones, so a reader can tell whether a given item belongs to this group.",
+    "built_at": "2026-10-30T04:00:09+00:00"
+  },
+  "tree": {
+    "id": "__root__",
+    "description": "All keywords",
+    "description_source": "fallback",
+    "children": [
+      {
+        "id": "c0",
+        "description": "Terms such as: titties, tits, boobs, titty, busty, big breasts, big tits, tit",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c0.0",
+            "description": "Terms such as: nude, topless",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw000",
+                "keyword": "nude",
+                "concept_id": "full_nudity"
+              },
+              {
+                "id": "kw002",
+                "keyword": "topless",
+                "concept_id": "partial_nudity"
+              }
+            ]
+          },
+          {
+            "id": "c0.1",
+            "description": "Terms such as: busty, sexy, horny, milf, lingerie, hot chick, bbw",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw003",
+                "keyword": "lingerie",
+                "concept_id": "lingerie"
+              },
+              {
+                "id": "kw056",
+                "keyword": "bbw",
+                "concept_id": "appearance"
+              },
+              {
+                "id": "kw085",
+                "keyword": "busty",
+                "concept_id": "appearance"
+              },
+              {
+                "id": "kw179",
+                "keyword": "horny",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw181",
+                "keyword": "hot chick",
+                "concept_id": "appearance"
+              },
+              {
+                "id": "kw204",
+                "keyword": "milf",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw264",
+                "keyword": "sexy",
+                "concept_id": "explicit_general"
+              }
+            ]
+          },
+          {
+            "id": "c0.2",
+            "description": "Terms such as: 2 girls 1 cup, two girls one cup, one cup two girls",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw026",
+                "keyword": "2 girls 1 cup",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw218",
+                "keyword": "one cup two girls",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw315",
+                "keyword": "two girls one cup",
+                "concept_id": "shock_reference"
+              }
+            ]
+          },
+          {
+            "id": "c0.3",
+            "description": "Terms such as: big breasts, big tits, big knockers",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw059",
+                "keyword": "big breasts",
+                "concept_id": "appearance"
+              },
+              {
+                "id": "kw060",
+                "keyword": "big knockers",
+                "concept_id": "appearance"
+              },
+              {
+                "id": "kw061",
+                "keyword": "big tits",
+                "concept_id": "appearance"
+              }
+            ]
+          },
+          {
+            "id": "c0.4",
+            "description": "Terms such as: bimbos, bitches, sultry women",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw062",
+                "keyword": "bimbos",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw065",
+                "keyword": "bitches",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw296",
+                "keyword": "sultry women",
+                "concept_id": "appearance"
+              }
+            ]
+          },
+          {
+            "id": "c0.5",
+            "description": "Terms such as: tits, titties, titty, boobs, nipples, nipple, tit, boob",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw075",
+                "keyword": "boob",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw076",
+                "keyword": "boobs",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw210",
+                "keyword": "nipple",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw211",
+                "keyword": "nipples",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw222",
+                "keyword": "panties",
+                "concept_id": "lingerie"
+              },
+              {
+                "id": "kw304",
+                "keyword": "tit",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw305",
+                "keyword": "tits",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw306",
+                "keyword": "titties",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw307",
+                "keyword": "titty",
+                "concept_id": "nudity"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c1",
+        "description": "Terms such as: pornography, erotic, beastiality, hentai, zoophilia, nudity, porn, coprophilia",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c1.0",
+            "description": "Terms such as: cosplay, upskirt, costume, nudity, foot fetish",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw001",
+                "keyword": "nudity",
+                "concept_id": "full_nudity"
+              },
+              {
+                "id": "kw004",
+                "keyword": "cosplay",
+                "concept_id": "costume_roleplay"
+              },
+              {
+                "id": "kw021",
+                "keyword": "costume",
+                "concept_id": "costume"
+              },
+              {
+                "id": "kw149",
+                "keyword": "foot fetish",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw404",
+                "keyword": "upskirt",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c1.1",
+            "description": "Terms such as: porn, erotic, pornography, porno, hentai, bdsm, adult toy, smut",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw005",
+                "keyword": "bdsm",
+                "concept_id": "bdsm"
+              },
+              {
+                "id": "kw016",
+                "keyword": "adult toy",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw038",
+                "keyword": "auto erotic",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw136",
+                "keyword": "erotic",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw177",
+                "keyword": "hentai",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw191",
+                "keyword": "kinky",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw239",
+                "keyword": "porn",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw240",
+                "keyword": "porno",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw241",
+                "keyword": "pornography",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw278",
+                "keyword": "smut",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw291",
+                "keyword": "strip club",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw328",
+                "keyword": "wet dream",
+                "concept_id": "sexual_activities"
+              }
+            ]
+          },
+          {
+            "id": "c1.2",
+            "description": "Terms such as: coprophilia, urophilia, vorarephilia, acrotomophilia",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw027",
+                "keyword": "acrotomophilia",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw103",
+                "keyword": "coprophilia",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw318",
+                "keyword": "urophilia",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw324",
+                "keyword": "vorarephilia",
+                "concept_id": "fetish_kink"
+              }
+            ]
+          },
+          {
+            "id": "c1.3",
+            "description": "Terms such as: nymphomania, femdom, dominatrix, erotism",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw126",
+                "keyword": "dominatrix",
+                "concept_id": "dominance"
+              },
+              {
+                "id": "kw137",
+                "keyword": "erotism",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw144",
+                "keyword": "femdom",
+                "concept_id": "dominance"
+              },
+              {
+                "id": "kw215",
+                "keyword": "nymphomania",
+                "concept_id": "explicit_general"
+              }
+            ]
+          },
+          {
+            "id": "c1.4",
+            "description": "Terms such as: futanari, yaoi, guro",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw156",
+                "keyword": "futanari",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw335",
+                "keyword": "yaoi",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw362",
+                "keyword": "guro",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c1.5",
+            "description": "Terms such as: nsfw, nsfw images",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw212",
+                "keyword": "nsfw",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw213",
+                "keyword": "nsfw images",
+                "concept_id": "explicit_general"
+              }
+            ]
+          },
+          {
+            "id": "c1.6",
+            "description": "Terms such as: beastiality, bestiality, zoophilia, incest, sadism",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw256",
+                "keyword": "sadism",
+                "concept_id": "bdsm"
+              },
+              {
+                "id": "kw342",
+                "keyword": "beastiality",
+                "concept_id": ""
+              },
+              {
+                "id": "kw343",
+                "keyword": "bestiality",
+                "concept_id": ""
+              },
+              {
+                "id": "kw367",
+                "keyword": "incest",
+                "concept_id": ""
+              },
+              {
+                "id": "kw407",
+                "keyword": "zoophilia",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c2",
+        "description": "Terms such as: intercourse, lovemaking, gay sex, sex, gangbang, sexually, group sex, fellatio",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c2.0",
+            "description": "Terms such as: intercourse, lovemaking, cunnilingus, roleplay, fellatio, bondage, threesome, strap on",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw006",
+                "keyword": "bondage",
+                "concept_id": "bondage"
+              },
+              {
+                "id": "kw018",
+                "keyword": "roleplay",
+                "concept_id": "roleplay"
+              },
+              {
+                "id": "kw023",
+                "keyword": "partnered intimacy",
+                "concept_id": "partnered_intimacy"
+              },
+              {
+                "id": "kw110",
+                "keyword": "cunnilingus",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw141",
+                "keyword": "fellatio",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw183",
+                "keyword": "intercourse",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw197",
+                "keyword": "lovemaking",
+                "concept_id": "partnered_intimacy"
+              },
+              {
+                "id": "kw205",
+                "keyword": "missionary position",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw251",
+                "keyword": "rimjob",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw288",
+                "keyword": "strap on",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw300",
+                "keyword": "threesome",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw317",
+                "keyword": "urethra play",
+                "concept_id": "fetish_kink"
+              }
+            ]
+          },
+          {
+            "id": "c2.1",
+            "description": "Terms such as: domination, submission, make me come, spread legs",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw007",
+                "keyword": "domination",
+                "concept_id": "dominance"
+              },
+              {
+                "id": "kw008",
+                "keyword": "submission",
+                "concept_id": "submission"
+              },
+              {
+                "id": "kw198",
+                "keyword": "make me come",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw286",
+                "keyword": "spread legs",
+                "concept_id": "nudity"
+              }
+            ]
+          },
+          {
+            "id": "c2.2",
+            "description": "Terms such as: sexual, sexually, sexuality, sex, homoerotic, orgy, autoerotic",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw039",
+                "keyword": "autoerotic",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw178",
+                "keyword": "homoerotic",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw221",
+                "keyword": "orgy",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw261",
+                "keyword": "sex",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw265",
+                "keyword": "sexual",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw266",
+                "keyword": "sexually",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw267",
+                "keyword": "sexuality",
+                "concept_id": "other_reference"
+              }
+            ]
+          },
+          {
+            "id": "c2.3",
+            "description": "Terms such as: deep throat, deepthroat, pleasure chest",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw112",
+                "keyword": "deep throat",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw113",
+                "keyword": "deepthroat",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw232",
+                "keyword": "pleasure chest",
+                "concept_id": "brand_reference"
+              }
+            ]
+          },
+          {
+            "id": "c2.4",
+            "description": "Terms such as: double dong, double penetration",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw128",
+                "keyword": "double dong",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw129",
+                "keyword": "double penetration",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c2.5",
+            "description": "Terms such as: group sex, gay sex, gangbang, phone sex",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw157",
+                "keyword": "gangbang",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw159",
+                "keyword": "gay sex",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw171",
+                "keyword": "group sex",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw226",
+                "keyword": "phone sex",
+                "concept_id": "explicit_general"
+              }
+            ]
+          },
+          {
+            "id": "c2.6",
+            "description": "Terms such as: menage a trois",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw203",
+                "keyword": "menage a trois",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c3",
+        "description": "Terms such as: tubgirl, panty, slut, hooker, whore, goo girl, tub girl, nympho",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c3.0",
+            "description": "Terms such as: slut, whore, panty, nympho, playboy, lolita, shemale, latex",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw009",
+                "keyword": "latex",
+                "concept_id": "latex"
+              },
+              {
+                "id": "kw214",
+                "keyword": "nympho",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw223",
+                "keyword": "panty",
+                "concept_id": "lingerie"
+              },
+              {
+                "id": "kw231",
+                "keyword": "playboy",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw276",
+                "keyword": "slut",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw329",
+                "keyword": "whore",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw374",
+                "keyword": "lolita",
+                "concept_id": ""
+              },
+              {
+                "id": "kw396",
+                "keyword": "shemale",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c3.1",
+            "description": "Terms such as: hooker, swinger, octopussy, snatch, babeland",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw040",
+                "keyword": "babeland",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw216",
+                "keyword": "octopussy",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw279",
+                "keyword": "snatch",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw297",
+                "keyword": "swinger",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw364",
+                "keyword": "hooker",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c3.2",
+            "description": "Terms such as: tubgirl, tub girl, goo girl",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw170",
+                "keyword": "goo girl",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw310",
+                "keyword": "tub girl",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw311",
+                "keyword": "tubgirl",
+                "concept_id": "shock_reference"
+              }
+            ]
+          },
+          {
+            "id": "c3.3",
+            "description": "Terms such as: darkie, tushy, pikey, paki",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw312",
+                "keyword": "tushy",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw349",
+                "keyword": "darkie",
+                "concept_id": ""
+              },
+              {
+                "id": "kw385",
+                "keyword": "paki",
+                "concept_id": ""
+              },
+              {
+                "id": "kw388",
+                "keyword": "pikey",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c4",
+        "description": "Terms such as: leather restraint, strapon, strappado, leather, tight white, clover clamps, tied up, dommes",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c4.0",
+            "description": "Terms such as: leather, leather restraint, leather straight jacket",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw010",
+                "keyword": "leather",
+                "concept_id": "leather"
+              },
+              {
+                "id": "kw193",
+                "keyword": "leather restraint",
+                "concept_id": "restraints"
+              },
+              {
+                "id": "kw194",
+                "keyword": "leather straight jacket",
+                "concept_id": "restraints"
+              }
+            ]
+          },
+          {
+            "id": "c4.1",
+            "description": "Terms such as: clover clamps, tight white, wrapping men, prince albert piercing",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw098",
+                "keyword": "clover clamps",
+                "concept_id": "accessories"
+              },
+              {
+                "id": "kw242",
+                "keyword": "prince albert piercing",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw331",
+                "keyword": "wrapping men",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw412",
+                "keyword": "tight white",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c4.2",
+            "description": "Terms such as: strapon, strappado, dommes, tied up, dolcett",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw127",
+                "keyword": "dommes",
+                "concept_id": "dominance"
+              },
+              {
+                "id": "kw289",
+                "keyword": "strapon",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw290",
+                "keyword": "strappado",
+                "concept_id": "bondage"
+              },
+              {
+                "id": "kw303",
+                "keyword": "tied up",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw352",
+                "keyword": "dolcett",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c5",
+        "description": "Terms such as: sexcam, private show, voyeurweb, camslut, public live, voyeur, camwhore, escort",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c5.0",
+            "description": "Terms such as: private show, group show, solo show, interactive show, public live",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw011",
+                "keyword": "private show",
+                "concept_id": "private_show"
+              },
+              {
+                "id": "kw012",
+                "keyword": "group show",
+                "concept_id": "group_show"
+              },
+              {
+                "id": "kw013",
+                "keyword": "interactive show",
+                "concept_id": "interactive_show"
+              },
+              {
+                "id": "kw019",
+                "keyword": "solo show",
+                "concept_id": "solo_performance"
+              },
+              {
+                "id": "kw024",
+                "keyword": "public live",
+                "concept_id": "public_live"
+              }
+            ]
+          },
+          {
+            "id": "c5.1",
+            "description": "Terms such as: subscription, dvda",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw020",
+                "keyword": "subscription",
+                "concept_id": "subscription"
+              },
+              {
+                "id": "kw132",
+                "keyword": "dvda",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c5.2",
+            "description": "Terms such as: sexcam, camwhore, voyeur, voyeurweb, camslut, escort, sexo, chat",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw022",
+                "keyword": "chat",
+                "concept_id": "chat"
+              },
+              {
+                "id": "kw090",
+                "keyword": "camslut",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw091",
+                "keyword": "camwhore",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw262",
+                "keyword": "sexcam",
+                "concept_id": "public_live"
+              },
+              {
+                "id": "kw263",
+                "keyword": "sexo",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw325",
+                "keyword": "voyeurweb",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw354",
+                "keyword": "escort",
+                "concept_id": ""
+              },
+              {
+                "id": "kw413",
+                "keyword": "voyeur",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c5.3",
+            "description": "Terms such as: worldsex, livesex, goatcx, hardcore, pthc",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw164",
+                "keyword": "goatcx",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw176",
+                "keyword": "hardcore",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw196",
+                "keyword": "livesex",
+                "concept_id": "public_live"
+              },
+              {
+                "id": "kw330",
+                "keyword": "worldsex",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw391",
+                "keyword": "pthc",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c6",
+        "description": "Terms such as: cock, cocks, coon, coons, black cock, mong, xxx, queaf",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c6.0",
+            "description": "Terms such as: felch, feltch, tips",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw014",
+                "keyword": "tips",
+                "concept_id": "tips"
+              },
+              {
+                "id": "kw140",
+                "keyword": "felch",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw142",
+                "keyword": "feltch",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c6.1",
+            "description": "Terms such as: cock, black cock, cocks, giant cock, birdlock, mr hands",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw063",
+                "keyword": "birdlock",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw100",
+                "keyword": "cock",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw101",
+                "keyword": "cocks",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw161",
+                "keyword": "giant cock",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw376",
+                "keyword": "mr hands",
+                "concept_id": ""
+              },
+              {
+                "id": "kw411",
+                "keyword": "black cock",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c6.2",
+            "description": "Terms such as: coon, coons, mong, quim, queaf, gokkun, juggs, s&m",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw167",
+                "keyword": "gokkun",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw188",
+                "keyword": "juggs",
+                "concept_id": "appearance"
+              },
+              {
+                "id": "kw245",
+                "keyword": "queaf",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw247",
+                "keyword": "quim",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw277",
+                "keyword": "s&m",
+                "concept_id": "bdsm"
+              },
+              {
+                "id": "kw347",
+                "keyword": "coon",
+                "concept_id": ""
+              },
+              {
+                "id": "kw348",
+                "keyword": "coons",
+                "concept_id": ""
+              },
+              {
+                "id": "kw375",
+                "keyword": "mong",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c6.3",
+            "description": "Terms such as: xx, xxx",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw333",
+                "keyword": "xx",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw334",
+                "keyword": "xxx",
+                "concept_id": "explicit_general"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c7",
+        "description": "Terms such as: rimming, fingering, humping, pegging, fisting, ball sucking, ball gag, ball licking",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c7.0",
+            "description": "Terms such as: tip goal, ball kicking",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw015",
+                "keyword": "tip goal",
+                "concept_id": "tip_goal"
+              },
+              {
+                "id": "kw045",
+                "keyword": "ball kicking",
+                "concept_id": "bdsm"
+              }
+            ]
+          },
+          {
+            "id": "c7.1",
+            "description": "Terms such as: rimming, humping, knobbing, pegging, throating, frotting, muffdiving, pissing",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw017",
+                "keyword": "flirting",
+                "concept_id": "flirting"
+              },
+              {
+                "id": "kw151",
+                "keyword": "frotting",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw182",
+                "keyword": "humping",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw192",
+                "keyword": "knobbing",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw224",
+                "keyword": "pegging",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw228",
+                "keyword": "pissing",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw233",
+                "keyword": "ponyplay",
+                "concept_id": "fantasy_roleplay"
+              },
+              {
+                "id": "kw252",
+                "keyword": "rimming",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw274",
+                "keyword": "shrimping",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw301",
+                "keyword": "throating",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw409",
+                "keyword": "muffdiving",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c7.2",
+            "description": "Terms such as: ball licking, ball gag, ball sucking, grope",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw043",
+                "keyword": "ball gag",
+                "concept_id": "restraints"
+              },
+              {
+                "id": "kw046",
+                "keyword": "ball licking",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw048",
+                "keyword": "ball sucking",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw361",
+                "keyword": "grope",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c7.3",
+            "description": "Terms such as: bareback, reverse cowgirl",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw051",
+                "keyword": "bareback",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw250",
+                "keyword": "reverse cowgirl",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c7.4",
+            "description": "Terms such as: fingering, fingerbang, fisting, footjob, booty call",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw077",
+                "keyword": "booty call",
+                "concept_id": "flirting"
+              },
+              {
+                "id": "kw146",
+                "keyword": "fingerbang",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw147",
+                "keyword": "fingering",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw148",
+                "keyword": "fisting",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw150",
+                "keyword": "footjob",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c7.5",
+            "description": "Terms such as: female squirting, male squirting",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw143",
+                "keyword": "female squirting",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw199",
+                "keyword": "male squirting",
+                "concept_id": "sexual_activities"
+              }
+            ]
+          },
+          {
+            "id": "c7.6",
+            "description": "Terms such as: figging, scissoring, undressing, snowballing, tea bagging",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw145",
+                "keyword": "figging",
+                "concept_id": "bdsm"
+              },
+              {
+                "id": "kw259",
+                "keyword": "scissoring",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw280",
+                "keyword": "snowballing",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw299",
+                "keyword": "tea bagging",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw316",
+                "keyword": "undressing",
+                "concept_id": "partial_nudity"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c8",
+        "description": "Terms such as: jiggaboo, jigaboo, bung hole, bunghole, jiggerboo, cornhole, beaners, beaner",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c8.0",
+            "description": "Terms such as: bung hole, bunghole, cornhole, hard core, big black, anilingus, barenaked, 2g1c",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw025",
+                "keyword": "2g1c",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw031",
+                "keyword": "anilingus",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw052",
+                "keyword": "barenaked",
+                "concept_id": "full_nudity"
+              },
+              {
+                "id": "kw083",
+                "keyword": "bung hole",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw084",
+                "keyword": "bunghole",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw104",
+                "keyword": "cornhole",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw175",
+                "keyword": "hard core",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw410",
+                "keyword": "big black",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c8.1",
+            "description": "Terms such as: bangbros, bangbus, nambla",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw049",
+                "keyword": "bangbros",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw050",
+                "keyword": "bangbus",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw377",
+                "keyword": "nambla",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c8.2",
+            "description": "Terms such as: beaner, beaners, bastinado",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw055",
+                "keyword": "bastinado",
+                "concept_id": "bdsm"
+              },
+              {
+                "id": "kw340",
+                "keyword": "beaner",
+                "concept_id": ""
+              },
+              {
+                "id": "kw341",
+                "keyword": "beaners",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c8.3",
+            "description": "Terms such as: ecchi, omorashi, nawashi, shota",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw134",
+                "keyword": "ecchi",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw208",
+                "keyword": "nawashi",
+                "concept_id": "bondage"
+              },
+              {
+                "id": "kw217",
+                "keyword": "omorashi",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw397",
+                "keyword": "shota",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c8.4",
+            "description": "Terms such as: poontang, poon, punany, wetback, nutten, voyuer, goodpoop",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw169",
+                "keyword": "goodpoop",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw234",
+                "keyword": "poon",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw235",
+                "keyword": "poontang",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw236",
+                "keyword": "punany",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw383",
+                "keyword": "nutten",
+                "concept_id": ""
+              },
+              {
+                "id": "kw405",
+                "keyword": "wetback",
+                "concept_id": ""
+              },
+              {
+                "id": "kw414",
+                "keyword": "voyuer",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c8.5",
+            "description": "Terms such as: jiggaboo, jigaboo, jiggerboo, kinbaku, bulldyke, honkey, shibari",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw189",
+                "keyword": "kinbaku",
+                "concept_id": "bondage"
+              },
+              {
+                "id": "kw270",
+                "keyword": "shibari",
+                "concept_id": "bondage"
+              },
+              {
+                "id": "kw344",
+                "keyword": "bulldyke",
+                "concept_id": ""
+              },
+              {
+                "id": "kw363",
+                "keyword": "honkey",
+                "concept_id": ""
+              },
+              {
+                "id": "kw370",
+                "keyword": "jigaboo",
+                "concept_id": ""
+              },
+              {
+                "id": "kw371",
+                "keyword": "jiggaboo",
+                "concept_id": ""
+              },
+              {
+                "id": "kw372",
+                "keyword": "jiggerboo",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c8.6",
+            "description": "Terms such as: spooge, spic, kike",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw285",
+                "keyword": "spooge",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw373",
+                "keyword": "kike",
+                "concept_id": ""
+              },
+              {
+                "id": "kw400",
+                "keyword": "spic",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c9",
+        "description": "Terms such as: jelly donut, dingleberries, beaver lips, dingleberry, baby batter, baby juice, donkey punch, golden shower",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c9.0",
+            "description": "Terms such as: fudge packer, fudgepacker, hot carl, cleveland steamer, alabama hot pocket, one guy one jar",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw028",
+                "keyword": "alabama hot pocket",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw095",
+                "keyword": "cleveland steamer",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw180",
+                "keyword": "hot carl",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw219",
+                "keyword": "one guy one jar",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw358",
+                "keyword": "fudge packer",
+                "concept_id": ""
+              },
+              {
+                "id": "kw359",
+                "keyword": "fudgepacker",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c9.1",
+            "description": "Terms such as: shaved beaver, beaver lips, beaver cleaver, blue waffle, pole smoker, alaskan pipeline",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw029",
+                "keyword": "alaskan pipeline",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw057",
+                "keyword": "beaver cleaver",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw058",
+                "keyword": "beaver lips",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw071",
+                "keyword": "blue waffle",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw268",
+                "keyword": "shaved beaver",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw389",
+                "keyword": "pole smoker",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c9.2",
+            "description": "Terms such as: baby juice, baby batter, ball gravy, twinkie, lemon party",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw041",
+                "keyword": "baby batter",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw042",
+                "keyword": "baby juice",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw044",
+                "keyword": "ball gravy",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw195",
+                "keyword": "lemon party",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw314",
+                "keyword": "twinkie",
+                "concept_id": "other_reference"
+              }
+            ]
+          },
+          {
+            "id": "c9.3",
+            "description": "Terms such as: yellow showers, golden shower, brown showers",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw078",
+                "keyword": "brown showers",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw168",
+                "keyword": "golden shower",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw336",
+                "keyword": "yellow showers",
+                "concept_id": "fetish_kink"
+              }
+            ]
+          },
+          {
+            "id": "c9.4",
+            "description": "Terms such as: dingleberries, dingleberry, jelly donut, donkey punch, chocolate rosebuds",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw092",
+                "keyword": "chocolate rosebuds",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw117",
+                "keyword": "dingleberry",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw118",
+                "keyword": "dingleberries",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw185",
+                "keyword": "jelly donut",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw353",
+                "keyword": "donkey punch",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c9.5",
+            "description": "Terms such as: mound of venus, venus mound, rosy palm, violet wand, wrinkled starfish",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw207",
+                "keyword": "mound of venus",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw253",
+                "keyword": "rosy palm",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw320",
+                "keyword": "venus mound",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw323",
+                "keyword": "violet wand",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw332",
+                "keyword": "wrinkled starfish",
+                "concept_id": "nudity"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c10",
+        "description": "Terms such as: butthole, ass, anal, anus, rectum, fecal, butt, asshole",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c10.0",
+            "description": "Terms such as: anus, ass, butthole, anal, rectum, fecal, butt, asshole",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw030",
+                "keyword": "anal",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw032",
+                "keyword": "anus",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw035",
+                "keyword": "ass",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw036",
+                "keyword": "asshole",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw086",
+                "keyword": "butt",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw088",
+                "keyword": "butthole",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw139",
+                "keyword": "fecal",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw249",
+                "keyword": "rectum",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw257",
+                "keyword": "scat",
+                "concept_id": "fetish_kink"
+              }
+            ]
+          },
+          {
+            "id": "c10.1",
+            "description": "Terms such as: buttcheeks, assmunch, eat my ass",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw037",
+                "keyword": "assmunch",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw087",
+                "keyword": "buttcheeks",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw133",
+                "keyword": "eat my ass",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c10.2",
+            "description": "Terms such as: poop chute, poopchute",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw237",
+                "keyword": "poop chute",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw238",
+                "keyword": "poopchute",
+                "concept_id": "nudity"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c11",
+        "description": "Terms such as: fuck, cunt, bastard, shit, fucktards, shitty, piece of shit, arsehole",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c11.0",
+            "description": "Terms such as: bullshit, apeshit, bollocks",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw033",
+                "keyword": "apeshit",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw073",
+                "keyword": "bollocks",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw082",
+                "keyword": "bullshit",
+                "concept_id": "profanity"
+              }
+            ]
+          },
+          {
+            "id": "c11.1",
+            "description": "Terms such as: cunt, arsehole, bastard, piece of shit, twat, bitch, fucktards",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw034",
+                "keyword": "arsehole",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw053",
+                "keyword": "bastard",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw064",
+                "keyword": "bitch",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw111",
+                "keyword": "cunt",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw227",
+                "keyword": "piece of shit",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw313",
+                "keyword": "twat",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw357",
+                "keyword": "fucktards",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c11.2",
+            "description": "Terms such as: shitty, sucks, suck, shit, poof, clusterfuck",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw099",
+                "keyword": "clusterfuck",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw271",
+                "keyword": "shit",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw273",
+                "keyword": "shitty",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw293",
+                "keyword": "suck",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw294",
+                "keyword": "sucks",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw390",
+                "keyword": "poof",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c11.3",
+            "description": "Terms such as: fuckin, fuck, fucking, motherfucker, god damn",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw152",
+                "keyword": "fuck",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw154",
+                "keyword": "fuckin",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw155",
+                "keyword": "fucking",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw166",
+                "keyword": "god damn",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw206",
+                "keyword": "motherfucker",
+                "concept_id": "profanity"
+              }
+            ]
+          },
+          {
+            "id": "c11.4",
+            "description": "Terms such as: fuck buttons",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw153",
+                "keyword": "fuck buttons",
+                "concept_id": "nudity"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c12",
+        "description": "Terms such as: penis, vagina, genitals, clitoris, vulva, clit, pussy, dildo",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c12.0",
+            "description": "Terms such as: penis, genitals, schlong, dick, pubes, goatse, eunuch, ball sack",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw047",
+                "keyword": "ball sack",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw115",
+                "keyword": "dick",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw138",
+                "keyword": "eunuch",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw160",
+                "keyword": "genitals",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw165",
+                "keyword": "goatse",
+                "concept_id": "shock_reference"
+              },
+              {
+                "id": "kw172",
+                "keyword": "g-spot",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw225",
+                "keyword": "penis",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw243",
+                "keyword": "pubes",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw258",
+                "keyword": "schlong",
+                "concept_id": "nudity"
+              }
+            ]
+          },
+          {
+            "id": "c12.1",
+            "description": "Terms such as: vagina, clitoris, clit, vulva, pussy, camel toe, shaved pussy",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw089",
+                "keyword": "camel toe",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw096",
+                "keyword": "clit",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw097",
+                "keyword": "clitoris",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw244",
+                "keyword": "pussy",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw269",
+                "keyword": "shaved pussy",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw319",
+                "keyword": "vagina",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw326",
+                "keyword": "vulva",
+                "concept_id": "nudity"
+              }
+            ]
+          },
+          {
+            "id": "c12.2",
+            "description": "Terms such as: cialis, viagra",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw093",
+                "keyword": "cialis",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw321",
+                "keyword": "viagra",
+                "concept_id": "other_reference"
+              }
+            ]
+          },
+          {
+            "id": "c12.3",
+            "description": "Terms such as: dildo, vibrator",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw116",
+                "keyword": "dildo",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw322",
+                "keyword": "vibrator",
+                "concept_id": "adult_toy"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c13",
+        "description": "Terms such as: shitblimp, pisspig, piss pig, blumpkin, dendrophilia, thumbzilla, slanteye, towelhead",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c13.0",
+            "description": "Terms such as: shitblimp, blumpkin, dry hump, thumbzilla, 🖕, rusty trombone, bastardo",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw054",
+                "keyword": "bastardo",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw072",
+                "keyword": "blumpkin",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw131",
+                "keyword": "dry hump",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw255",
+                "keyword": "rusty trombone",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw272",
+                "keyword": "shitblimp",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw302",
+                "keyword": "thumbzilla",
+                "concept_id": "brand_reference"
+              },
+              {
+                "id": "kw338",
+                "keyword": "🖕",
+                "concept_id": "profanity"
+              }
+            ]
+          },
+          {
+            "id": "c13.1",
+            "description": "Terms such as: bullet vibe, circlejerk",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw081",
+                "keyword": "bullet vibe",
+                "concept_id": "adult_toy"
+              },
+              {
+                "id": "kw094",
+                "keyword": "circlejerk",
+                "concept_id": "profanity"
+              }
+            ]
+          },
+          {
+            "id": "c13.2",
+            "description": "Terms such as: dendrophilia, coprolagnia, nimphomania, spastic, tribadism",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw102",
+                "keyword": "coprolagnia",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw114",
+                "keyword": "dendrophilia",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw209",
+                "keyword": "nimphomania",
+                "concept_id": "explicit_general"
+              },
+              {
+                "id": "kw309",
+                "keyword": "tribadism",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw399",
+                "keyword": "spastic",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c13.3",
+            "description": "Terms such as: towelhead, raghead, slanteye, dirty pillows",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw119",
+                "keyword": "dirty pillows",
+                "concept_id": "nudity"
+              },
+              {
+                "id": "kw392",
+                "keyword": "raghead",
+                "concept_id": ""
+              },
+              {
+                "id": "kw398",
+                "keyword": "slanteye",
+                "concept_id": ""
+              },
+              {
+                "id": "kw402",
+                "keyword": "towelhead",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c13.4",
+            "description": "Terms such as: pisspig, piss pig, dirty sanchez",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw120",
+                "keyword": "dirty sanchez",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw229",
+                "keyword": "piss pig",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw230",
+                "keyword": "pisspig",
+                "concept_id": "fetish_kink"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c14",
+        "description": "Terms such as: blonde action, brunette action, blonde on blonde action, girls gone wild, girl on top, dp action, rosy palm and her 5 sisters",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "kw066",
+            "keyword": "blonde action",
+            "concept_id": "explicit_general"
+          },
+          {
+            "id": "kw067",
+            "keyword": "blonde on blonde action",
+            "concept_id": "explicit_general"
+          },
+          {
+            "id": "kw079",
+            "keyword": "brunette action",
+            "concept_id": "explicit_general"
+          },
+          {
+            "id": "kw130",
+            "keyword": "dp action",
+            "concept_id": "partnered_activity"
+          },
+          {
+            "id": "kw162",
+            "keyword": "girl on top",
+            "concept_id": "partnered_activity"
+          },
+          {
+            "id": "kw163",
+            "keyword": "girls gone wild",
+            "concept_id": "brand_reference"
+          },
+          {
+            "id": "kw254",
+            "keyword": "rosy palm and her 5 sisters",
+            "concept_id": "self_stimulation"
+          }
+        ]
+      },
+      {
+        "id": "c15",
+        "description": "Terms such as: masturbation, jerk off, blowjob, jack off, blow job, masturbating, masturbate, handjob",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c15.0",
+            "description": "Terms such as: handjob, blow job, blowjob, hand job",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw068",
+                "keyword": "blowjob",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw069",
+                "keyword": "blow job",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw173",
+                "keyword": "hand job",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw174",
+                "keyword": "handjob",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c15.1",
+            "description": "Terms such as: masturbation, ejaculation, masturbating, orgasm, raging boner",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw135",
+                "keyword": "ejaculation",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw201",
+                "keyword": "masturbating",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw202",
+                "keyword": "masturbation",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw220",
+                "keyword": "orgasm",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw248",
+                "keyword": "raging boner",
+                "concept_id": "sexual_activities"
+              }
+            ]
+          },
+          {
+            "id": "c15.2",
+            "description": "Terms such as: jerk off, jack off, masturbate, wank",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw184",
+                "keyword": "jack off",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw186",
+                "keyword": "jerk off",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw200",
+                "keyword": "masturbate",
+                "concept_id": "self_stimulation"
+              },
+              {
+                "id": "kw327",
+                "keyword": "wank",
+                "concept_id": "self_stimulation"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c16",
+        "description": "Terms such as: jizz, cumshot, cum, cumming, spunk, cumshots, semen, creampie",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c16.0",
+            "description": "Terms such as: blow your load",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw070",
+                "keyword": "blow your load",
+                "concept_id": "sexual_activities"
+              }
+            ]
+          },
+          {
+            "id": "c16.1",
+            "description": "Terms such as: cum, jizz, cumshot, cumming, semen, cumshots, spunk, creampie",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw074",
+                "keyword": "boner",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw105",
+                "keyword": "creampie",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw106",
+                "keyword": "cum",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw107",
+                "keyword": "cumming",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw108",
+                "keyword": "cumshot",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw109",
+                "keyword": "cumshots",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw187",
+                "keyword": "jizz",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw260",
+                "keyword": "semen",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw287",
+                "keyword": "spunk",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw360",
+                "keyword": "goregasm",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c16.2",
+            "description": "Terms such as: bukkake, splooge",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw080",
+                "keyword": "bukkake",
+                "concept_id": "sexual_activities"
+              },
+              {
+                "id": "kw283",
+                "keyword": "splooge",
+                "concept_id": "sexual_activities"
+              }
+            ]
+          },
+          {
+            "id": "c16.3",
+            "description": "Terms such as: queef, skeet, yiffy",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw246",
+                "keyword": "queef",
+                "concept_id": "crude_slang"
+              },
+              {
+                "id": "kw275",
+                "keyword": "skeet",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw337",
+                "keyword": "yiffy",
+                "concept_id": "fetish_kink"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c17",
+        "description": "Terms such as: doggie style, doggy style, style doggy, doggiestyle, doggystyle, dog style, carpetmuncher, carpet muncher",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c17.0",
+            "description": "Terms such as: doggie style, doggy style, style doggy, dog style",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw121",
+                "keyword": "doggie style",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw123",
+                "keyword": "doggy style",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw125",
+                "keyword": "dog style",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw292",
+                "keyword": "style doggy",
+                "concept_id": "partnered_activity"
+              }
+            ]
+          },
+          {
+            "id": "c17.1",
+            "description": "Terms such as: doggiestyle, doggystyle, splooge moose, kinkster",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw122",
+                "keyword": "doggiestyle",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw124",
+                "keyword": "doggystyle",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw190",
+                "keyword": "kinkster",
+                "concept_id": "fetish_kink"
+              },
+              {
+                "id": "kw284",
+                "keyword": "splooge moose",
+                "concept_id": "crude_slang"
+              }
+            ]
+          },
+          {
+            "id": "c17.2",
+            "description": "Terms such as: carpet muncher, carpetmuncher, muff diver",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw345",
+                "keyword": "carpet muncher",
+                "concept_id": ""
+              },
+              {
+                "id": "kw346",
+                "keyword": "carpetmuncher",
+                "concept_id": ""
+              },
+              {
+                "id": "kw408",
+                "keyword": "muff diver",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c18",
+        "description": "Terms such as: date rape, raping, rape, jailbait, sodomize, sodomy, gang bang, rapist",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c18.0",
+            "description": "Terms such as: gang bang, suicide girls",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw158",
+                "keyword": "gang bang",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw295",
+                "keyword": "suicide girls",
+                "concept_id": "brand_reference"
+              }
+            ]
+          },
+          {
+            "id": "c18.1",
+            "description": "Terms such as: rape, raping, date rape, sodomy, sodomize, rapist, white power",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw281",
+                "keyword": "sodomize",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw282",
+                "keyword": "sodomy",
+                "concept_id": "partnered_activity"
+              },
+              {
+                "id": "kw350",
+                "keyword": "date rape",
+                "concept_id": ""
+              },
+              {
+                "id": "kw393",
+                "keyword": "rape",
+                "concept_id": ""
+              },
+              {
+                "id": "kw394",
+                "keyword": "raping",
+                "concept_id": ""
+              },
+              {
+                "id": "kw395",
+                "keyword": "rapist",
+                "concept_id": ""
+              },
+              {
+                "id": "kw406",
+                "keyword": "white power",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c18.2",
+            "description": "Terms such as: jailbait, jail bait, daterape, barely legal, tainted love",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw298",
+                "keyword": "tainted love",
+                "concept_id": "other_reference"
+              },
+              {
+                "id": "kw339",
+                "keyword": "barely legal",
+                "concept_id": ""
+              },
+              {
+                "id": "kw351",
+                "keyword": "daterape",
+                "concept_id": ""
+              },
+              {
+                "id": "kw368",
+                "keyword": "jail bait",
+                "concept_id": ""
+              },
+              {
+                "id": "kw369",
+                "keyword": "jailbait",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c18.3",
+            "description": "Terms such as: how to kill, how to murder",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw365",
+                "keyword": "how to kill",
+                "concept_id": ""
+              },
+              {
+                "id": "kw366",
+                "keyword": "how to murder",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c19",
+        "description": "Terms such as: nigger, faggot, nigga, fag, pedophile, paedophile, nig nog, negro",
+        "description_source": "fallback",
+        "children": [
+          {
+            "id": "c19.0",
+            "description": "Terms such as: nigger, nigga, faggot, fag, nig nog, negro, tranny, tosser",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw308",
+                "keyword": "tosser",
+                "concept_id": "profanity"
+              },
+              {
+                "id": "kw355",
+                "keyword": "fag",
+                "concept_id": ""
+              },
+              {
+                "id": "kw356",
+                "keyword": "faggot",
+                "concept_id": ""
+              },
+              {
+                "id": "kw378",
+                "keyword": "negro",
+                "concept_id": ""
+              },
+              {
+                "id": "kw380",
+                "keyword": "nigga",
+                "concept_id": ""
+              },
+              {
+                "id": "kw381",
+                "keyword": "nigger",
+                "concept_id": ""
+              },
+              {
+                "id": "kw382",
+                "keyword": "nig nog",
+                "concept_id": ""
+              },
+              {
+                "id": "kw403",
+                "keyword": "tranny",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c19.1",
+            "description": "Terms such as: neonazi, swastika",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw379",
+                "keyword": "neonazi",
+                "concept_id": ""
+              },
+              {
+                "id": "kw401",
+                "keyword": "swastika",
+                "concept_id": ""
+              }
+            ]
+          },
+          {
+            "id": "c19.2",
+            "description": "Terms such as: pedophile, paedophile, pedobear",
+            "description_source": "fallback",
+            "children": [
+              {
+                "id": "kw384",
+                "keyword": "paedophile",
+                "concept_id": ""
+              },
+              {
+                "id": "kw386",
+                "keyword": "pedobear",
+                "concept_id": ""
+              },
+              {
+                "id": "kw387",
+                "keyword": "pedophile",
+                "concept_id": ""
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

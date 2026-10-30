@@ -22,7 +22,7 @@ cd AI-Agent-KnowledgeBase/ontology-use-case/Jev-RAG-DecisionModel
    python3 -m unittest discover
    ```
 
-2. **Try it offline** with the fake judge, to check that the commands work end to end. Its scores are meaningless:
+2. **Try it offline** with the fake judge, to check that the taxonomy commands work end to end. Its scores are meaningless, and `eval` skips the keyword-tree runs unless a real `trees/keyword_tree.json` exists:
 
    ```
    python3 main.py demo --fake
@@ -58,6 +58,32 @@ cd AI-Agent-KnowledgeBase/ontology-use-case/Jev-RAG-DecisionModel
 7. **Read the results** in `out/report.md`: one row per run, plus per-slice micro-F1. `out/report.json` holds every room's tags, scores and navigation trace. [RESULTS.md](RESULTS.md) records the first live run and what it showed.
 
 8. **Rerun for free.** Repeating the same command is served from `.cache/jev/`, and the last line should show `0 misses`. The reported cost stays nonzero because it is nominal (see [Cache](#cache)). To force fresh calls, delete `.cache/jev/typesafe/`.
+
+9. **Try the auto-built keyword tree** (optional). Build it, then tag a room against it:
+
+   ```
+   python3 main.py build-tree        # needs sentence-transformers + scikit-learn; OPENAI_API_KEY optional
+   python3 main.py tag "bdsm dungeon" --tags bdsm --tree keywords
+   ```
+
+   See [Auto-built keyword tree](#auto-built-keyword-tree). `build-tree --fake` checks only the build wiring offline: it writes `out/keyword_tree.fake.json`, while `tag --tree keywords` and `eval` read `trees/keyword_tree.json`, so `eval --mode all --fake` skips the keyword-tree runs until a real tree is built.
+
+## Auto-built keyword tree
+
+Instead of the hand-written taxonomy, the navigator can walk a tree built automatically from `keywords.csv` (all rows except `review_status == "excluded"`). `build-tree` embeds the keywords, clusters them with k-means (20 top clusters, large ones split again), and writes one description per cluster. Leaves are the keywords, with ids `kw000`, `kw001`, … in `keywords.csv` row order (so odd characters like `s&m` or emoji never become Jev criteria keys); each leaf keeps its `keyword` text and its `concept_id`, the latter only so the evaluator can score the result. The taxonomy is never used to build the tree.
+
+```
+python3 main.py build-tree [--clusters 20] [--leaf-size 5] [--out PATH] [--llm-model gpt-4.1-mini] [--fake]
+python3 main.py tag "bdsm dungeon" --tags bdsm --tree keywords
+python3 main.py eval --mode all
+```
+
+- `build-tree` writes `trees/keyword_tree.json` (`out/keyword_tree.fake.json` with `--fake`). It needs no Jev key. `meta` records the sha256 of `keywords.csv`, the embedding model, the k-means backend (`sklearn.KMeans`, or `fake`) and its `n_init`, the LLM model (`none` if no description came from it), `describer_status` (`ok`, `no_key`, `rejected`, `unavailable`, or `fake`), the describe prompt and the build date. It prints cluster counts, the level-1 cluster sizes, how many descriptions used the fallback, and OpenAI token totals. The e5 model is loaded from the local Hugging Face cache only (`build-tree` sets `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` unless already set), so download it once beforehand.
+- `OPENAI_API_KEY` is optional. With it, an OpenAI model writes each cluster description. Without it, if the key is rejected (401/403), the model is unknown (404) or the quota is used up (429 `insufficient_quota`), the describer stops after the first such answer, the build still completes, and each node's description falls back to `Terms such as: <first 8 keywords>`. A rejected key prints `OpenAI key rejected (401/403): all descriptions are keyword-list fallbacks`.
+- Real builds need extra dependencies, used only by `build-tree`: `sentence-transformers` (model `intfloat/e5-base-v2`), `scikit-learn` and `numpy`. The tests and every other command stay stdlib-only; `--fake` uses offline stand-ins.
+- `tag --tree keywords` prints each keyword with its concept in brackets. If the tree file is missing it exits 2 and tells you to run `build-tree`.
+- `eval --mode all` adds `decisionrag-keyword-tree-navigate` and `decisionrag-keyword-flat` when the tree file exists, and otherwise prints a skip note.
+- If `keywords.csv` changed after the build, `tag` and `eval` warn `keyword tree is stale (keywords.csv changed); run: python main.py build-tree` and carry on.
 
 ## Setup
 
