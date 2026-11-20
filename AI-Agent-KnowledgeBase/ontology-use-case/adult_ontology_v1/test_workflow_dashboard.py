@@ -42,6 +42,42 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(self.session.state(), before)
 
 
+class WorkspaceFeatureTests(unittest.TestCase):
+    """Rule inference and mapping preview operate on session copies, never source files."""
+
+    def setUp(self):
+        self.session = dashboard.DashboardSession()
+
+    def test_inference_reflects_sandbox_changes(self):
+        def facts():
+            return {(i['fact'], i['subject']) for i in self.session.infer()['inferences']}
+        self.assertIn(('NeedsReviewTask', 'room:ambiguous'), facts())
+        self.session.execute('event', 'ambiguous', {'room_id': 'ambiguous'})
+        self.assertNotIn(('NeedsReviewTask', 'room:ambiguous'), facts())
+        self.session.reset()
+        self.assertIn(('NeedsReviewTask', 'room:ambiguous'), facts())
+
+    def test_mapping_preview_is_isolated_until_applied(self):
+        source = (dashboard.EXAMPLES / 'rooms.csv').read_bytes()
+        before = copy.deepcopy(self.session.state())
+        text = 'key,name,labels\nnew,latex and lingerie,[]\nempty,,[]\n'
+        mapping = {'room_id': 'key', 'subject': 'name', 'tags': 'labels'}
+        preview = self.session.map_preview(text, mapping)
+        self.assertEqual(preview['stats']['rooms'], 2)
+        self.assertEqual(preview['headers'], ['key', 'name', 'labels'])
+        self.assertEqual({a['room_id'] for a in preview['alerts']}, {'empty'})
+        self.assertEqual(self.session.state(), before)
+        with self.assertRaises(ValueError):
+            self.session.map_preview('key\nonly\n', mapping, apply=True)
+        self.assertEqual(self.session.state(), before)
+        self.session.map_preview(text, mapping, apply=True)
+        state = self.session.state()
+        self.assertEqual(sorted(n['id'] for n in state['graph']['nodes'] if n['type'] == 'Room'), ['room:empty', 'room:new'])
+        self.assertEqual(state['mapping'], mapping)
+        self.assertEqual(self.session.reset()['graph'], state['graph'])
+        self.assertEqual((dashboard.EXAMPLES / 'rooms.csv').read_bytes(), source)
+
+
 class HTTPTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -89,6 +125,22 @@ class HTTPTests(unittest.TestCase):
         status, content = self.request('/api/reset', {})
         self.assertEqual(status, 200)
         self.assertEqual(len(json.loads(content)['graph']['nodes']), 87)
+
+    def test_infer_and_mapping_routes(self):
+        import json
+        status, content = self.request('/api/infer', {})
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(content)['inferences'])
+        sample = self.session.state()
+        status, content = self.request('/api/mapping', {'csv': sample['csv_text'], 'mapping': sample['mapping']})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(content)['stats']['rooms'], 4)
+        for body in ({'x': 1}, {'csv': 'a', 'mapping': {}}, {'csv': 1, 'mapping': sample['mapping']},
+                     {'csv': sample['csv_text'], 'mapping': sample['mapping'], 'apply': 'yes'}):
+            with self.subTest(body=body):
+                self.assertEqual(self.request('/api/mapping', body)[0], 400)
+        self.assertEqual(self.request('/api/infer', {'x': 1})[0], 400)
+        self.assertEqual(self.session.state(), sample)
 
     def test_invalid_requests_leave_state_intact(self):
         before = self.session.state()

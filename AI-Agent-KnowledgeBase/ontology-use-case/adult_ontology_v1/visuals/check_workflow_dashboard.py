@@ -29,7 +29,17 @@ def check(url, executable):
         expect(page.locator('#inspector')).to_contain_text('sexy latex')
         page.screenshot(path=str(out / 'dashboard-inference-evidence.png'))
 
+        page.get_by_role('button', name='Run inference', exact=True).click()
+        expect(page.locator('#inspector')).to_contain_text('No contradictions')
+        page.locator('[data-rule="material_interest"]').click()
+        expect(page.locator('#inspector .derivation')).to_have_count(2)
+        expect(page.locator('.graph-node.accent')).to_have_count(2)
+        page.get_by_role('button', name='Clear inference', exact=True).click()
+
         page.get_by_role('tab', name='1 Build').click()
+        expect(page.locator('.graph-node[data-node-id="type:Room"]')).to_have_count(1)
+        page.locator('[data-type="Concept"]').click()
+        expect(page.locator('#inspector')).to_contain_text('83 instances')
         page.get_by_label('Search concepts').fill('latex')
         expect(page.locator('#concept-list .choice')).to_have_count(1)
         page.locator('#concept-list .choice').click()
@@ -47,6 +57,12 @@ def check(url, executable):
         page.locator('.graph-node[data-node-id="source:subject"]').press('Enter')
         expect(page.locator('#inspector')).to_contain_text('Source field')
         expect(page.locator('.graph-node.selected')).to_have_attribute('data-node-id', 'source:subject')
+        page.locator('summary').click()
+        page.locator('#csv-editor').fill('id,title,tags,declared\nfresh,latex party,[],[]\n')
+        page.get_by_role('button', name='Preview mapping', exact=True).click()
+        expect(page.locator('#inspector')).to_contain_text('Mapping preview')
+        expect(page.locator('.graph-node.accent')).to_have_count(1)
+        assert page.locator('.graph-node[data-node-id="room:clear"]').count() == 0, 'preview must not show workspace rooms'
 
         page.get_by_role('tab', name='3 Query').click()
         page.get_by_label('Operation', exact=True).select_option('search')
@@ -57,7 +73,11 @@ def check(url, executable):
         page.get_by_role('button', name='Load path example').click()
         page.get_by_role('button', name='Run query', exact=True).click()
         expect(page.locator('#inspector')).to_contain_text('1 result')
-        expect(page.locator('.graph-node')).to_have_count(4)
+        expect(page.locator('.graph-node:not(.dim)')).to_have_count(4)
+        page.get_by_role('button', name='Load pattern example').click()
+        page.get_by_role('button', name='Run query', exact=True).click()
+        expect(page.locator('#inspector')).to_contain_text('4 results')
+        expect(page.locator('#inspector')).to_contain_text('p = Roleplay')
         page.get_by_label('Operation', exact=True).select_option('bfs')
         page.get_by_label('Starting node ID').fill('room:ambiguous')
         page.get_by_label('Maximum hops').fill('1')
@@ -86,7 +106,8 @@ def check(url, executable):
         held[0][0].fulfill(response=held[0][1])
         page.unroute('**/api/behavior', hold_behavior)
         expect(page.locator('#inspector')).to_contain_text('review:ambiguous:context')
-        expect(page.locator('.graph-node[data-node-id="review:ambiguous:context"]')).to_have_count(1)
+        expect(page.locator('.graph-node.accent[data-node-id="review:ambiguous:context"]')).to_have_count(1)
+        expect(page.locator('#inspector .console')).to_contain_text('create_review_task')
         page.screenshot(path=str(out / 'dashboard-sandbox.png'))
         page.get_by_role('button', name='Run event', exact=True).click()
         expect(page.locator('#inspector')).to_contain_text('No duplicate was created')
@@ -119,7 +140,7 @@ def check(url, executable):
         phone.screenshot(path=str(out / 'dashboard-phone.png'))
         assert not errors, errors
         browser.close()
-    print('PASS: six tabs, graph selection, mapping, search/paths/BFS, behavior flow, real sandbox event/idempotency/function/reset; desktop and phone.')
+    print('PASS: six tabs, schema, rule inference, mapping preview, search/paths/BFS/patterns, behavior flow, sandbox event/idempotency/function/reset/log; desktop and phone.')
 
 
 if __name__ == '__main__':

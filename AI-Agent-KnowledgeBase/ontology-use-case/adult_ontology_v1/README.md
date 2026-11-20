@@ -388,12 +388,12 @@ direct assignments, inferred ancestors and the context-review flag populated.
 
 | Tab | What to try |
 | --- | --- |
-| Build | Search `latex`, select its branch, inspect properties and vocabulary; show all concepts |
-| Map | Select a source room; follow CSV-column arrows to its mapped properties |
-| Query | Search entities, explore neighbors/N hops, or load the shortest-path example |
-| Infer | Select a solid direct edge or dashed inferred edge to inspect evidence and ancestor paths |
-| Behaviors | Select an action, function or event to inspect its parameter/operation flow |
-| Sandbox | Run `ambiguous` on room `ambiguous`; inspect the green review task and execution trace |
+| Build | **Schema** view: entity types (CSV record → Room → Concept / ReviewTask) with property types, required flags and relationship counts. **Taxonomy** view: search `latex`, inspect its branch and vocabulary; show all concepts |
+| Map | **Record → Room** shows one record's column arrows. Open *Configure column mapping*, change the column for each room property or edit the CSV text; the preview runs live and shows node/relationship/type counts and quality alerts. **Apply to workspace** uses the edited rooms in Query, Infer and Sandbox; **Restore sample** returns to `rooms.csv` |
+| Query | The **full graph** fades everything that is not in the result. Click any node to expand its neighbors. Search, N-hop, shortest path and a Cypher-like **pattern query**, e.g. `MATCH (r:Room)-[:ASSIGNED_TO]->(c)-[:IS_A]->(p) WHERE r.room_id = 'clear' RETURN r, p` |
+| Infer | **Room evidence**: select a solid direct or dashed inferred edge to read its evidence. **Run inference** evaluates the rules in `workflow_examples/rules.json` on the current sandbox graph, rings subjects in orange, shows each derivation step with its variable bindings and checks the declared contradictions |
+| Behaviors | Action/function/event counts, parameter chips and step chains, entity types the behaviors touch, and the operation flow of the selected behavior |
+| Sandbox | Choose Action / Function / Event, fill in the payload and run it. New or changed nodes are ringed in orange on the live graph and each run is added to the execution log. Running `ambiguous` clears the “Flagged room has no review task” inference |
 
 Select graph nodes and edges with the mouse or keyboard (Enter/Space). Use Fit
 graph, zoom controls, scroll-to-zoom and drag-to-pan. The inspector shows readable
@@ -405,7 +405,9 @@ repeated review events reuse pending tasks, functions do not mutate the graph,
 and Reset sandbox restores the original classified graph. All tabs share this
 session. Multiple browser windows on the same server share the same sandbox;
 restart the process for a fresh session. Source CSV, taxonomy and registry files
-are never written. This is a browsing/execution dashboard, not an ontology editor.
+are never written; an applied mapping lives only in this session. Rules use a small
+conjunctive form (`Type(?x)`, a relationship with `HAS_CONCEPT` = direct or inferred,
+a property test, `not`). This dashboard does not edit or save the ontology itself.
 
 The server binds only to `127.0.0.1`, serves the dashboard and bounded JSON APIs,
 and requires no third-party packages, model calls or remote assets. Keep the

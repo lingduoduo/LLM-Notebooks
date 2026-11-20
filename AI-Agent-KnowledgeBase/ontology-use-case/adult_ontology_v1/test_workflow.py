@@ -222,3 +222,69 @@ class SandboxTests(RoomFixtures, unittest.TestCase):
         for params in ({}, {'room_id': 'a', 'extra': 1}, {'room_id': 3}):
             with self.subTest(params=params), self.assertRaises(ValueError):
                 self.run_behavior('action', 'classify', params=params)
+
+
+class RuleAndPatternTests(RoomFixtures, unittest.TestCase):
+    """Rule inference and pattern queries run on the real taxonomy plus mapped rooms."""
+
+    def setUp(self):
+        super().setUp()
+        records = [{'room_id': 'kink', 'subject': 'latex show', 'tags': '[]', 'self_declared_concepts': '[]'},
+                   {'room_id': 'calm', 'subject': 'Coffee and books', 'tags': '[]', 'self_declared_concepts': '[]'}]
+        classifier = utils.RoomClassifier(utils.load_taxonomy(), utils.load()[1])
+        self.inferred, _ = workflow.infer_graph(self.rooms(records), classifier)
+        self.rules = json.loads((workflow.utils.ROOT / 'workflow_examples' / 'rules.json').read_text(encoding='utf-8'))
+
+    def test_rules_bind_variables_and_report_steps(self):
+        result = workflow.run_rules(self.inferred, self.rules)
+        facts = {(i['fact'], i['subject']) for i in result['inferences']}
+        self.assertIn(('AdultContent', 'room:kink'), facts)
+        self.assertIn(('MaterialInterest', 'room:kink'), facts)
+        self.assertIn(('GeneralAudience', 'room:calm'), facts)
+        self.assertNotIn(('GeneralAudience', 'room:kink'), facts)
+        material = next(i for i in result['inferences'] if i['fact'] == 'MaterialInterest')
+        self.assertEqual(material['bindings'], {'?r': 'room:kink', '?c': 'concept:latex'})
+        self.assertEqual(len(material['steps']), 3)
+        self.assertEqual(result['contradictions'], [])
+
+    def test_rules_detect_declared_contradictions_without_mutating(self):
+        rules = copy.deepcopy(self.rules)
+        rules['rules']['everyone_general'] = {'label': 'All general', 'premises': [{'type': 'Room', 'var': '?r'}],
+                                              'conclusion': {'fact': 'GeneralAudience', 'subject': '?r'}}
+        before = copy.deepcopy(self.inferred)
+        result = workflow.run_rules(self.inferred, rules)
+        self.assertEqual(result['contradictions'], [{'subject': 'room:kink', 'facts': ['AdultContent', 'GeneralAudience']}])
+        self.assertEqual(self.inferred, before)
+
+    def test_rule_validation_rejects_unbound_or_unknown_terms(self):
+        for broken in (
+            {'label': 'x', 'premises': [{'property': 'axis', 'of': '?c', 'equals': 'content'}], 'conclusion': {'fact': 'X', 'subject': '?c'}},
+            {'label': 'x', 'premises': [{'type': 'Room', 'var': '?r'}], 'conclusion': {'fact': 'X', 'subject': '?z'}},
+            {'label': 'x', 'premises': [{'relation': 'LIKES', 'source': '?r', 'target': '?c'}], 'conclusion': {'fact': 'X', 'subject': '?r'}},
+            {'label': 'x', 'premises': [{'not': {'not': {'type': 'Room', 'var': '?r'}}}], 'conclusion': {'fact': 'X', 'subject': '?r'}},
+        ):
+            with self.subTest(broken=broken), self.assertRaises(ValueError):
+                workflow.validate_rules({'version': 1, 'rules': {'bad': broken}, 'contradictions': []})
+
+    def test_pattern_query_matches_chains_and_conditions(self):
+        result = workflow.query_graph(self.inferred, 'pattern', text=(
+            "MATCH (r:Room)-[:ASSIGNED_TO]->(c)-[:IS_A]->(p) WHERE r.room_id = 'kink' RETURN r, p"))
+        self.assertEqual([item['path'] for item in result], [['room:kink', 'concept:latex', 'concept:material_interest']])
+        self.assertEqual(result[0]['bindings'], {'r': 'room:kink', 'p': 'concept:material_interest'})
+        contains = workflow.query_graph(self.inferred, 'pattern', text='MATCH (c:Concept) WHERE c.label CONTAINS "nudity" RETURN c')
+        self.assertTrue(contains and all('nudity' in i['node']['properties']['label'].lower() for i in contains))
+
+    def test_pattern_query_rejects_invalid_syntax(self):
+        for text in ('MATCH (r:Room) RETURN x', 'MATCH (r:Nope) RETURN r', 'MATCH (r)-[:LIKES]->(c) RETURN r',
+                     'SELECT * FROM rooms', 'MATCH (r:Room) WHERE r.room_id > 3 RETURN r'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                workflow.query_graph(self.inferred, 'pattern', text=text)
+
+    def test_mapping_from_text_matches_file_mapping(self):
+        text = 'room_id,subject,tags,self_declared_concepts\nkink,latex show,[],[]\n'
+        mapping = {key: key for key in ('room_id', 'subject', 'tags', 'self_declared_concepts')}
+        mapped = workflow.map_rooms_text(self.graph, text, mapping)
+        self.assertEqual(mapped, self.rooms([{'room_id': 'kink', 'subject': 'latex show', 'tags': '[]', 'self_declared_concepts': '[]'}]))
+        self.assertEqual(workflow.csv_headers(text), list(mapping))
+        with self.assertRaises(ValueError):
+            workflow.map_rooms_text(self.graph, 'id,title\na,b\n', mapping)

@@ -2,8 +2,10 @@
 from collections import deque
 from copy import deepcopy
 import csv
+import io
 import json
 from pathlib import Path
+import re
 
 import utils
 
@@ -97,6 +99,24 @@ def build_graph(taxonomy: dict) -> dict:
 
 
 def map_rooms(graph: dict, csv_path: Path, mapping: dict) -> dict:
+    with Path(csv_path).open(newline='', encoding='utf-8-sig') as stream:
+        return _map_stream(graph, stream, mapping)
+
+
+def map_rooms_text(graph: dict, text: str, mapping: dict) -> dict:
+    """Map CSV supplied as text (an edited preview); never touches files."""
+    if not isinstance(text, str):
+        raise ValueError('CSV must be text')
+    return _map_stream(graph, io.StringIO(text.lstrip('\ufeff'), newline=''), mapping)
+
+
+def csv_headers(text: str) -> list:
+    if not isinstance(text, str):
+        raise ValueError('CSV must be text')
+    return next(csv.reader(io.StringIO(text.lstrip('\ufeff'), newline='')), [])
+
+
+def _map_stream(graph: dict, stream, mapping: dict) -> dict:
     validate_graph(graph)
     required = {'room_id', 'subject', 'tags'}
     allowed = required | {'self_declared_concepts'}
@@ -105,23 +125,22 @@ def map_rooms(graph: dict, csv_path: Path, mapping: dict) -> dict:
             or len(set(mapping.values())) != len(mapping)):
         raise ValueError('mapping needs distinct source columns for room_id, subject and tags')
     result = deepcopy(graph)
-    with Path(csv_path).open(newline='', encoding='utf-8-sig') as stream:
-        reader = csv.DictReader(stream)
-        if not reader.fieldnames or not set(mapping.values()) <= set(reader.fieldnames):
-            raise ValueError('CSV is missing mapped headers')
-        if len(set(reader.fieldnames)) != len(reader.fieldnames):
-            raise ValueError('CSV has duplicate headers')
-        for number, row in enumerate(reader, 2):
-            if None in row or any(row[column] is None for column in mapping.values()):
-                raise ValueError(f'CSV row {number} has an unexpected number of fields')
-            props = {field: row[column] for field, column in mapping.items()}
-            for field in ('tags', 'self_declared_concepts'):
-                raw = props.get(field, '')
-                try:
-                    props[field] = string_array(json.loads(raw or '[]'), field)
-                except (ValueError, TypeError) as error:
-                    raise ValueError(f'CSV row {number}: invalid {field}: {error}') from error
-            result['nodes'].append({'id': 'room:' + props['room_id'], 'type': 'Room', 'properties': props})
+    reader = csv.DictReader(stream)
+    if not reader.fieldnames or not set(mapping.values()) <= set(reader.fieldnames):
+        raise ValueError('CSV is missing mapped headers')
+    if len(set(reader.fieldnames)) != len(reader.fieldnames):
+        raise ValueError('CSV has duplicate headers')
+    for number, row in enumerate(reader, 2):
+        if None in row or any(row[column] is None for column in mapping.values()):
+            raise ValueError(f'CSV row {number} has an unexpected number of fields')
+        props = {field: row[column] for field, column in mapping.items()}
+        for field in ('tags', 'self_declared_concepts'):
+            raw = props.get(field, '')
+            try:
+                props[field] = string_array(json.loads(raw or '[]'), field)
+            except (ValueError, TypeError) as error:
+                raise ValueError(f'CSV row {number}: invalid {field}: {error}') from error
+        result['nodes'].append({'id': 'room:' + props['room_id'], 'type': 'Room', 'properties': props})
     validate_graph(result)
     return result
 
@@ -139,6 +158,8 @@ def query_graph(graph: dict, operation: str, **params) -> list:
             raise ValueError('search text must be a string')
         return deepcopy([node for node in nodes.values()
                          if text.casefold() in json.dumps(node, ensure_ascii=False).casefold()])
+    if operation == 'pattern':
+        return deepcopy(_pattern_query(graph, nodes, params.get('text')))
     if operation not in ('neighbors', 'bfs', 'path'):
         raise ValueError('unknown query operation')
     start, target = params.get('node'), params.get('target')
@@ -171,6 +192,242 @@ def query_graph(graph: dict, operation: str, **params) -> list:
                 seen.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
     return deepcopy(result)
+
+
+_NODE = re.compile(r'\(\s*([A-Za-z_]\w*)\s*(?::\s*([A-Za-z]\w*))?\s*\)')
+_REL = re.compile(r'\s*-\[\s*(?::\s*([A-Z_]+))?\s*\]->\s*|\s*-->\s*')
+_COND = re.compile(r'([A-Za-z_]\w*)\.(\w+)\s*(=|CONTAINS)\s*(\'[^\']*\'|"[^"]*"|true|false|-?\d+)', re.I)
+PATTERN_LIMIT = 200
+
+
+def parse_pattern(text: str) -> dict:
+    """Parse a small Cypher-like subset: MATCH (a:Type)-[:REL]->(b) [WHERE a.x = 'v' AND ...] RETURN a, b."""
+    if not isinstance(text, str) or len(text) > 1000:
+        raise ValueError('pattern must be text of at most 1000 characters')
+    match = re.fullmatch(r'\s*MATCH\s+(.+?)(?:\s+WHERE\s+(.+?))?\s+RETURN\s+(.+?)\s*;?\s*', text, re.I | re.S)
+    if not match:
+        raise ValueError('use MATCH (a:Type)-[:REL]->(b) [WHERE a.prop = "value"] RETURN a, b')
+    chain, where, returns = match.groups()
+    position, nodes, relations = 0, [], []
+    while True:
+        node = _NODE.match(chain, position)
+        if not node:
+            raise ValueError(f'expected a node pattern like (a:Room) at: {chain[position:position + 20]!r}')
+        nodes.append({'var': node.group(1), 'type': node.group(2)})
+        position = node.end()
+        if position == len(chain.rstrip()):
+            break
+        relation = _REL.match(chain, position)
+        if not relation:
+            raise ValueError(f'expected -[:RELATION]-> at: {chain[position:position + 20]!r}')
+        if relation.group(1) is not None and relation.group(1) not in RELATIONS:
+            raise ValueError(f'unknown relationship: {relation.group(1)}')
+        relations.append(relation.group(1))
+        position = relation.end()
+    if len(nodes) > 4:
+        raise ValueError('patterns support at most three relationship hops')
+    variables = [n['var'] for n in nodes]
+    if len(set(variables)) != len(variables):
+        raise ValueError('each node variable may appear once')
+    for n in nodes:
+        if n['type'] is not None and n['type'] not in SCHEMA:
+            raise ValueError(f'unknown node type: {n["type"]}')
+    conditions = []
+    for part in re.split(r'\s+AND\s+', where or '', flags=re.I) if where else []:
+        condition = _COND.fullmatch(part.strip())
+        if not condition or condition.group(1) not in variables:
+            raise ValueError(f'unsupported condition: {part.strip()}')
+        var, prop, op, raw = condition.groups()
+        value = raw[1:-1] if raw[0] in '\'"' else {'true': True, 'false': False}.get(raw.lower(), raw)
+        if isinstance(value, str) and raw[0] not in '\'"':
+            value = int(value)
+        conditions.append({'var': var, 'property': prop, 'op': op.upper(), 'value': value})
+    returned = [v.strip() for v in returns.split(',')]
+    if not returned or any(v not in variables for v in returned):
+        raise ValueError('RETURN must list variables from the MATCH pattern')
+    return {'nodes': nodes, 'relations': relations, 'conditions': conditions, 'returns': returned}
+
+
+def _pattern_query(graph, nodes, text):
+    plan = parse_pattern(text)
+    outgoing = {}
+    for edge in graph['edges']:
+        outgoing.setdefault(edge['source'], []).append(edge)
+
+    def accepts(spec, node):
+        if spec['type'] is not None and node['type'] != spec['type']:
+            return False
+        for c in plan['conditions']:
+            if c['var'] == spec['var']:
+                actual = node['properties'].get(c['property'], node.get(c['property']))
+                if c['op'] == '=' and actual != c['value']:
+                    return False
+                if c['op'] == 'CONTAINS' and str(c['value']).casefold() not in json.dumps(actual, ensure_ascii=False).casefold():
+                    return False
+        return True
+
+    results = []
+    def extend(path):
+        if len(results) >= PATTERN_LIMIT:
+            return
+        if len(path) == len(plan['nodes']):
+            binding = dict(zip([n['var'] for n in plan['nodes']], path))
+            first = plan['returns'][0]
+            results.append({'node': nodes[binding[first]], 'path': path,
+                            'bindings': {v: binding[v] for v in plan['returns']}})
+            return
+        relation, spec = plan['relations'][len(path) - 1], plan['nodes'][len(path)]
+        for edge in outgoing.get(path[-1], []):
+            if (relation is None or edge['type'] == relation) and edge['target'] not in path \
+                    and accepts(spec, nodes[edge['target']]):
+                extend(path + [edge['target']])
+
+    for node in nodes.values():
+        if accepts(plan['nodes'][0], node):
+            extend([node['id']])
+    return results
+
+
+RULE_RELATIONS = set(RELATIONS) | {'HAS_CONCEPT'}
+
+
+def _premise_vars(premise):
+    if 'not' in premise:
+        return set()
+    terms = [premise.get('var'), premise.get('source'), premise.get('target'), premise.get('of')]
+    return {t for t in terms if isinstance(t, str) and t.startswith('?')}
+
+
+def _validate_premise(premise, bound, negated=False):
+    if not isinstance(premise, dict):
+        raise ValueError('rule premise must be an object')
+    if set(premise) == {'not'}:
+        if negated:
+            raise ValueError('nested negation is not supported')
+        _validate_premise(premise['not'], bound, True)
+        return
+    def term(value):
+        if not isinstance(value, str) or not value or (value.startswith('?') and len(value) < 2):
+            raise ValueError('rule terms must be variables (?x) or node IDs')
+    if set(premise) == {'type', 'var'}:
+        term(premise['var'])
+        if premise['type'] not in SCHEMA:
+            raise ValueError(f'unknown rule node type: {premise["type"]}')
+    elif set(premise) == {'relation', 'source', 'target'}:
+        term(premise['source'])
+        term(premise['target'])
+        if premise['relation'] not in RULE_RELATIONS:
+            raise ValueError(f'unknown rule relationship: {premise["relation"]}')
+    elif set(premise) == {'property', 'of', 'equals'}:
+        term(premise['of'])
+        if not isinstance(premise['property'], str) or premise['of'] not in bound:
+            raise ValueError('property premises need a variable bound by an earlier premise')
+        if not isinstance(premise['equals'], (str, bool, int)):
+            raise ValueError('property values must be strings, numbers or booleans')
+    else:
+        raise ValueError('unsupported rule premise')
+
+
+def validate_rules(definitions: dict) -> None:
+    if (not isinstance(definitions, dict) or definitions.get('version') != 1
+            or set(definitions) != {'version', 'rules', 'contradictions'}):
+        raise ValueError('rule registry needs version 1, rules and contradictions')
+    facts = set()
+    if not isinstance(definitions['rules'], dict) or not definitions['rules']:
+        raise ValueError('rules must be a nonempty object')
+    for name, rule in definitions['rules'].items():
+        if (not isinstance(rule, dict) or set(rule) != {'label', 'premises', 'conclusion'}
+                or not isinstance(rule['label'], str) or not isinstance(rule['premises'], list) or not rule['premises']):
+            raise ValueError(f'rule {name} needs label, premises and conclusion')
+        bound = set()
+        for premise in rule['premises']:
+            _validate_premise(premise, bound)
+            bound |= _premise_vars(premise)
+        conclusion = rule['conclusion']
+        if (not isinstance(conclusion, dict) or set(conclusion) != {'fact', 'subject'}
+                or not isinstance(conclusion['fact'], str) or not re.fullmatch(r'[A-Z]\w*', conclusion['fact'])
+                or conclusion['subject'] not in bound):
+            raise ValueError(f'rule {name} conclusion needs a Fact name and a bound subject')
+        facts.add(conclusion['fact'])
+    pairs = definitions['contradictions']
+    if not isinstance(pairs, list) or any(not isinstance(p, list) or len(p) != 2 or not set(p) <= facts for p in pairs):
+        raise ValueError('contradictions must be pairs of concluded facts')
+
+
+def describe_premise(premise):
+    if 'not' in premise:
+        return '¬' + describe_premise(premise['not'])
+    if 'type' in premise:
+        return f'{premise["type"]}({premise["var"]})'
+    if 'relation' in premise:
+        return f'{premise["relation"]}({premise["source"]}, {premise["target"]})'
+    return f'{premise["property"]}({premise["of"]}) = {json.dumps(premise["equals"], ensure_ascii=False)}'
+
+
+def describe_rule(rule):
+    conclusion = rule['conclusion']
+    return ' ∧ '.join(describe_premise(p) for p in rule['premises']) + f' → {conclusion["fact"]}({conclusion["subject"]})'
+
+
+def run_rules(graph: dict, definitions: dict) -> dict:
+    """Forward-chain one pass of conjunctive rules over the graph; never mutates it."""
+    validate_graph(graph)
+    validate_rules(definitions)
+    nodes = {n['id']: n for n in graph['nodes']}
+    edges = [(e['source'], e['type'], e['target']) for e in graph['edges']]
+    edges += [(s, 'HAS_CONCEPT', t) for s, kind, t in edges if kind in ('ASSIGNED_TO', 'INFERRED_AS')]
+
+    def resolve(term, binding):
+        return binding.get(term) if term.startswith('?') else term
+
+    def match(premise, binding):
+        if 'not' in premise:
+            if not any(True for _ in match(premise['not'], binding)):
+                yield binding, 'no match'
+            return
+        if 'type' in premise:
+            value = resolve(premise['var'], binding)
+            for node in ([nodes[value]] if value in nodes else [] if value else nodes.values()):
+                if node['type'] == premise['type']:
+                    yield {**binding, premise['var']: node['id']}, f'{premise["type"]}({node["id"]})'
+            return
+        if 'relation' in premise:
+            source, target = resolve(premise['source'], binding), resolve(premise['target'], binding)
+            for s, kind, t in edges:
+                if kind == premise['relation'] and source in (None, s) and target in (None, t):
+                    extra = {k: v for k, v in ((premise['source'], s), (premise['target'], t)) if k.startswith('?')}
+                    yield {**binding, **extra}, f'{kind}({s}, {t})'
+            return
+        node = nodes.get(resolve(premise['of'], binding))
+        if node is not None and node['properties'].get(premise['property']) == premise['equals']:
+            yield binding, f'{premise["property"]}({node["id"]}) = {json.dumps(premise["equals"], ensure_ascii=False)}'
+
+    def solve(premises, binding, steps):
+        if not premises:
+            yield binding, steps
+            return
+        for extended, fact in match(premises[0], binding):
+            yield from solve(premises[1:], extended,
+                             steps + [{'premise': describe_premise(premises[0]), 'matched': fact}])
+
+    inferences, seen = [], set()
+    for name, rule in definitions['rules'].items():
+        for binding, steps in solve(rule['premises'], {}, []):
+            subject = binding[rule['conclusion']['subject']]
+            if (name, subject) in seen:
+                continue
+            seen.add((name, subject))
+            inferences.append({'rule': name, 'label': rule['label'], 'fact': rule['conclusion']['fact'],
+                               'subject': subject, 'bindings': binding, 'steps': steps})
+    by_subject = {}
+    for item in inferences:
+        by_subject.setdefault(item['subject'], set()).add(item['fact'])
+    contradictions = [{'subject': subject, 'facts': list(pair)}
+                      for subject, facts in sorted(by_subject.items())
+                      for pair in definitions['contradictions'] if set(pair) <= facts]
+    rules = [{'name': name, 'label': rule['label'], 'text': describe_rule(rule)}
+             for name, rule in definitions['rules'].items()]
+    return deepcopy({'rules': rules, 'inferences': inferences, 'contradictions': contradictions})
 
 
 def _classify_node(graph, room, classifier):
