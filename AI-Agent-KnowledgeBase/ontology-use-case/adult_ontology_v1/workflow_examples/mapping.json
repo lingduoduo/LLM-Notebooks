@@ -1,0 +1,6 @@
+{
+  "room_id": "id",
+  "subject": "title",
+  "tags": "tags",
+  "self_declared_concepts": "declared"
+}

@@ -8,6 +8,8 @@
   python main.py review ...     apply the mapping-review workbook
   python main.py explorer       write the offline taxonomy explorer page
   python main.py chart          draw the keyword-coverage semicircle chart
+  python main.py workflow demo  run the six-stage offline ontology workflow
+  python main.py workflow dashboard  open the interactive graph workspace
 
 Run "python main.py COMMAND --help" for options.
 """
@@ -302,6 +304,9 @@ def parser():
     h = sub.add_parser("chart", help="draw the keyword-coverage semicircle chart")
     h.add_argument("--output", default="taxonomy_semicircle")
     h.set_defaults(func=cmd_chart)
+    import workflow_cli
+
+    workflow_cli.add_parser(sub)
     return p
 
 
