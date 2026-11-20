@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "rules": {
+    "explicit_room": {
+      "label": "Adult-content room",
+      "premises": [
+        {"type": "Room", "var": "?r"},
+        {"relation": "HAS_CONCEPT", "source": "?r", "target": "concept:adult_content"}
+      ],
+      "conclusion": {"fact": "AdultContent", "subject": "?r"}
+    },
+    "general_audience": {
+      "label": "General-audience room",
+      "premises": [
+        {"type": "Room", "var": "?r"},
+        {"not": {"relation": "HAS_CONCEPT", "source": "?r", "target": "concept:adult_content"}}
+      ],
+      "conclusion": {"fact": "GeneralAudience", "subject": "?r"}
+    },
+    "review_missing": {
+      "label": "Flagged room has no review task",
+      "premises": [
+        {"type": "Room", "var": "?r"},
+        {"property": "requires_context_review", "of": "?r", "equals": true},
+        {"not": {"relation": "HAS_REVIEW", "source": "?r", "target": "?t"}}
+      ],
+      "conclusion": {"fact": "NeedsReviewTask", "subject": "?r"}
+    },
+    "material_interest": {
+      "label": "Material-interest kink",
+      "premises": [
+        {"type": "Room", "var": "?r"},
+        {"relation": "ASSIGNED_TO", "source": "?r", "target": "?c"},
+        {"relation": "IS_A", "source": "?c", "target": "concept:material_interest"}
+      ],
+      "conclusion": {"fact": "MaterialInterest", "subject": "?r"}
+    },
+    "self_described": {
+      "label": "Self-described identity",
+      "premises": [
+        {"type": "Room", "var": "?r"},
+        {"relation": "ASSIGNED_TO", "source": "?r", "target": "?c"},
+        {"property": "category_id", "of": "?c", "equals": "IDENTITY"}
+      ],
+      "conclusion": {"fact": "SelfDescribed", "subject": "?r"}
+    },
+    "context_only_general": {
+      "label": "Flagged room without adult concepts",
+      "premises": [
+        {"type": "Room", "var": "?r"},
+        {"property": "requires_context_review", "of": "?r", "equals": true},
+        {"not": {"relation": "HAS_CONCEPT", "source": "?r", "target": "concept:adult_content"}}
+      ],
+      "conclusion": {"fact": "ReviewWithoutAdultSignal", "subject": "?r"}
+    }
+  },
+  "contradictions": [["AdultContent", "GeneralAudience"]]
+}

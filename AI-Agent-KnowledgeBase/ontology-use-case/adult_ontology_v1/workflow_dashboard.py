@@ -20,6 +20,11 @@ class DashboardSession:
         self.mapping = json.loads((EXAMPLES / 'mapping.json').read_text(encoding='utf-8'))
         self.behaviors = json.loads((EXAMPLES / 'behaviors.json').read_text(encoding='utf-8'))
         workflow.validate_behaviors(self.behaviors)
+        self.rules = json.loads((EXAMPLES / 'rules.json').read_text(encoding='utf-8'))
+        workflow.validate_rules(self.rules)
+        self.sample_csv = (EXAMPLES / 'rooms.csv').read_text(encoding='utf-8-sig')
+        self.sample_mapping = deepcopy(self.mapping)
+        self.csv_text = self.sample_csv
         self.mapped = workflow.map_rooms(workflow.build_graph(self.taxonomy), EXAMPLES / 'rooms.csv', self.mapping)
         self.initial, trace = workflow.infer_graph(self.mapped, self.classifier)
         self.classifications = {entry['result']['room_id']: entry['result'] for entry in trace}
@@ -32,7 +37,46 @@ class DashboardSession:
                              'mapping': self.mapping, 'mapped': self.mapped,
                              'graph': self.graph, 'initial_graph': self.initial,
                              'classifications': self.classifications,
-                             'behaviors': self.behaviors, 'last_execution': self.last_execution})
+                             'behaviors': self.behaviors, 'last_execution': self.last_execution,
+                             'rules': [{'name': name, 'label': rule['label'], 'text': workflow.describe_rule(rule)}
+                                       for name, rule in self.rules['rules'].items()],
+                             'contradiction_pairs': self.rules['contradictions'],
+                             'csv_text': self.csv_text, 'sample_csv': self.sample_csv,
+                             'sample_mapping': self.sample_mapping,
+                             'schema': {'types': {kind: sorted(spec['required']) for kind, spec in workflow.SCHEMA.items()},
+                                        'relations': {name: list(ends) for name, ends in workflow.RELATIONS.items()}}})
+
+    def infer(self) -> dict:
+        """Evaluate the rule registry against the current sandbox graph (read-only)."""
+        with self.lock:
+            return workflow.run_rules(self.graph, self.rules)
+
+    def map_preview(self, csv_text: str, mapping: dict, apply: bool = False) -> dict:
+        """Map edited CSV text into a fresh graph; optionally make it the workspace graph."""
+        if not isinstance(csv_text, str) or len(csv_text) > 50000:
+            raise ValueError('CSV must be text of at most 50000 characters')
+        if not isinstance(apply, bool):
+            raise ValueError('apply must be true or false')
+        mapped = workflow.map_rooms_text(workflow.build_graph(self.taxonomy), csv_text, mapping)
+        inferred, trace = workflow.infer_graph(mapped, self.classifier)
+        classifications = {entry['result']['room_id']: entry['result'] for entry in trace}
+        alerts = []
+        for room_id, result in classifications.items():
+            if not result['subject'].strip():
+                alerts.append({'room_id': room_id, 'message': 'Empty subject; only tags were classified.'})
+            if not result['assignments']:
+                alerts.append({'room_id': room_id, 'message': 'No concept matched this room.'})
+        types = {node['type'] for node in inferred['nodes']}
+        preview = {'graph': inferred, 'classifications': classifications, 'alerts': alerts,
+                   'headers': workflow.csv_headers(csv_text),
+                   'stats': {'nodes': len(inferred['nodes']), 'edges': len(inferred['edges']),
+                             'types': len(types), 'rooms': len(classifications), 'alerts': len(alerts)}}
+        if apply:
+            with self.lock:
+                self.mapping, self.csv_text, self.mapped = deepcopy(mapping), csv_text, mapped
+                self.initial, self.classifications = inferred, classifications
+                self.graph, self.last_execution = deepcopy(inferred), None
+        return deepcopy(preview)
 
     def query(self, params: dict) -> list:
         if not isinstance(params, dict) or 'operation' not in params:
@@ -107,7 +151,7 @@ def make_server(port: int, session: DashboardSession):
             if not self.local_request():
                 return
             path = urlsplit(self.path).path
-            if path not in ('/api/query', '/api/behavior', '/api/reset'):
+            if path not in ('/api/query', '/api/behavior', '/api/reset', '/api/infer', '/api/mapping'):
                 self.respond(404, {'error': 'Unknown route'})
                 return
             if self.headers.get('Content-Type', '').split(';')[0].strip().lower() != 'application/json':
@@ -129,6 +173,14 @@ def make_server(port: int, session: DashboardSession):
                     if set(body) != {'kind', 'name', 'params'}:
                         raise ValueError('Behavior needs kind, name and params')
                     result = session.execute(body['kind'], body['name'], body['params'])
+                elif path == '/api/infer':
+                    if body:
+                        raise ValueError('Inference takes an empty object')
+                    result = session.infer()
+                elif path == '/api/mapping':
+                    if not {'csv', 'mapping'} <= set(body) or set(body) - {'csv', 'mapping', 'apply'}:
+                        raise ValueError('Mapping needs csv, mapping and optional apply')
+                    result = session.map_preview(body['csv'], body['mapping'], body.get('apply', False))
                 else:
                     if body:
                         raise ValueError('Reset takes an empty object')
