@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room ontology workspace</title>
+<style>__DASHBOARD_CSS__</style>
+</head>
+<body>
+<header class="app-header">
+  <div class="brand"><span class="brand-icon" aria-hidden="true">◈</span><div><strong>Room ontology</strong><span>Explore the path from knowledge to action</span></div></div>
+  <div class="header-meta"><span id="taxonomy-version"></span><span id="session-status">Local sandbox</span></div>
+</header>
+<nav class="tabs" role="tablist" aria-label="Ontology workflow">
+  <button role="tab" aria-selected="false" aria-controls="workspace" id="tab-build" data-tab="build"><span>1</span> Build</button>
+  <button role="tab" aria-selected="false" aria-controls="workspace" id="tab-map" data-tab="map"><span>2</span> Map</button>
+  <button role="tab" aria-selected="false" aria-controls="workspace" id="tab-query" data-tab="query"><span>3</span> Query</button>
+  <button role="tab" aria-selected="true" aria-controls="workspace" id="tab-infer" data-tab="infer"><span>4</span> Infer</button>
+  <button role="tab" aria-selected="false" aria-controls="workspace" id="tab-behaviors" data-tab="behaviors"><span>5</span> Behaviors</button>
+  <button role="tab" aria-selected="false" aria-controls="workspace" id="tab-sandbox" data-tab="sandbox"><span>6</span> Sandbox</button>
+</nav>
+<main id="workspace" role="tabpanel" aria-labelledby="tab-infer">
+  <div class="stage-header"><div><h1 id="stage-title"></h1><p id="stage-description"></p></div><div id="stage-counts" class="stage-counts"></div></div>
+  <div class="workspace-grid">
+    <aside class="pane sidebar" aria-label="Selection and controls"><div id="controls"></div></aside>
+    <section class="pane canvas-pane" aria-label="Working canvas">
+      <div class="canvas-toolbar"><div><h2 id="canvas-title">Knowledge graph</h2><span id="graph-count"></span></div>
+        <div id="graph-tools" class="graph-tools"><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="fit-graph">Fit graph</button></div>
+      </div>
+      <div id="mapping-preview"></div>
+      <div id="graph-area" class="graph-area"><svg id="graph" role="img" aria-label="Interactive ontology graph" viewBox="0 0 1160 600"></svg><p id="graph-message" class="graph-message" hidden></p></div>
+      <div id="behavior-flow" hidden></div>
+      <div id="legend" class="legend"></div>
+      <div class="canvas-footer"><span id="canvas-hint">Select a node or relationship to inspect its evidence.</span><span>Scroll to zoom · Drag to pan</span></div>
+    </section>
+    <aside class="pane inspector" aria-label="Details and results"><div id="inspector"></div></aside>
+  </div>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+</main>
+<script type="application/json" id="dashboard-data">__DASHBOARD_DATA__</script>
+<script>__DASHBOARD_JS__</script>
+</body></html>

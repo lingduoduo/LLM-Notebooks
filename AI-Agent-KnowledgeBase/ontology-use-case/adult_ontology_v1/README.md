@@ -372,3 +372,176 @@ re-ran cleanly in the same session. No runtime claims are made without a
 representative dataset. Budget cache storage (it spills to disk) and `UNCACHE`
 when the session finishes. Degree caps and approximate pair generation change
 results and require an explicit quality/performance tradeoff.
+
+## Interactive ontology dashboard
+
+Start the graph workspace from this directory:
+
+```bash
+python3 main.py workflow dashboard --port 8765
+```
+
+Open **http://127.0.0.1:8765**. This is the visual workspace inspired by the supplied
+screenshots: six tabs, a selection/control pane, an SVG working canvas and a
+results inspector. It opens on the actual `ambiguous` room (“sexy latex”), with
+direct assignments, inferred ancestors and the context-review flag populated.
+
+| Tab | What to try |
+| --- | --- |
+| Build | Search `latex`, select its branch, inspect properties and vocabulary; show all concepts |
+| Map | Select a source room; follow CSV-column arrows to its mapped properties |
+| Query | Search entities, explore neighbors/N hops, or load the shortest-path example |
+| Infer | Select a solid direct edge or dashed inferred edge to inspect evidence and ancestor paths |
+| Behaviors | Select an action, function or event to inspect its parameter/operation flow |
+| Sandbox | Run `ambiguous` on room `ambiguous`; inspect the green review task and execution trace |
+
+Select graph nodes and edges with the mouse or keyboard (Enter/Space). Use Fit
+graph, zoom controls, scroll-to-zoom and drag-to-pan. The inspector shows readable
+labels and original evidence; IDs are available when specifying queries.
+
+Queries and behaviors execute through the **existing Python workflow**, not
+pre-scripted visual effects. Sandbox state lives only in the server's memory:
+repeated review events reuse pending tasks, functions do not mutate the graph,
+and Reset sandbox restores the original classified graph. All tabs share this
+session. Multiple browser windows on the same server share the same sandbox;
+restart the process for a fresh session. Source CSV, taxonomy and registry files
+are never written. This is a browsing/execution dashboard, not an ontology editor.
+
+The server binds only to `127.0.0.1`, serves the dashboard and bounded JSON APIs,
+and requires no third-party packages, model calls or remote assets. Keep the
+terminal running while using it; Ctrl+C stops the server. Use `--port 0` to pick
+an available port (the selected URL is printed). No website is published.
+
+Optional browser acceptance checks, using a separate Python environment with
+Playwright and an installed Chromium browser, while the server runs:
+
+```bash
+python visuals/check_workflow_dashboard.py --url http://127.0.0.1:8765 \
+  --browser '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+```
+
+The check exercises actual controls and API results, resets the sandbox, and
+writes desktop/phone screenshots under ignored `out/workflow/`.
+
+## Six-stage ontology workflow
+
+Adapted from the six stages in the supplied screenshots of the
+[WeChat reference](https://mp.weixin.qq.com/s/X_o8eIm5JDbHxUonKfYWKA): ontology
+construction, data mapping, graph queries, knowledge inference, behavior definition,
+and a behavior sandbox. This implementation uses the room domain and existing
+classifier; the reference's manufacturing data and visual editor are not included.
+
+From this directory, with Python 3.10+ and no additional dependencies:
+
+```bash
+python3 main.py workflow demo
+# out/workflow/graph.json, sandbox.json, report.html
+```
+
+Open `out/workflow/report.html` in a browser. Each stage shows computed results in visible tables: entity structure, mapped
+rooms, query paths, classification evidence, behaviors and sandbox graph changes.
+Expandable raw JSON preserves the full execution data. The demo maps four
+rooms, classifies them, and creates one pending review task for the ambiguous
+room. `graph.json` is the classified graph before sandbox execution;
+`sandbox.json` contains the graph after the event, its changes, trace and result.
+The original CSV and taxonomy remain unchanged.
+
+### Map and inspect your records
+
+```bash
+python3 main.py workflow map \
+  --csv workflow_examples/rooms.csv --mapping workflow_examples/mapping.json \
+  --output out/workflow/mapped.json
+python3 main.py workflow query --graph out/workflow/graph.json \
+  --operation search --text latex
+python3 main.py workflow query --graph out/workflow/graph.json \
+  --operation neighbors --node room:clear --relation ASSIGNED_TO
+python3 main.py workflow query --graph out/workflow/graph.json \
+  --operation bfs --node concept:latex --depth 2
+python3 main.py workflow query --graph out/workflow/graph.json \
+  --operation path --node concept:latex --target concept:adult_content --relation IS_A
+```
+
+Mapping JSON maps canonical field names to CSV headers. Required keys are
+`room_id`, `subject`, `tags`; `self_declared_concepts` is optional. Subject may be
+empty. Tags and declarations are JSON string arrays in CSV cells; an empty cell
+means `[]`. The mapper rejects duplicate/blank room IDs, missing headers,
+malformed records, more than five tags and declarations outside IDENTITY.
+Use normal CSV quoting for commas and JSON quotes (see the sample CSV).
+
+Graphs have `schema_version: 1`, `taxonomy_version`, `nodes` and `edges`. Each node
+has `id`, `type`, `properties`; each edge has `source`, `target`, `type`,
+`properties`. The validated entity schema and relationship endpoints are defined
+in `workflow.SCHEMA` and `workflow.RELATIONS` and shown in the report:
+
+| Entity | ID prefix | Required properties |
+| --- | --- | --- |
+| Concept | `concept:` | `label`, `parent_id` (plus existing taxonomy metadata) |
+| Room | `room:` | `room_id`, `subject`, `tags`, `self_declared_concepts` |
+| ReviewTask | `review:` | `room_id`, `status` |
+
+`IS_A` links child concepts to parents. `ASSIGNED_TO` links rooms to directly
+supported concepts and retains the classifier evidence. `INFERRED_AS` links rooms
+to ancestor concepts and records supporting direct concepts and ancestor paths.
+Both assignment types record the taxonomy version. Classification rejects concept
+metadata or hierarchy edges that differ from the classifier taxonomy. `HAS_REVIEW` links rooms to
+review tasks. Namespace prefixes keep room IDs separate from concept IDs.
+
+Queries traverse relationships in **both directions**; `--relation` filters edges.
+BFS returns reachable nodes with paths up to `--depth` (including the start).
+`path` returns one shortest path, ignores `--depth`, and returns `[]` when the
+target is disconnected. Node IDs must include their prefix. Both bare graph JSON
+and sandbox result JSON can be used as `--graph`.
+
+### Run actions, functions and events
+
+```bash
+# Classify a mapped room; writes a new artifact rather than changing mapped.json.
+python3 main.py workflow sandbox --graph out/workflow/mapped.json \
+  --kind action --name classify --params '{"room_id":"ambiguous"}' \
+  --output out/workflow/classified-room.json
+
+# Ambiguity events require the selected room to have been classified first.
+python3 main.py workflow sandbox --graph out/workflow/classified-room.json \
+  --kind event --name ambiguous --params '{"room_id":"ambiguous"}' \
+  --output out/workflow/review-result.json
+
+python3 main.py workflow sandbox --graph out/workflow/review-result.json \
+  --kind function --name pending --params '{}' \
+  --output out/workflow/pending.json
+```
+
+The default `workflow_examples/behaviors.json` registry defines `classify` and
+`review` actions, `assignments` and `pending` functions, and the `ambiguous` event.
+Supply `--behaviors PATH` for another registry. Definitions use `version: 1` plus
+`actions`, `functions`, `events` objects. Each behavior declares `parameters`
+(currently `room_id`, or none); step `params` values are literal strings or
+`$room_id` references to a declared parameter. Supported operations are:
+
+| Kind | Operation | Effect |
+| --- | --- | --- |
+| Action | `classify_room` | Replace one room's direct/ancestor assignments using the existing classifier |
+| Action | `create_review_task` | Create a pending review task, or reuse the existing pending task |
+| Function | `room_assignments` | Return one room's direct and inferred assignment edges |
+| Function | `pending_reviews` | Return all pending review-task nodes; takes no parameters |
+
+Actions have a nonempty `steps` array of `{operation, params}` objects. Functions
+have `operation` and `params` directly. Events require
+`condition: "requires_context_review"` and an `action` reference; they dispatch
+that action only when the selected room's classification flag is true. Events
+cannot call events and actions cannot call other behaviors, so recursive cycles
+are impossible. Unsupported operations, dangling references, unknown parameters
+and malformed definitions are rejected before execution. No Python expressions
+or arbitrary code are evaluated.
+
+Sandbox execution uses a deep copy and returns `graph`, `result`, ordered `trace`
+and `changes`. Changes list added, removed and updated nodes/edges, including
+before/after values for updates. If any step fails, no result artifact is written
+and the input graph stays unchanged. Functions produce no graph changes.
+Repeated review events reuse the pending task. There is no automatic scheduler,
+external action, human-review application or commit-back command. Reclassify
+rooms after editing their input properties before evaluating ambiguity events;
+review tasks are not automatically resolved by reclassification.
+
+Use `python3 -m unittest test_workflow test_workflow_cli -v` for the workflow
+contracts, or `python3 -m unittest discover -v` for the whole taxonomy suite.

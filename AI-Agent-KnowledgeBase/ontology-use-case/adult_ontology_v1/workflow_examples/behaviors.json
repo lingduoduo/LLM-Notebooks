@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "actions": {
+    "classify": {
+      "parameters": [
+        "room_id"
+      ],
+      "steps": [
+        {
+          "operation": "classify_room",
+          "params": {
+            "room_id": "$room_id"
+          }
+        }
+      ]
+    },
+    "review": {
+      "parameters": [
+        "room_id"
+      ],
+      "steps": [
+        {
+          "operation": "create_review_task",
+          "params": {
+            "room_id": "$room_id"
+          }
+        }
+      ]
+    }
+  },
+  "functions": {
+    "assignments": {
+      "parameters": [
+        "room_id"
+      ],
+      "operation": "room_assignments",
+      "params": {
+        "room_id": "$room_id"
+      }
+    },
+    "pending": {
+      "parameters": [],
+      "operation": "pending_reviews",
+      "params": {}
+    }
+  },
+  "events": {
+    "ambiguous": {
+      "parameters": [
+        "room_id"
+      ],
+      "condition": "requires_context_review",
+      "action": "review"
+    }
+  }
+}
