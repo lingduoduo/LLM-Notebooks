@@ -1,6 +1,5 @@
 """Offline ontology graph, mapping, inference and allowlisted behavior execution."""
-from collections import deque
-from copy import deepcopy
+from collections import defaultdict, deque
 import csv
 import io
 import json
@@ -21,6 +20,18 @@ RELATIONS = {
     'INFERRED_AS': ('Room', 'Concept'),
     'HAS_REVIEW': ('Room', 'ReviewTask'),
 }
+DERIVED = ('ASSIGNED_TO', 'INFERRED_AS')
+
+
+def clone(value):
+    """Copy JSON-shaped data (dicts, lists, scalars) several times faster than deepcopy."""
+    if isinstance(value, dict):
+        return {key: clone(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [clone(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(clone(item) for item in value)
+    return value
 
 
 def string_array(value, label):
@@ -89,7 +100,7 @@ def build_graph(taxonomy: dict) -> dict:
     graph = {'schema_version': 1, 'taxonomy_version': taxonomy['version'], 'nodes': [], 'edges': []}
     for node in taxonomy['nodes']:
         graph['nodes'].append({'id': 'concept:' + node['id'], 'type': 'Concept',
-                               'properties': deepcopy(node)})
+                               'properties': clone(node)})
         if node['parent_id'] is not None:
             graph['edges'].append({'source': 'concept:' + node['id'],
                                    'target': 'concept:' + node['parent_id'],
@@ -124,7 +135,7 @@ def _map_stream(graph: dict, stream, mapping: dict) -> dict:
             or mapping.keys() - allowed or any(not isinstance(v, str) or not v for v in mapping.values())
             or len(set(mapping.values())) != len(mapping)):
         raise ValueError('mapping needs distinct source columns for room_id, subject and tags')
-    result = deepcopy(graph)
+    result = clone(graph)
     reader = csv.DictReader(stream)
     if not reader.fieldnames or not set(mapping.values()) <= set(reader.fieldnames):
         raise ValueError('CSV is missing mapped headers')
@@ -156,10 +167,10 @@ def query_graph(graph: dict, operation: str, **params) -> list:
         text = params.get('text', '')
         if not isinstance(text, str):
             raise ValueError('search text must be a string')
-        return deepcopy([node for node in nodes.values()
+        return clone([node for node in nodes.values()
                          if text.casefold() in json.dumps(node, ensure_ascii=False).casefold()])
     if operation == 'pattern':
-        return deepcopy(_pattern_query(graph, nodes, params.get('text')))
+        return clone(_pattern_query(graph, nodes, params.get('text')))
     if operation not in ('neighbors', 'bfs', 'path'):
         raise ValueError('unknown query operation')
     start, target = params.get('node'), params.get('target')
@@ -176,13 +187,13 @@ def query_graph(graph: dict, operation: str, **params) -> list:
             adjacency[edge['source']].add(edge['target'])
             adjacency[edge['target']].add(edge['source'])
     if operation == 'neighbors':
-        return deepcopy([nodes[n] for n in sorted(adjacency[start])])
+        return clone([nodes[n] for n in sorted(adjacency[start])])
     queue, seen, result = deque([(start, [start])]), {start}, []
     while queue:
         identifier, path = queue.popleft()
         item = {'node': nodes[identifier], 'path': path}
         if operation == 'path' and identifier == target:
-            return deepcopy([item])
+            return clone([item])
         if operation == 'bfs':
             result.append(item)
             if len(path) - 1 >= depth:
@@ -191,7 +202,7 @@ def query_graph(graph: dict, operation: str, **params) -> list:
             if neighbor not in seen:
                 seen.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
-    return deepcopy(result)
+    return clone(result)
 
 
 _NODE = re.compile(r'\(\s*([A-Za-z_]\w*)\s*(?::\s*([A-Za-z]\w*))?\s*\)')
@@ -375,7 +386,14 @@ def run_rules(graph: dict, definitions: dict) -> dict:
     validate_rules(definitions)
     nodes = {n['id']: n for n in graph['nodes']}
     edges = [(e['source'], e['type'], e['target']) for e in graph['edges']]
-    edges += [(s, 'HAS_CONCEPT', t) for s, kind, t in edges if kind in ('ASSIGNED_TO', 'INFERRED_AS')]
+    edges += [(s, 'HAS_CONCEPT', t) for s, kind, t in edges if kind in DERIVED]
+    # Index by every bound-endpoint combination so a relation premise is a lookup,
+    # not a scan of all edges (which made rule evaluation rooms x edges). Lists keep
+    # edge order, so matches, bindings and steps come out in the same order as a scan.
+    index = defaultdict(list)
+    for s, kind, t in edges:
+        for key in ((kind, None, None), (kind, s, None), (kind, None, t), (kind, s, t)):
+            index[key].append((s, kind, t))
 
     def resolve(term, binding):
         return binding.get(term) if term.startswith('?') else term
@@ -393,10 +411,9 @@ def run_rules(graph: dict, definitions: dict) -> dict:
             return
         if 'relation' in premise:
             source, target = resolve(premise['source'], binding), resolve(premise['target'], binding)
-            for s, kind, t in edges:
-                if kind == premise['relation'] and source in (None, s) and target in (None, t):
-                    extra = {k: v for k, v in ((premise['source'], s), (premise['target'], t)) if k.startswith('?')}
-                    yield {**binding, **extra}, f'{kind}({s}, {t})'
+            for s, kind, t in index.get((premise['relation'], source, target), ()):
+                extra = {k: v for k, v in ((premise['source'], s), (premise['target'], t)) if k.startswith('?')}
+                yield {**binding, **extra}, f'{kind}({s}, {t})'
             return
         node = nodes.get(resolve(premise['of'], binding))
         if node is not None and node['properties'].get(premise['property']) == premise['equals']:
@@ -427,10 +444,12 @@ def run_rules(graph: dict, definitions: dict) -> dict:
                       for pair in definitions['contradictions'] if set(pair) <= facts]
     rules = [{'name': name, 'label': rule['label'], 'text': describe_rule(rule)}
              for name, rule in definitions['rules'].items()]
-    return deepcopy({'rules': rules, 'inferences': inferences, 'contradictions': contradictions})
+    # Every value here is freshly built from strings, so nothing aliases the input graph.
+    return {'rules': rules, 'inferences': inferences, 'contradictions': contradictions}
 
 
-def _classify_node(graph, room, classifier):
+
+def _check_classifier(graph, classifier):
     if graph['taxonomy_version'] != classifier.version:
         raise ValueError('classifier taxonomy version does not match graph')
     # A matching version string is insufficient if the graph was edited independently.
@@ -442,11 +461,19 @@ def _classify_node(graph, room, classifier):
                 for identifier, node in classifier.nodes.items() if node['parent_id'] is not None}
     if hierarchy != expected:
         raise ValueError('graph hierarchy edges differ from classifier taxonomy')
+
+
+def _classify_node(graph, room, classifier, checked=False):
+    """Replace one room's derived edges. Bulk callers check the taxonomy and clear
+    old derived edges once (checked=True) instead of rescanning the graph per room."""
+    if not checked:
+        _check_classifier(graph, classifier)
     props = room['properties']
     result = classifier.classify_room(props['room_id'], props['subject'], props['tags'],
                                      self_declared_concepts=props['self_declared_concepts'])
-    graph['edges'] = [e for e in graph['edges'] if not
-                      (e['source'] == room['id'] and e['type'] in ('ASSIGNED_TO', 'INFERRED_AS'))]
+    if not checked:
+        graph['edges'] = [e for e in graph['edges'] if not
+                          (e['source'] == room['id'] and e['type'] in DERIVED)]
     props['requires_context_review'] = result['requires_context_review']
     support = {}
     for assignment in result['assignments']:
@@ -473,11 +500,16 @@ def infer_graph(graph: dict, classifier: utils.RoomClassifier) -> tuple[dict, li
     validate_graph(graph)
     if graph['taxonomy_version'] != classifier.version:
         raise ValueError('classifier taxonomy version does not match graph')
-    result, trace = deepcopy(graph), []
-    for node in result['nodes']:
-        if node['type'] == 'Room':
-            classified = _classify_node(result, node, classifier)
-            trace.append({'operation': 'classify_room', 'room': node['id'], 'result': classified})
+    result, trace = clone(graph), []
+    rooms = [node for node in result['nodes'] if node['type'] == 'Room']
+    if rooms:
+        # Every room is reclassified, so check the taxonomy and drop all old derived
+        # edges once; per-room checks and filtering made this rooms x graph size.
+        _check_classifier(result, classifier)
+        result['edges'] = [e for e in result['edges'] if e['type'] not in DERIVED]
+    for node in rooms:
+        classified = _classify_node(result, node, classifier, checked=True)
+        trace.append({'operation': 'classify_room', 'room': node['id'], 'result': classified})
     validate_graph(result)
     return result, trace
 
@@ -558,7 +590,7 @@ def _execute_operation(graph, operation, params, classifier):
         return _classify_node(graph, room, classifier)
     if operation == 'room_assignments':
         return [e for e in graph['edges'] if e['source'] == room['id']
-                and e['type'] in ('ASSIGNED_TO', 'INFERRED_AS')]
+                and e['type'] in DERIVED]
     pending = [n for n in graph['nodes'] if n['type'] == 'ReviewTask'
                and n['properties']['room_id'] == params['room_id'] and n['properties']['status'] == 'pending']
     if pending:
@@ -603,7 +635,7 @@ def run_sandbox(graph: dict, definitions: dict, kind: str, name: str, params: di
     if (not isinstance(params, dict) or set(params) != set(entry['parameters'])
             or any(not isinstance(v, str) or not v.strip() for v in params.values())):
         raise ValueError(f'{name} requires parameters {entry["parameters"]}')
-    work, trace, result = deepcopy(graph), [], None
+    work, trace, result = clone(graph), [], None
     if kind == 'event':
         room = _room(work, params['room_id'])
         if 'requires_context_review' not in room['properties']:
@@ -617,6 +649,7 @@ def run_sandbox(graph: dict, definitions: dict, kind: str, name: str, params: di
     for number, step in enumerate(steps, 1):
         arguments = {k: params[v[1:]] if v.startswith('$') else v for k, v in step['params'].items()}
         result = _execute_operation(work, step['operation'], arguments, classifier)
-        trace.append({'step': number, 'operation': step['operation'], 'params': arguments, 'result': deepcopy(result)})
+        trace.append({'step': number, 'operation': step['operation'], 'params': arguments, 'result': clone(result)})
     validate_graph(work)
-    return deepcopy({'graph': work, 'changes': _diff(graph, work), 'trace': trace, 'result': result})
+    # work is already private; only the diff references the caller's graph.
+    return {'graph': work, 'changes': clone(_diff(graph, work)), 'trace': trace, 'result': clone(result)}
