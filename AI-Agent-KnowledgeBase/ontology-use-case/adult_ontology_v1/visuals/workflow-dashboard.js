@@ -32,7 +32,9 @@ function badge(text,cls=''){return el('span','badge '+cls,text);}
 function fields(parent, entries) { const dl=el('dl'); for(const [key,value] of entries){ const row=el('div'); add(row,el('dt','',key),el('dd','',Array.isArray(value)?value.join(', ')||'None':String(value??'None')));dl.append(row);}parent.append(dl); }
 function status(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' error':'');}
 function nodes(){return data.graph.nodes;}
-function node(id){return nodes().find(n=>n.id===id);}
+// Graphs are replaced, never mutated, so an index keyed on the array stays valid; label() runs per edge.
+let nodeIndex={list:null,byId:null};
+function node(id){const list=nodes();if(nodeIndex.list!==list)nodeIndex={list,byId:new Map(list.map(n=>[n.id,n]))};return nodeIndex.byId.get(id);}
 function label(id){if(id.startsWith('type:'))return id.slice(5);const n=node(id);return n?name(n):id.replace(/^(concept|room|review):/,'');}
 function name(n){if(n.type==='Room')return 'Room: '+n.properties.room_id;if(n.type==='ReviewTask')return 'Context review';return n.properties.label||n.id;}
 function currentRoom(){return node('room:'+ui.room);}

@@ -1,16 +1,20 @@
 """Local ontology workspace backed by the existing Python workflow."""
-from copy import deepcopy
 import json
 from threading import RLock
 
 import utils
 import workflow
+from workflow import clone
 
 EXAMPLES = utils.ROOT / 'workflow_examples'
 
 
 class DashboardSession:
-    """A private, transactional graph copy for one local dashboard process."""
+    """A private, transactional graph copy for one local dashboard process.
+
+    Stored values are replaced, never mutated in place, so they can be shared
+    internally; only values handed to callers are cloned.
+    """
 
     def __init__(self):
         self.lock = RLock()
@@ -23,28 +27,37 @@ class DashboardSession:
         self.rules = json.loads((EXAMPLES / 'rules.json').read_text(encoding='utf-8'))
         workflow.validate_rules(self.rules)
         self.sample_csv = (EXAMPLES / 'rooms.csv').read_text(encoding='utf-8-sig')
-        self.sample_mapping = deepcopy(self.mapping)
+        self.sample_mapping = clone(self.mapping)
         self.csv_text = self.sample_csv
         self.mapped = workflow.map_rooms(workflow.build_graph(self.taxonomy), EXAMPLES / 'rooms.csv', self.mapping)
         self.initial, trace = workflow.infer_graph(self.mapped, self.classifier)
         self.classifications = {entry['result']['room_id']: entry['result'] for entry in trace}
-        self.graph = deepcopy(self.initial)
+        self.graph = self.initial
         self.last_execution = None
 
     def state(self) -> dict:
         with self.lock:
-            return deepcopy({'taxonomy': self.taxonomy, 'keywords': self.keywords,
-                             'mapping': self.mapping, 'mapped': self.mapped,
-                             'graph': self.graph, 'initial_graph': self.initial,
-                             'classifications': self.classifications,
-                             'behaviors': self.behaviors, 'last_execution': self.last_execution,
-                             'rules': [{'name': name, 'label': rule['label'], 'text': workflow.describe_rule(rule)}
-                                       for name, rule in self.rules['rules'].items()],
-                             'contradiction_pairs': self.rules['contradictions'],
-                             'csv_text': self.csv_text, 'sample_csv': self.sample_csv,
-                             'sample_mapping': self.sample_mapping,
-                             'schema': {'types': {kind: sorted(spec['required']) for kind, spec in workflow.SCHEMA.items()},
-                                        'relations': {name: list(ends) for name, ends in workflow.RELATIONS.items()}}})
+            return clone(self._state_view())
+
+    def state_json(self) -> str:
+        """Serialize directly under the lock; no intermediate copy."""
+        with self.lock:
+            return json.dumps(self._state_view(), ensure_ascii=False)
+
+    def _state_view(self) -> dict:
+        """References to current state; call with the lock held."""
+        return {'taxonomy': self.taxonomy, 'keywords': self.keywords,
+                'mapping': self.mapping, 'mapped': self.mapped,
+                'graph': self.graph, 'initial_graph': self.initial,
+                'classifications': self.classifications,
+                'behaviors': self.behaviors, 'last_execution': self.last_execution,
+                'rules': [{'name': name, 'label': rule['label'], 'text': workflow.describe_rule(rule)}
+                          for name, rule in self.rules['rules'].items()],
+                'contradiction_pairs': self.rules['contradictions'],
+                'csv_text': self.csv_text, 'sample_csv': self.sample_csv,
+                'sample_mapping': self.sample_mapping,
+                'schema': {'types': {kind: sorted(spec['required']) for kind, spec in workflow.SCHEMA.items()},
+                           'relations': {name: list(ends) for name, ends in workflow.RELATIONS.items()}}}
 
     def infer(self) -> dict:
         """Evaluate the rule registry against the current sandbox graph (read-only)."""
@@ -73,10 +86,10 @@ class DashboardSession:
                              'types': len(types), 'rooms': len(classifications), 'alerts': len(alerts)}}
         if apply:
             with self.lock:
-                self.mapping, self.csv_text, self.mapped = deepcopy(mapping), csv_text, mapped
+                self.mapping, self.csv_text, self.mapped = clone(mapping), csv_text, mapped
                 self.initial, self.classifications = inferred, classifications
-                self.graph, self.last_execution = deepcopy(inferred), None
-        return deepcopy(preview)
+                self.graph, self.last_execution = inferred, None
+        return clone(preview)
 
     def query(self, params: dict) -> list:
         if not isinstance(params, dict) or 'operation' not in params:
@@ -95,14 +108,12 @@ class DashboardSession:
             raise ValueError('kind must be a string')
         with self.lock:
             result = workflow.run_sandbox(self.graph, self.behaviors, kind, name, params, self.classifier)
-            self.graph = deepcopy(result['graph'])
-            self.last_execution = deepcopy(result)
-            return result
+            self.graph, self.last_execution = result['graph'], result
+            return clone(result)
 
     def reset(self) -> dict:
         with self.lock:
-            self.graph = deepcopy(self.initial)
-            self.last_execution = None
+            self.graph, self.last_execution = self.initial, None
             return self.state()
 
 
@@ -143,7 +154,7 @@ def make_server(port: int, session: DashboardSession):
             if path in ('/', '/dashboard.html'):
                 self.respond(200, render_dashboard(session), 'text/html; charset=utf-8')
             elif path == '/api/state':
-                self.respond(200, session.state())
+                self.respond(200, session.state_json())
             else:
                 self.respond(404, {'error': 'Unknown route'})
 
@@ -195,7 +206,7 @@ def make_server(port: int, session: DashboardSession):
 def render_dashboard(session: DashboardSession) -> str:
     visuals = utils.ROOT / 'visuals'
     template = (visuals / 'workflow-dashboard.template.html').read_text(encoding='utf-8')
-    payload = json.dumps(session.state(), ensure_ascii=False).replace('<', '\\u003c')
+    payload = session.state_json().replace('<', '\\u003c')
     # Substitute data last: imported text cannot be mistaken for an asset placeholder.
     return (template.replace('__DASHBOARD_CSS__', (visuals / 'workflow-dashboard.css').read_text(encoding='utf-8'))
             .replace('__DASHBOARD_JS__', (visuals / 'workflow-dashboard.js').read_text(encoding='utf-8'))
